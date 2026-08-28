@@ -7,8 +7,11 @@ using NexoLauncher.Minecraft.Downloads;
 using NexoLauncher.Minecraft.Rules;
 using NexoLauncher.Java.Detection;
 using NexoLauncher.Java.Compatibility;
+using NexoLauncher.Application.Configuration;
 using NexoLauncher.Application.Instances;
+using NexoLauncher.Domain.Configuration;
 using NexoLauncher.Domain.Instances;
+using NexoLauncher.Infrastructure.Configuration;
 using NexoLauncher.Infrastructure.Instances;
 
 var failures = new List<string>();
@@ -23,6 +26,42 @@ Check("RAM never drops below the supported minimum", () =>
 {
     var settings = MemorySettings.CreateSafe(128, 8_192);
     Equal(512, settings.MaximumMiB);
+});
+
+Check("RAM recommendation scales conservatively with system memory", () =>
+{
+    Equal(2048, MemoryRecommendation.RecommendMiB(4096));
+    Equal(4096, MemoryRecommendation.RecommendMiB(16384));
+    Equal(8192, MemoryRecommendation.RecommendMiB(65536));
+});
+
+Check("Global settings are overridden only by instance settings", () =>
+{
+    var global = new LauncherSettings(4096, @"C:\Java\global\bin\java.exe", "Player");
+    var inherited = LauncherSettingsResolver.Resolve(global, new InstanceSettings());
+    Equal(4096, inherited.MemoryMiB);
+    Equal(@"C:\Java\global\bin\java.exe", inherited.JavaPath);
+
+    var overridden = LauncherSettingsResolver.Resolve(global, new InstanceSettings(6144, @"C:\Java\instance\bin\java.exe"));
+    Equal(6144, overridden.MemoryMiB);
+    Equal(@"C:\Java\instance\bin\java.exe", overridden.JavaPath);
+});
+
+Check("Launcher settings persist atomically", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-tests", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var path = Path.Combine(root, "settings.json");
+        var store = new JsonLauncherSettingsStore(path);
+        store.SaveAsync(new LauncherSettings(6144, @"C:\Java\jdk-21\bin\java.exe", "NexoUser")).GetAwaiter().GetResult();
+        var restored = store.LoadAsync().GetAwaiter().GetResult();
+        Equal(6144, restored.MemoryMiB);
+        Equal(@"C:\Java\jdk-21\bin\java.exe", restored.JavaPath);
+        Equal("NexoUser", restored.Username);
+        Equal(false, File.Exists(path + ".tmp"));
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 });
 
 Check("Launch arguments stay tokenized", () =>
@@ -199,7 +238,7 @@ if (failures.Count > 0)
     return 1;
 }
 
-Console.WriteLine("15 checks passed.");
+Console.WriteLine("18 checks passed.");
 return 0;
 
 void Check(string name, Action action)
