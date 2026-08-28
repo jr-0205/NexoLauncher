@@ -1,25 +1,34 @@
+using System.Collections.Concurrent;
+
 namespace NexoLauncher.Java.Detection;
 
 public sealed class JavaRuntimeDetector(JavaRuntimeInspector inspector)
 {
+    private const int MaxParallelInspections = 3;
+
     public async Task<IReadOnlyList<JavaRuntime>> DetectAsync(CancellationToken token = default)
     {
         var candidates = CandidatePaths()
             .DistinctBy(item => item.Path, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
-        var runtimes = new List<JavaRuntime>(candidates.Length);
-        foreach (var candidate in candidates)
+        var runtimes = new ConcurrentBag<JavaRuntime>();
+        var options = new ParallelOptions
         {
-            token.ThrowIfCancellationRequested();
+            CancellationToken = token,
+            MaxDegreeOfParallelism = MaxParallelInspections
+        };
+
+        await Parallel.ForEachAsync(candidates, options, async (candidate, cancellationToken) =>
+        {
             try
             {
-                var runtime = await inspector.InspectAsync(candidate.Path, candidate.Source, token);
+                var runtime = await inspector.InspectAsync(candidate.Path, candidate.Source, cancellationToken);
                 if (runtime is not null) runtimes.Add(runtime);
             }
             catch (OperationCanceledException) { throw; }
             catch { }
-        }
+        });
 
         return runtimes
             .DistinctBy(runtime => runtime.JavaExecutable, StringComparer.OrdinalIgnoreCase)
