@@ -601,9 +601,9 @@ public partial class MainWindow : Window
                 ? Path.Combine(paths.Instances, versionId, "game")
                 : Path.Combine(instanceRepository.GetInstanceDirectory(instance.Id), "game");
             var plan = minecraft.CreateLaunchPlan(versionId, loaderId, instance?.LoaderVersion, gameDirectory);
-            var process = minecraft.Launch(new LaunchOptions(
+            var session = minecraft.Launch(new LaunchOptions(
                 versionId,
-                runtime.JavawExecutable,
+                runtime.JavaExecutable,
                 launcherSettings.Username,
                 memoryMiB,
                 JvmArguments: effective.JvmArguments,
@@ -611,15 +611,18 @@ public partial class MainWindow : Window
                 WindowHeight: effective.WindowHeight,
                 Fullscreen: effective.Fullscreen == true), plan);
 
-            await Task.Delay(700, lifetime.Token);
-            if (!process.HasExited)
+            await Task.Delay(1200, lifetime.Token);
+            if (!session.Process.HasExited)
             {
                 if (launcherSettings.CloseLauncherOnGameStart)
                     System.Windows.Application.Current.Shutdown();
                 return;
             }
 
-            throw new InvalidOperationException("Java terminó antes de iniciar Minecraft.");
+            var details = await session.GetFailureDetailsAsync();
+            throw new InvalidOperationException(
+                $"Java terminó antes de iniciar Minecraft (código {session.Process.ExitCode}).\n\n" +
+                $"{details}\n\nRegistro completo: {session.LogPath}");
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         catch (Exception exception)
