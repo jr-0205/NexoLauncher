@@ -254,7 +254,7 @@ Check("Instance Manager deletes only the selected isolated pack", () =>
         Equal(true, manager.DeleteAsync(selected.Id).GetAwaiter().GetResult());
         Equal(false, Directory.Exists(selectedDirectory));
         Equal(true, Directory.Exists(preservedDirectory));
-        Equal<string?>(null, manager.GetAsync(selected.Id).GetAwaiter().GetResult());
+        Equal<GameInstance?>(null, manager.GetAsync(selected.Id).GetAwaiter().GetResult());
         Equal("Pack conservado", manager.GetAsync(preserved.Id).GetAwaiter().GetResult()?.Name);
         Equal(false, manager.DeleteAsync(selected.Id).GetAwaiter().GetResult());
     }
