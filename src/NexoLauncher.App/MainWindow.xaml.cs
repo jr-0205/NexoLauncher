@@ -35,16 +35,16 @@ public partial class MainWindow : Window
         Loaded += async (_, _) =>
         {
             await new LegacyInstallationMigrator(paths.Instances, instanceRepository).MigrateAsync();
-            RefreshInstances();
-            ShowLibrary();
+            await ShowLibraryAsync();
             await LoadVersionsAsync();
         };
     }
 
-    private void RefreshInstances()
+    private async Task RefreshInstancesAsync()
     {
         paths.EnsureCreated();
-        var items = instanceRepository.ListAsync().GetAwaiter().GetResult()
+        var instances = await instanceRepository.ListAsync();
+        var items = instances
             .Select(instance => new InstanceItem(instance.Id, instance.MinecraftVersion, instance.Name, $"{instance.Loader} · Instalado", instance.UpdatedAt))
             .ToArray();
         InstancesList.ItemsSource = items;
@@ -72,12 +72,12 @@ public partial class MainWindow : Window
         finally { SetBusy(false); RefreshButton(); }
     }
 
-    private void ShowLibrary_Click(object sender, RoutedEventArgs e) => ShowLibrary();
+    private async void ShowLibrary_Click(object sender, RoutedEventArgs e) => await ShowLibraryAsync();
     private void ShowInstall_Click(object sender, RoutedEventArgs e) => ShowInstall();
 
-    private void ShowLibrary()
+    private async Task ShowLibraryAsync()
     {
-        RefreshInstances();
+        await RefreshInstancesAsync();
         LibraryPanel.Visibility = Visibility.Visible;
         InstallPanel.Visibility = Visibility.Collapsed;
         LibraryNavButton.Background = new SolidColorBrush(Color.FromRgb(25, 36, 56));
@@ -111,8 +111,7 @@ public partial class MainWindow : Window
                 Progress.Value = value.Percentage;
             });
             await minecraft.InstallAsync(version, reporter, operation.Token);
-            RefreshInstances();
-            ShowLibrary();
+            await ShowLibraryAsync();
         }
         catch (OperationCanceledException) { StatusText.Text = "Operación cancelada."; }
         catch (Exception exception) { ShowError(exception); }
@@ -177,7 +176,3 @@ public partial class MainWindow : Window
     protected override void OnClosing(CancelEventArgs e) { operation?.Cancel(); httpClient.Dispose(); base.OnClosing(e); }
     private sealed record InstanceItem(InstanceId Id, string VersionId, string Name, string Subtitle, DateTimeOffset Modified);
 }
-
-
-
-
