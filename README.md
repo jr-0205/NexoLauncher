@@ -4,7 +4,7 @@ Launcher nativo y ligero para Minecraft Java en Windows. Está construido con C#
 
 La experiencia visual toma como referencia el nivel de pulido de clientes como Lunar Client, pero NEXO mantiene código, arquitectura, identidad y componentes propios.
 
-## Estado actual · Runtime Experience 0.4
+## Estado actual · Loader Runtime 0.5
 
 - interfaz WPF nativa con biblioteca, nueva instalación y configuración global;
 - perfiles/instancias independientes con `instance.json`;
@@ -17,6 +17,7 @@ La experiencia visual toma como referencia el nivel de pulido de clientes como L
 - Java Manager con versión, proveedor, arquitectura y compatibilidad;
 - detección de múltiples instalaciones Java en `JAVA_HOME`, `PATH` y ubicaciones relevantes de Program Files;
 - inspección de runtimes con paralelismo acotado para mantener el launcher ligero;
+- timeout y terminación segura de runtimes defectuosos durante la inspección;
 - caché de runtimes Java válida durante 24 horas;
 - selección automática del Java correcto para cada versión de Minecraft;
 - prioridad para `javaVersion.majorVersion` publicado por Mojang y fallback histórico para releases antiguas;
@@ -27,6 +28,17 @@ La experiencia visual toma como referencia el nivel de pulido de clientes como L
 - RAM recomendada y límite seguro basados en memoria física de Windows;
 - cierre configurable del launcher al iniciar Minecraft;
 - usuario local mientras la autenticación Microsoft sigue fuera del flujo de producción.
+- arquitectura de loaders mediante `ILoaderProvider`;
+- proveedores Vanilla y Fabric separados del `MainWindow`;
+- catálogo y perfiles desde la API oficial de Fabric;
+- selección y persistencia de versión de Fabric por instancia;
+- `LaunchPlan` con `KnotClient`, bibliotecas adicionales y argumentos del loader;
+- directorio de juego realmente aislado por GUID de instancia;
+- editor de instancia para nombre, RAM, Java, ventana, pantalla completa y argumentos JVM;
+- eliminación segura de packs completos desde la biblioteca, siempre con confirmación explícita;
+- catálogo de versiones Forge y NeoForge desde sus repositorios Maven oficiales;
+- ejecución aislada de los instaladores oficiales para conservar sus procesadores y parches;
+- perfiles Forge/NeoForge importados a la arquitectura común de `LaunchPlan`;
 
 ## Selección automática de Java
 
@@ -76,10 +88,10 @@ dotnet build NexoLauncher.slnx
 dotnet run --project tests/NexoLauncher.Core.Tests
 ```
 
-El harness actual contiene 23 comprobaciones de memoria, configuración, instancias, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes y selección automática por versión.
+El harness actual contiene 33 comprobaciones de memoria, configuración, instancias, eliminación aislada de packs, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes, loaders y selección automática por versión.
 
 ## Alcance actual
 
-Vanilla es el proveedor funcional actual. Fabric, Forge, NeoForge, Content Manager, autenticación oficial Microsoft/Xbox, Mission Control y el módulo in-game de NEXO se desarrollarán como subsistemas separados, no como lógica añadida al `MainWindow`.
+Vanilla, Fabric, Forge y NeoForge forman parte de la línea unificada de NEXO 0.5. Content Manager, autenticación oficial Microsoft/Xbox, Mission Control y el módulo in-game de NEXO se desarrollarán como subsistemas separados, no como lógica añadida al `MainWindow`.
 
 La autenticación local no equivale a una cuenta comprada y no sustituye la autenticación oficial de Minecraft.

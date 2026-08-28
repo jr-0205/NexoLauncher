@@ -6,6 +6,7 @@ using System.Text.Json;
 using NexoLauncher.Minecraft.Downloads;
 using NexoLauncher.Minecraft.Rules;
 using NexoLauncher.Minecraft.Java;
+using NexoLauncher.Minecraft.Loaders;
 using NexoLauncher.Java;
 using NexoLauncher.Java.Detection;
 using NexoLauncher.Java.Compatibility;
@@ -236,6 +237,30 @@ Check("Instance Manager supports multiple profiles for one Minecraft version", (
     Equal("1.21.1", second.MinecraftVersion);
 });
 
+Check("Instance Manager deletes only the selected isolated pack", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-tests", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var repository = new JsonInstanceRepository(root);
+        var manager = new InstanceManager(repository);
+        var selected = manager.CreateAsync("Pack temporal", "1.21.1").GetAwaiter().GetResult();
+        var preserved = manager.CreateAsync("Pack conservado", "1.20.1").GetAwaiter().GetResult();
+        var selectedDirectory = repository.GetInstanceDirectory(selected.Id);
+        var preservedDirectory = repository.GetInstanceDirectory(preserved.Id);
+        Directory.CreateDirectory(Path.Combine(selectedDirectory, "game", "saves", "Mundo"));
+        File.WriteAllText(Path.Combine(selectedDirectory, "game", "saves", "Mundo", "level.dat"), "test");
+
+        Equal(true, manager.DeleteAsync(selected.Id).GetAwaiter().GetResult());
+        Equal(false, Directory.Exists(selectedDirectory));
+        Equal(true, Directory.Exists(preservedDirectory));
+        Equal<string?>(null, manager.GetAsync(selected.Id).GetAwaiter().GetResult());
+        Equal("Pack conservado", manager.GetAsync(preserved.Id).GetAwaiter().GetResult()?.Name);
+        Equal(false, manager.DeleteAsync(selected.Id).GetAwaiter().GetResult());
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+
 Check("Legacy migration creates one profile without moving game files", () =>
 {
     var root = Path.Combine(Path.GetTempPath(), "nexo-tests", Guid.NewGuid().ToString("N"));
@@ -292,6 +317,11 @@ Check("Java Manager parses legacy Java 8 notation", () =>
     Equal(8, JavaRuntimeInspector.ParseMajor("1.8.0_402"));
 });
 
+Check("Java Manager rejects output without a valid version", () =>
+{
+    Equal<JavaRuntime?>(null, JavaRuntimeInspector.Parse("not a Java runtime", @"C:\Java\bin\java.exe", "test"));
+});
+
 Check("Java Manager rejects an incompatible major version", () =>
 {
     var runtime = JavaRuntimeInspector.Parse("java.version = 17.0.12\njava.vendor = Test\nos.arch = amd64", @"C:\Java\bin\java.exe", "test")!;
@@ -300,13 +330,82 @@ Check("Java Manager rejects an incompatible major version", () =>
     Equal(true, result.Message.Contains("Java 21", StringComparison.Ordinal));
 });
 
+Check("Fabric metadata exposes stable loader versions", () =>
+{
+    var bytes = """[{"loader":{"version":"0.16.14","stable":true}},{"loader":{"version":"0.16.13","stable":false}}]"""u8.ToArray();
+    var versions = FabricMetadataClient.ParseLoaderVersions(bytes);
+    Equal(2, versions.Count);
+    Equal("0.16.14", versions[0].Version);
+    Equal(true, versions[0].Stable);
+});
+
+Check("Fabric Maven coordinates resolve to a safe library path", () =>
+{
+    var resolved = FabricLibraryResolver.Resolve("net.fabricmc:fabric-loader:0.16.14");
+    Equal("net/fabricmc/fabric-loader/0.16.14/fabric-loader-0.16.14.jar", resolved.RelativePath);
+});
+
+Check("Fabric Maven coordinates block path traversal", () =>
+{
+    var blocked = false;
+    try { FabricLibraryResolver.Resolve("net.fabricmc:../escape:1.0"); }
+    catch (InvalidDataException) { blocked = true; }
+    Equal(true, blocked);
+});
+
+Check("Fabric instances persist their loader version", () =>
+{
+    var instance = GameInstance.Create("Fabric", "1.21.1", LoaderType.Fabric, "0.16.14");
+    Equal(LoaderType.Fabric, instance.Loader);
+    Equal("0.16.14", instance.LoaderVersion);
+});
+
+Check("Forge metadata filters versions for one Minecraft release", () =>
+{
+    var bytes = """<metadata><versioning><versions><version>1.20.1-47.3.0</version><version>1.21.1-52.0.1</version></versions></versioning></metadata>"""u8.ToArray();
+    var versions = MavenMetadataParser.ParseVersions(bytes);
+    Equal(2, versions.Count);
+    Equal("1.20.1-47.3.0", versions[0]);
+});
+
+Check("NeoForge maps Minecraft releases to its official version line", () =>
+{
+    Equal("21.1.", InstallerLoaderMetadataClient.NeoForgePrefix("1.21.1"));
+    Equal("20.6.", InstallerLoaderMetadataClient.NeoForgePrefix("1.20.6"));
+    Equal<string?>(null, InstallerLoaderMetadataClient.NeoForgePrefix("1.19.4"));
+});
+
+Check("Forge and NeoForge instances persist loader versions", () =>
+{
+    var forge = GameInstance.Create("Forge", "1.20.1", LoaderType.Forge, "47.3.0");
+    var neoForge = GameInstance.Create("NeoForge", "1.21.1", LoaderType.NeoForge, "21.1.200");
+    Equal(LoaderType.Forge, forge.Loader);
+    Equal("21.1.200", neoForge.LoaderVersion);
+});
+
+Check("Instance editor updates name and overrides atomically", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-tests", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var repository = new JsonInstanceRepository(root);
+        var manager = new InstanceManager(repository);
+        var created = manager.CreateAsync("Original", "1.21.1").GetAwaiter().GetResult();
+        var updated = manager.UpdateAsync(created.Id, "Editada", new InstanceSettings(5120, null, ["-XX:+UseG1GC"], 1280, 720, false)).GetAwaiter().GetResult();
+        Equal("Editada", updated.Name);
+        Equal(5120, updated.Settings.MemoryMiB);
+        Equal(1280, updated.Settings.WindowWidth);
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+
 if (failures.Count > 0)
 {
     Console.Error.WriteLine(string.Join(Environment.NewLine, failures));
     return 1;
 }
 
-Console.WriteLine("23 checks passed.");
+Console.WriteLine("33 checks passed.");
 return 0;
 
 void Check(string name, Action action)

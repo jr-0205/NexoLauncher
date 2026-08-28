@@ -1,0 +1,38 @@
+<Window x:Class="NexoLauncher.App.InstanceEditorDialog"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ Title="Editar instancia · NEXO" Width="520" Height="650" ResizeMode="NoResize"
+ WindowStartupLocation="CenterOwner" Background="#0B111A" Foreground="#EDF0F6" FontFamily="Segoe UI">
+ <Grid Margin="28">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <StackPanel>
+   <TextBlock Text="Editar instancia" FontSize="25" FontWeight="SemiBold"/>
+   <TextBlock x:Name="IdentityText" Foreground="#7F8CA0" Margin="0,6,0,0"/>
+  </StackPanel>
+  <ScrollViewer Grid.Row="1" Margin="0,24,0,22" VerticalScrollBarVisibility="Auto">
+   <StackPanel>
+    <TextBlock Text="Nombre" Foreground="#A8B2C4" Margin="0,0,0,7"/>
+    <TextBox x:Name="NameBox" Height="40" MaxLength="64" Padding="10,7"/>
+    <TextBlock Text="RAM en MiB · vacío usa el valor global" Foreground="#A8B2C4" Margin="0,18,0,7"/>
+    <TextBox x:Name="MemoryBox" Height="40" Padding="10,7"/>
+    <TextBlock Text="Java · vacío mantiene selección automática" Foreground="#A8B2C4" Margin="0,18,0,7"/>
+    <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="105"/></Grid.ColumnDefinitions>
+     <TextBox x:Name="JavaBox" Height="40" Padding="10,7"/>
+     <Button Grid.Column="1" Content="BUSCAR" Margin="10,0,0,0" Click="BrowseJava_Click"/>
+    </Grid>
+    <Grid Margin="0,18,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="14"/><ColumnDefinition/></Grid.ColumnDefinitions>
+     <StackPanel><TextBlock Text="Ancho · vacío hereda" Foreground="#A8B2C4" Margin="0,0,0,7"/><TextBox x:Name="WidthBox" Height="40" Padding="10,7"/></StackPanel>
+     <StackPanel Grid.Column="2"><TextBlock Text="Alto · vacío hereda" Foreground="#A8B2C4" Margin="0,0,0,7"/><TextBox x:Name="HeightBox" Height="40" Padding="10,7"/></StackPanel>
+    </Grid>
+    <CheckBox x:Name="FullscreenBox" Content="Pantalla completa · indeterminado hereda" IsThreeState="True" Margin="0,18,0,0"/>
+    <TextBlock Text="Argumentos JVM · uno por línea" Foreground="#A8B2C4" Margin="0,18,0,7"/>
+    <TextBox x:Name="JvmArgumentsBox" Height="88" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Padding="10,7"/>
+    <TextBlock x:Name="ValidationText" Foreground="#E27D73" TextWrapping="Wrap" Margin="0,12,0,0"/>
+   </StackPanel>
+  </ScrollViewer>
+  <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="125"/><ColumnDefinition Width="125"/></Grid.ColumnDefinitions>
+   <Button Grid.Column="1" Content="CANCELAR" Margin="0,0,9,0" IsCancel="True"/>
+   <Button Grid.Column="2" Content="GUARDAR" Background="#756AF4" Foreground="White" BorderThickness="0" IsDefault="True" Click="Save_Click"/>
+  </Grid>
+ </Grid>
+</Window>

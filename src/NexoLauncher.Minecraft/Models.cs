@@ -16,6 +16,25 @@ public sealed record LaunchOptions(
     string Username,
     int MemoryMiB,
     string? AccountId = null,
-    string? AccessToken = null);
+    string? AccessToken = null,
+    IReadOnlyList<string>? JvmArguments = null,
+    int? WindowWidth = null,
+    int? WindowHeight = null,
+    bool Fullscreen = false);
+
+public sealed record LoaderVersion(string Version, bool Stable)
+{
+    public override string ToString() => Stable ? Version + " · estable" : Version;
+}
+
+public sealed record LoaderInstallRequest(MinecraftVersion Version, string? LoaderVersion, string? JavaExecutable = null);
+
+public sealed record LaunchPlan(
+    string VersionId,
+    string GameDirectory,
+    string? MainClass = null,
+    IReadOnlyList<string>? AdditionalClassPath = null,
+    IReadOnlyList<string>? JvmArguments = null,
+    IReadOnlyList<string>? GameArguments = null);
 
 public sealed record DownloadJob(string Url, string Path, string? Sha1, bool IsNative = false);

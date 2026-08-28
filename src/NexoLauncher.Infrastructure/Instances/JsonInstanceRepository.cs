@@ -64,6 +64,30 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         File.Move(temporary, manifest, true);
     }
 
+    public async Task<bool> DeleteAsync(InstanceId id, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var directory = GetInstanceDirectory(id);
+        if (!Directory.Exists(directory)) return false;
+
+        var directoryInfo = new DirectoryInfo(directory);
+        if (directoryInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new InvalidDataException("No se puede eliminar una instancia enlazada a otra ubicación.");
+
+        var manifest = Path.Combine(directory, ManifestName);
+        if (!File.Exists(manifest))
+            throw new InvalidDataException("La carpeta seleccionada no contiene un manifiesto de instancia válido.");
+
+        var instance = await ReadAsync(manifest, cancellationToken);
+        if (instance is null || instance.Id != id ||
+            !string.Equals(instance.DirectoryName, id.ToString(), StringComparison.Ordinal))
+            throw new InvalidDataException("El manifiesto no coincide con la instancia seleccionada.");
+
+        cancellationToken.ThrowIfCancellationRequested();
+        Directory.Delete(directory, recursive: true);
+        return true;
+    }
+
     public string GetInstanceDirectory(InstanceId id)
     {
         var candidate = Path.GetFullPath(Path.Combine(root, id.ToString()));
