@@ -67,8 +67,8 @@ public sealed class MinecraftRuntime
     public LaunchPlan CreateLaunchPlan(string minecraftVersion, string loaderId, string? loaderVersion, string gameDirectory)
         => Provider(loaderId).CreateLaunchPlan(minecraftVersion, loaderVersion, gameDirectory);
 
-    public Process Launch(LaunchOptions options) => launcher.Launch(options);
-    public Process Launch(LaunchOptions options, LaunchPlan plan) => launcher.Launch(options, plan);
+    public MinecraftLaunchSession Launch(LaunchOptions options) => launcher.Launch(options);
+    public MinecraftLaunchSession Launch(LaunchOptions options, LaunchPlan plan) => launcher.Launch(options, plan);
 
     private ILoaderProvider Provider(string loaderId)
     {
