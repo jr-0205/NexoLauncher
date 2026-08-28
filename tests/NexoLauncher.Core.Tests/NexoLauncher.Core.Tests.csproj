@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/NexoLauncher.Core/NexoLauncher.Core.csproj" />
+    <ProjectReference Include="..\..\src\NexoLauncher.Domain\NexoLauncher.Domain.csproj" />
+    <ProjectReference Include="..\..\src\NexoLauncher.Application\NexoLauncher.Application.csproj" />
+    <ProjectReference Include="..\..\src\NexoLauncher.Infrastructure\NexoLauncher.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\NexoLauncher.Minecraft\NexoLauncher.Minecraft.csproj" />
+    <ProjectReference Include="..\..\src\NexoLauncher.Java\NexoLauncher.Java.csproj" />
+  </ItemGroup>
+</Project>

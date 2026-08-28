@@ -1,0 +1,16 @@
+bin/
+obj/
+.vs/
+.idea/
+.dotnet-cli/
+*.user
+*.suo
+
+.verification/
+.env
+.env.*
+!.env.example
+*.download
+appsettings.Local.json
+auth.local.json
+

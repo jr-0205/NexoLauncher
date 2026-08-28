@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NexoLauncher.App/NexoLauncher.App.csproj" />
+    <Project Path="src/NexoLauncher.Application/NexoLauncher.Application.csproj" />
+    <Project Path="src/NexoLauncher.Cli/NexoLauncher.Cli.csproj" />
+    <Project Path="src/NexoLauncher.Core/NexoLauncher.Core.csproj" />
+    <Project Path="src/NexoLauncher.Domain/NexoLauncher.Domain.csproj" />
+    <Project Path="src/NexoLauncher.Infrastructure/NexoLauncher.Infrastructure.csproj" />
+    <Project Path="src/NexoLauncher.Java/NexoLauncher.Java.csproj" />
+    <Project Path="src/NexoLauncher.Minecraft/NexoLauncher.Minecraft.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NexoLauncher.Core.Tests/NexoLauncher.Core.Tests.csproj" />
+  </Folder>
+</Solution>

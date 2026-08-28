@@ -1,0 +1,19 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\NexoLauncher.Core\NexoLauncher.Core.csproj" />
+    <ProjectReference Include="..\NexoLauncher.Domain\NexoLauncher.Domain.csproj" />
+    <ProjectReference Include="..\NexoLauncher.Application\NexoLauncher.Application.csproj" />
+    <ProjectReference Include="..\NexoLauncher.Infrastructure\NexoLauncher.Infrastructure.csproj" />
+    <ProjectReference Include="..\NexoLauncher.Minecraft\NexoLauncher.Minecraft.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+  </PropertyGroup>
+
+</Project>

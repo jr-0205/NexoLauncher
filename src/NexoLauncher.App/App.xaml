@@ -1,0 +1,9 @@
+<Application x:Class="NexoLauncher.App.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             StartupUri="MainWindow.xaml">
+    <Application.Resources>
+        <!-- Los estilos visuales se limitan a cada ventana para no contaminar
+             los elementos internos que WPF crea para ComboBox y otros controles. -->
+    </Application.Resources>
+</Application>
