@@ -95,16 +95,43 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
     }
 
     private List<string> BuildClassPath(JsonElement root, string versionId, IReadOnlyList<string>? additional)
+{
+    var vanilla = root.GetProperty("libraries").EnumerateArray()
+        .Where(item => MinecraftRuleEvaluator.Allows(item))
+        .Select(item => item.TryGetProperty("downloads", out var downloads) && downloads.TryGetProperty("artifact", out var artifact) ? artifact.GetProperty("path").GetString() : null)
+        .Where(path => path is not null)
+        .Select(path => Path.Combine(paths.Libraries, path!.Replace('/', Path.DirectorySeparatorChar)));
+
+    // Deduplicamos por identidad de artefacto Maven (grupo/artefacto), no por ruta exacta.
+    // Si vanilla y el loader (Forge/Fabric/NeoForge) traen versiones distintas de la misma
+    // librería (p. ej. dos versiones de ASM), quedarnos con ambas rompe el arranque porque
+    // Fabric/Forge detectan clases duplicadas en el classpath y Java aborta de inmediato.
+    // La versión del loader gana siempre, porque es la que sus clases esperan encontrar.
+    var ordered = new List<string>();
+    var indexByArtifact = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+
+    void AddOrReplace(string path)
     {
-        var result = root.GetProperty("libraries").EnumerateArray()
-            .Where(item => MinecraftRuleEvaluator.Allows(item))
-            .Select(item => item.TryGetProperty("downloads", out var downloads) && downloads.TryGetProperty("artifact", out var artifact) ? artifact.GetProperty("path").GetString() : null)
-            .Where(path => path is not null)
-            .Select(path => Path.Combine(paths.Libraries, path!.Replace('/', Path.DirectorySeparatorChar))).ToList();
-        result.Add(paths.ClientJar(versionId));
-        if (additional is not null) result.AddRange(additional);
-        return result.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        var key = ArtifactKey(path);
+        if (indexByArtifact.TryGetValue(key, out var existingIndex)) ordered[existingIndex] = path;
+        else { indexByArtifact[key] = ordered.Count; ordered.Add(path); }
     }
+
+    foreach (var path in vanilla) AddOrReplace(path);
+    ordered.Add(paths.ClientJar(versionId));
+    if (additional is not null) foreach (var path in additional) AddOrReplace(path);
+    return ordered;
+}
+
+// Para ".../libraries/org/ow2/asm/asm/9.10.1/asm-9.10.1.jar" devuelve
+// ".../libraries/org/ow2/asm/asm" (grupo + artefacto, sin la carpeta de versión),
+// que es la clave que identifica "la misma librería" sin importar la versión exacta.
+private static string ArtifactKey(string path)
+{
+    var versionDirectory = Path.GetDirectoryName(path);
+    var artifactDirectory = versionDirectory is null ? null : Path.GetDirectoryName(versionDirectory);
+    return artifactDirectory ?? path;
+}
 
     private Dictionary<string, string> Replacements(JsonElement root, LaunchOptions options, List<string> classPath, string gameDirectory) => new()
     {
