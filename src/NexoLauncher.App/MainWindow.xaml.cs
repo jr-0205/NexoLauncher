@@ -5,10 +5,14 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Microsoft.Win32;
+using NexoLauncher.Application.Configuration;
 using NexoLauncher.Application.Instances;
 using NexoLauncher.Core.Installation;
+using NexoLauncher.Domain.Configuration;
 using NexoLauncher.Domain.Instances;
+using NexoLauncher.Infrastructure.Configuration;
 using NexoLauncher.Infrastructure.Instances;
+using NexoLauncher.Infrastructure.System;
 using NexoLauncher.Java;
 using NexoLauncher.Java.Compatibility;
 using NexoLauncher.Java.Detection;
@@ -24,11 +28,13 @@ public partial class MainWindow : Window
     private readonly MinecraftRuntime minecraft;
     private readonly JsonInstanceRepository instanceRepository;
     private readonly InstanceManager instanceManager;
+    private readonly JsonLauncherSettingsStore launcherSettingsStore;
     private readonly JavaRuntimeInspector javaInspector = new();
     private readonly JavaRuntimeDetector javaDetector;
     private readonly List<JavaRuntime> javaRuntimes = [];
     private readonly Dictionary<string, int?> javaRequirements = new(StringComparer.Ordinal);
     private IReadOnlyList<MinecraftVersion> availableVersions = [];
+    private LauncherSettings launcherSettings = new();
     private JavaRuntime? selectedJavaRuntime;
     private CancellationTokenSource? operation;
     private bool busy;
@@ -39,14 +45,19 @@ public partial class MainWindow : Window
         minecraft = new MinecraftRuntime(httpClient, paths.Root);
         instanceRepository = new JsonInstanceRepository(paths.Instances);
         instanceManager = new InstanceManager(instanceRepository);
+        launcherSettingsStore = new JsonLauncherSettingsStore(Path.Combine(paths.Root, "settings.json"));
         javaDetector = new JavaRuntimeDetector(javaInspector);
         InstallPathText.Text = paths.Root;
         JavaBox.Text = "Detectando Java…";
+
+        RamSlider.PreviewMouseLeftButtonUp += async (_, _) => await SaveLauncherSettingsAsync();
+        UsernameBox.LostKeyboardFocus += async (_, _) => await SaveLauncherSettingsAsync();
 
         Loaded += async (_, _) =>
         {
             try
             {
+                await LoadLauncherSettingsAsync();
                 await new LegacyInstallationMigrator(paths.Instances, instanceRepository).MigrateAsync(lifetime.Token);
                 await ShowLibraryAsync();
 
@@ -57,6 +68,41 @@ public partial class MainWindow : Window
             }
             catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         };
+    }
+
+    private async Task LoadLauncherSettingsAsync()
+    {
+        var settingsPath = Path.Combine(paths.Root, "settings.json");
+        var existed = File.Exists(settingsPath);
+        launcherSettings = await launcherSettingsStore.LoadAsync(lifetime.Token);
+
+        if (!existed)
+        {
+            launcherSettings = launcherSettings with
+            {
+                MemoryMiB = MemoryRecommendation.RecommendMiB(SystemMemory.GetTotalMemoryMiB())
+            };
+        }
+
+        RamSlider.Value = Math.Clamp(launcherSettings.MemoryMiB, (int)RamSlider.Minimum, (int)RamSlider.Maximum);
+        UsernameBox.Text = launcherSettings.Username;
+    }
+
+    private async Task SaveLauncherSettingsAsync()
+    {
+        if (lifetime.IsCancellationRequested) return;
+
+        var username = string.IsNullOrWhiteSpace(UsernameBox.Text) ? "Player" : UsernameBox.Text.Trim();
+        launcherSettings = (launcherSettings with
+        {
+            MemoryMiB = (int)RamSlider.Value,
+            JavaPath = selectedJavaRuntime?.JavaExecutable ?? launcherSettings.JavaPath,
+            Username = username
+        }).Normalize();
+
+        try { await launcherSettingsStore.SaveAsync(launcherSettings, lifetime.Token); }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch { }
     }
 
     private async Task RefreshInstancesAsync()
@@ -99,7 +145,9 @@ public partial class MainWindow : Window
             var detected = await javaDetector.DetectAsync(token);
             javaRuntimes.Clear();
             javaRuntimes.AddRange(detected);
-            selectedJavaRuntime = FindRecommendedRuntime(null);
+
+            selectedJavaRuntime = await ResolveRuntimePathAsync(launcherSettings.JavaPath, "Global", token)
+                                  ?? FindRecommendedRuntime(null);
             UpdateJavaDisplay();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -224,6 +272,7 @@ public partial class MainWindow : Window
     private async void PrimaryButton_Click(object sender, RoutedEventArgs e)
     {
         if (busy || VersionBox.SelectedItem is not MinecraftVersion version) return;
+        await SaveLauncherSettingsAsync();
         if (minecraft.IsInstalled(version.Id)) { await LaunchAsync(version.Id); return; }
 
         operation = new CancellationTokenSource();
@@ -241,12 +290,7 @@ public partial class MainWindow : Window
 
             var existing = (await instanceManager.ListAsync(operation.Token))
                 .FirstOrDefault(instance => instance.MinecraftVersion == version.Id && instance.Loader == LoaderType.Vanilla);
-            var profile = existing ?? await instanceManager.CreateAsync($"Minecraft {version.Id}", version.Id, cancellationToken: operation.Token);
-            await instanceManager.UpdateSettingsAsync(profile.Id, profile.Settings with
-            {
-                JavaPath = selectedJavaRuntime?.JavaExecutable,
-                MemoryMiB = (int)RamSlider.Value
-            }, operation.Token);
+            _ = existing ?? await instanceManager.CreateAsync($"Minecraft {version.Id}", version.Id, cancellationToken: operation.Token);
 
             await ShowLibraryAsync();
         }
@@ -272,8 +316,12 @@ public partial class MainWindow : Window
     private async Task LaunchAsync(string versionId, GameInstance? instance = null)
     {
         if (busy) return;
+        await SaveLauncherSettingsAsync();
 
-        var runtime = await ResolveRuntimeForInstanceAsync(instance);
+        var effective = LauncherSettingsResolver.Resolve(launcherSettings, instance?.Settings ?? new InstanceSettings());
+        var runtime = await ResolveRuntimePathAsync(effective.JavaPath, instance is null ? "Global" : "Instancia", lifetime.Token)
+                      ?? selectedJavaRuntime;
+
         if (runtime is null)
         {
             ShowInstall();
@@ -314,22 +362,13 @@ public partial class MainWindow : Window
             LibraryPlayButton.IsEnabled = false;
             PrimaryButton.IsEnabled = false;
 
-            var memoryMiB = instance?.Settings.MemoryMiB is > 0 ? instance.Settings.MemoryMiB.Value : (int)RamSlider.Value;
-            if (instance is not null)
-            {
-                await instanceManager.UpdateSettingsAsync(instance.Id, instance.Settings with
-                {
-                    JavaPath = runtime.JavaExecutable,
-                    MemoryMiB = memoryMiB
-                }, lifetime.Token);
-            }
-
-            var username = string.IsNullOrWhiteSpace(UsernameBox.Text) ? "Player" : UsernameBox.Text.Trim();
-            var process = minecraft.Launch(new LaunchOptions(versionId, runtime.JavawExecutable, username, memoryMiB));
+            var username = launcherSettings.Username;
+            var process = minecraft.Launch(new LaunchOptions(versionId, runtime.JavawExecutable, username, effective.MemoryMiB));
             await Task.Delay(700, lifetime.Token);
             if (!process.HasExited)
             {
-                System.Windows.Application.Current.Shutdown();
+                if (launcherSettings.CloseLauncherOnGameStart)
+                    System.Windows.Application.Current.Shutdown();
                 return;
             }
 
@@ -345,31 +384,25 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task<JavaRuntime?> ResolveRuntimeForInstanceAsync(GameInstance? instance)
+    private async Task<JavaRuntime?> ResolveRuntimePathAsync(string? configuredPath, string source, CancellationToken token)
     {
-        var configuredPath = instance?.Settings.JavaPath;
-        if (!string.IsNullOrWhiteSpace(configuredPath))
+        if (string.IsNullOrWhiteSpace(configuredPath)) return null;
+
+        var normalized = NormalizeJavaExecutable(configuredPath);
+        var detected = javaRuntimes.FirstOrDefault(runtime =>
+            string.Equals(runtime.JavaExecutable, normalized, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(runtime.JavawExecutable, configuredPath, StringComparison.OrdinalIgnoreCase));
+        if (detected is not null) return detected;
+
+        try
         {
-            var normalized = NormalizeJavaExecutable(configuredPath);
-            var detected = javaRuntimes.FirstOrDefault(runtime =>
-                string.Equals(runtime.JavaExecutable, normalized, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(runtime.JavawExecutable, configuredPath, StringComparison.OrdinalIgnoreCase));
-            if (detected is not null) return detected;
-
-            try
-            {
-                var inspected = await javaInspector.InspectAsync(normalized, "Instancia", lifetime.Token);
-                if (inspected is not null)
-                {
-                    AddOrReplaceRuntime(inspected);
-                    return inspected;
-                }
-            }
-            catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { return null; }
-            catch { }
+            var inspected = await javaInspector.InspectAsync(normalized, source, token);
+            if (inspected is null) return null;
+            AddOrReplaceRuntime(inspected);
+            return inspected;
         }
-
-        return selectedJavaRuntime;
+        catch (OperationCanceledException) { throw; }
+        catch { return null; }
     }
 
     private void InstancesList_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateInstanceDetails(InstancesList.SelectedItem as InstanceItem);
@@ -400,6 +433,7 @@ public partial class MainWindow : Window
             {
                 selectedJavaRuntime = selector.SelectedRuntime;
                 UpdateJavaDisplay(requiredMajor);
+                await SaveLauncherSettingsAsync();
                 return;
             }
 
@@ -437,6 +471,7 @@ public partial class MainWindow : Window
         AddOrReplaceRuntime(runtime);
         selectedJavaRuntime = runtime;
         UpdateJavaDisplay(requiredMajor);
+        await SaveLauncherSettingsAsync();
 
         if (requiredMajor is > 0)
         {
