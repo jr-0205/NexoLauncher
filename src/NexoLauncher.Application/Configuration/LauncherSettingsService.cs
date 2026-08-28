@@ -37,6 +37,10 @@ public static class LauncherSettingsResolver
 
 public static class MemoryRecommendation
 {
+    public const int MinimumMiB = 1024;
+    public const int MaximumMiB = 32768;
+    public const int ReservedForWindowsMiB = 2048;
+
     public static int RecommendMiB(long totalMemoryMiB)
     {
         if (totalMemoryMiB <= 0) return 4096;
@@ -45,5 +49,12 @@ public static class MemoryRecommendation
         if (totalMemoryMiB <= 16384) return 4096;
         if (totalMemoryMiB <= 32768) return 6144;
         return 8192;
+    }
+
+    public static int SafeMaximumMiB(long totalMemoryMiB)
+    {
+        if (totalMemoryMiB <= 0) return 8192;
+        var reserved = Math.Max(MinimumMiB, totalMemoryMiB - ReservedForWindowsMiB);
+        return Math.Clamp((int)Math.Min(int.MaxValue, reserved), MinimumMiB, MaximumMiB);
     }
 }
