@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Text.Json;
 using NexoLauncher.Minecraft.Downloads;
 using NexoLauncher.Minecraft.Rules;
+using NexoLauncher.Minecraft.Java;
 using NexoLauncher.Java;
 using NexoLauncher.Java.Detection;
 using NexoLauncher.Java.Compatibility;
@@ -120,6 +121,15 @@ Check("Java selector reports a missing required major instead of using the wrong
     ];
 
     Equal<JavaRuntime?>(null, JavaRuntimeSelector.Select(runtimes, 8));
+});
+
+Check("Minecraft Java fallback matches release families", () =>
+{
+    Equal(8, MinecraftJavaVersionPolicy.InferRequiredMajor("1.16.5"));
+    Equal(16, MinecraftJavaVersionPolicy.InferRequiredMajor("1.17.1"));
+    Equal(17, MinecraftJavaVersionPolicy.InferRequiredMajor("1.20.4"));
+    Equal(21, MinecraftJavaVersionPolicy.InferRequiredMajor("1.20.5"));
+    Equal(21, MinecraftJavaVersionPolicy.InferRequiredMajor("1.21.1"));
 });
 
 Check("Launch arguments stay tokenized", () =>
@@ -296,7 +306,7 @@ if (failures.Count > 0)
     return 1;
 }
 
-Console.WriteLine("22 checks passed.");
+Console.WriteLine("23 checks passed.");
 return 0;
 
 void Check(string name, Action action)
