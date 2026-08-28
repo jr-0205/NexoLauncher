@@ -35,6 +35,7 @@ La experiencia visual toma como referencia el nivel de pulido de clientes como L
 - `LaunchPlan` con `KnotClient`, bibliotecas adicionales y argumentos del loader;
 - directorio de juego realmente aislado por GUID de instancia;
 - editor de instancia para nombre, RAM, Java, ventana, pantalla completa y argumentos JVM;
+- eliminación segura de packs completos desde la biblioteca, siempre con confirmación explícita;
 - catálogo de versiones Forge y NeoForge desde sus repositorios Maven oficiales;
 - ejecución aislada de los instaladores oficiales para conservar sus procesadores y parches;
 - perfiles Forge/NeoForge importados a la arquitectura común de `LaunchPlan`;
@@ -87,7 +88,7 @@ dotnet build NexoLauncher.slnx
 dotnet run --project tests/NexoLauncher.Core.Tests
 ```
 
-El harness actual contiene 32 comprobaciones de memoria, configuración, instancias, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes, loaders y selección automática por versión.
+El harness actual contiene 33 comprobaciones de memoria, configuración, instancias, eliminación aislada de packs, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes, loaders y selección automática por versión.
 
 ## Alcance actual
 
