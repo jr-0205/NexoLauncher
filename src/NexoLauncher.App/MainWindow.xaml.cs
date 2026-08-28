@@ -12,6 +12,7 @@ using NexoLauncher.Domain.Configuration;
 using NexoLauncher.Domain.Instances;
 using NexoLauncher.Infrastructure.Configuration;
 using NexoLauncher.Infrastructure.Instances;
+using NexoLauncher.Infrastructure.Java;
 using NexoLauncher.Infrastructure.System;
 using NexoLauncher.Java;
 using NexoLauncher.Java.Compatibility;
@@ -22,6 +23,8 @@ namespace NexoLauncher.App;
 
 public partial class MainWindow : Window
 {
+    private static readonly TimeSpan JavaCacheLifetime = TimeSpan.FromHours(24);
+
     private readonly NexoPaths paths = NexoPaths.ForCurrentUser();
     private readonly HttpClient httpClient = new() { Timeout = TimeSpan.FromMinutes(20) };
     private readonly CancellationTokenSource lifetime = new();
@@ -29,29 +32,39 @@ public partial class MainWindow : Window
     private readonly JsonInstanceRepository instanceRepository;
     private readonly InstanceManager instanceManager;
     private readonly JsonLauncherSettingsStore launcherSettingsStore;
+    private readonly JsonJavaRuntimeCache javaRuntimeCache;
     private readonly JavaRuntimeInspector javaInspector = new();
     private readonly JavaRuntimeDetector javaDetector;
     private readonly List<JavaRuntime> javaRuntimes = [];
     private readonly Dictionary<string, int?> javaRequirements = new(StringComparer.Ordinal);
+
     private IReadOnlyList<MinecraftVersion> availableVersions = [];
     private LauncherSettings launcherSettings = new();
+    private SystemMemorySnapshot memorySnapshot = new(0, 0);
     private JavaRuntime? selectedJavaRuntime;
     private CancellationTokenSource? operation;
     private bool busy;
+    private bool syncingSettingsUi;
+    private bool javaRefreshRunning;
 
     public MainWindow()
     {
         InitializeComponent();
+        paths.EnsureCreated();
+
         minecraft = new MinecraftRuntime(httpClient, paths.Root);
         instanceRepository = new JsonInstanceRepository(paths.Instances);
         instanceManager = new InstanceManager(instanceRepository);
         launcherSettingsStore = new JsonLauncherSettingsStore(Path.Combine(paths.Root, "settings.json"));
+        javaRuntimeCache = new JsonJavaRuntimeCache(Path.Combine(paths.Cache, "java-runtimes.json"));
         javaDetector = new JavaRuntimeDetector(javaInspector);
+
         InstallPathText.Text = paths.Root;
         JavaBox.Text = "Detectando Java…";
+        SidebarStatusText.Text = "INICIALIZANDO NEXO";
 
-        RamSlider.PreviewMouseLeftButtonUp += async (_, _) => await SaveLauncherSettingsAsync();
-        UsernameBox.LostKeyboardFocus += async (_, _) => await SaveLauncherSettingsAsync();
+        RamSlider.PreviewMouseLeftButtonUp += async (_, _) => await SaveInstallDefaultsAsync();
+        UsernameBox.LostKeyboardFocus += async (_, _) => await SaveInstallDefaultsAsync();
 
         Loaded += async (_, _) =>
         {
@@ -65,8 +78,15 @@ public partial class MainWindow : Window
                 await LoadVersionsAsync();
                 await javaTask;
                 await RefreshJavaCompatibilityAsync();
+
+                SidebarStatusText.Text = "NEXO CORE LISTO";
             }
             catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+            catch (Exception exception)
+            {
+                SidebarStatusText.Text = "NEXO REQUIERE ATENCIÓN";
+                ShowError(exception);
+            }
         };
     }
 
@@ -74,49 +94,107 @@ public partial class MainWindow : Window
     {
         var settingsPath = Path.Combine(paths.Root, "settings.json");
         var existed = File.Exists(settingsPath);
-        launcherSettings = await launcherSettingsStore.LoadAsync(lifetime.Token);
+        memorySnapshot = SystemMemory.GetSnapshot();
 
+        var safeMaximum = MemoryRecommendation.SafeMaximumMiB(memorySnapshot.TotalMiB);
+        RamSlider.Maximum = safeMaximum;
+        SettingsRamSlider.Maximum = safeMaximum;
+
+        launcherSettings = await launcherSettingsStore.LoadAsync(lifetime.Token);
         if (!existed)
         {
             launcherSettings = launcherSettings with
             {
-                MemoryMiB = MemoryRecommendation.RecommendMiB(SystemMemory.GetTotalMemoryMiB())
+                MemoryMiB = MemoryRecommendation.RecommendMiB(memorySnapshot.TotalMiB)
             };
         }
 
-        RamSlider.Value = Math.Clamp(launcherSettings.MemoryMiB, (int)RamSlider.Minimum, (int)RamSlider.Maximum);
-        UsernameBox.Text = launcherSettings.Username;
+        launcherSettings = (launcherSettings with
+        {
+            MemoryMiB = Math.Clamp(launcherSettings.MemoryMiB, MemoryRecommendation.MinimumMiB, safeMaximum)
+        }).Normalize();
+
+        SyncSettingsControls();
+        UpdateMemorySummary();
     }
 
-    private async Task SaveLauncherSettingsAsync()
+    private void SyncSettingsControls()
+    {
+        syncingSettingsUi = true;
+        try
+        {
+            var memory = Math.Clamp(launcherSettings.MemoryMiB, (int)RamSlider.Minimum, (int)RamSlider.Maximum);
+            RamSlider.Value = memory;
+            SettingsRamSlider.Value = memory;
+            UsernameBox.Text = launcherSettings.Username;
+            SettingsUsernameBox.Text = launcherSettings.Username;
+            SettingsCloseLauncherCheck.IsChecked = launcherSettings.CloseLauncherOnGameStart;
+            UpdateRamLabels(memory, memory);
+            UpdateJavaDisplay();
+        }
+        finally
+        {
+            syncingSettingsUi = false;
+        }
+    }
+
+    private async Task PersistLauncherSettingsAsync(LauncherSettings settings, string? status = null)
     {
         if (lifetime.IsCancellationRequested) return;
 
+        var safeMaximum = MemoryRecommendation.SafeMaximumMiB(memorySnapshot.TotalMiB);
+        launcherSettings = (settings with
+        {
+            MemoryMiB = Math.Clamp(settings.MemoryMiB, MemoryRecommendation.MinimumMiB, safeMaximum)
+        }).Normalize();
+
+        try
+        {
+            await launcherSettingsStore.SaveAsync(launcherSettings, lifetime.Token);
+            SyncSettingsControls();
+            if (!string.IsNullOrWhiteSpace(status)) SettingsStatusText.Text = status;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            SettingsStatusText.Text = "No se pudieron guardar los cambios.";
+            MessageBox.Show(this, exception.Message, "Configuración de NEXO", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async Task SaveInstallDefaultsAsync()
+    {
+        if (syncingSettingsUi || lifetime.IsCancellationRequested) return;
+
         var username = string.IsNullOrWhiteSpace(UsernameBox.Text) ? "Player" : UsernameBox.Text.Trim();
-        launcherSettings = (launcherSettings with
+        await PersistLauncherSettingsAsync(launcherSettings with
         {
             MemoryMiB = (int)RamSlider.Value,
             JavaPath = selectedJavaRuntime?.JavaExecutable ?? launcherSettings.JavaPath,
             Username = username
-        }).Normalize();
-
-        try { await launcherSettingsStore.SaveAsync(launcherSettings, lifetime.Token); }
-        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
-        catch { }
+        });
     }
 
     private async Task RefreshInstancesAsync()
     {
-        paths.EnsureCreated();
         var instances = await instanceManager.ListAsync(lifetime.Token);
         var items = instances
-            .Select(instance => new InstanceItem(instance.Id, instance.MinecraftVersion, instance.Name, $"{instance.Loader} · Instalado", instance.UpdatedAt))
+            .Select(instance => new InstanceItem(
+                instance.Id,
+                instance.MinecraftVersion,
+                instance.Name,
+                $"{instance.Loader} · Instalado",
+                instance.UpdatedAt))
             .ToArray();
+
         InstancesList.ItemsSource = items;
         EmptyLibrary.Visibility = items.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         InstancesList.Visibility = items.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
-        if (items.Length > 0) InstancesList.SelectedIndex = 0;
-        else UpdateInstanceDetails(null);
+
+        if (items.Length > 0)
+            InstancesList.SelectedIndex = 0;
+        else
+            ResetInstanceDetails();
     }
 
     private async Task LoadVersionsAsync()
@@ -135,16 +213,35 @@ public partial class MainWindow : Window
             StatusText.Text = "No se pudieron cargar las versiones.";
             MessageBox.Show(this, exception.Message, "Error de conexión", MessageBoxButton.OK, MessageBoxImage.Error);
         }
-        finally { SetBusy(false); RefreshButton(); }
+        finally
+        {
+            SetBusy(false);
+            RefreshButton();
+        }
     }
 
-    private async Task LoadJavaRuntimesAsync(CancellationToken token)
+    private async Task LoadJavaRuntimesAsync(CancellationToken token, bool forceRefresh = false)
     {
+        if (javaRefreshRunning && !forceRefresh) return;
+
+        javaRefreshRunning = true;
+        RedetectJavaButton.IsEnabled = false;
         try
         {
-            var detected = await javaDetector.DetectAsync(token);
+            IReadOnlyList<JavaRuntime> runtimes = [];
+            if (!forceRefresh)
+                runtimes = await javaRuntimeCache.LoadAsync(JavaCacheLifetime, token);
+
+            if (runtimes.Count == 0)
+            {
+                runtimes = await javaDetector.DetectAsync(token);
+                try { await javaRuntimeCache.SaveAsync(runtimes, token); }
+                catch (OperationCanceledException) { throw; }
+                catch { }
+            }
+
             javaRuntimes.Clear();
-            javaRuntimes.AddRange(detected);
+            javaRuntimes.AddRange(runtimes);
 
             selectedJavaRuntime = await ResolveRuntimePathAsync(launcherSettings.JavaPath, "Global", token)
                                   ?? FindRecommendedRuntime(null);
@@ -155,6 +252,11 @@ public partial class MainWindow : Window
         {
             selectedJavaRuntime = null;
             UpdateJavaDisplay();
+        }
+        finally
+        {
+            javaRefreshRunning = false;
+            RedetectJavaButton.IsEnabled = !busy;
         }
     }
 
@@ -179,7 +281,8 @@ public partial class MainWindow : Window
 
         if (VersionBox.SelectedItem is not MinecraftVersion current || current.Id != version.Id) return;
 
-        if (requiredMajor is > 0 && (selectedJavaRuntime is null || !JavaCompatibility.Evaluate(selectedJavaRuntime, requiredMajor.Value).IsCompatible))
+        if (requiredMajor is > 0 &&
+            (selectedJavaRuntime is null || !JavaCompatibility.Evaluate(selectedJavaRuntime, requiredMajor.Value).IsCompatible))
         {
             selectedJavaRuntime = FindRecommendedRuntime(requiredMajor);
         }
@@ -190,7 +293,7 @@ public partial class MainWindow : Window
 
         UpdateJavaDisplay(requiredMajor);
 
-        if (!busy)
+        if (!busy && InstallPanel.Visibility == Visibility.Visible)
         {
             StatusText.Text = requiredMajor is > 0
                 ? selectedJavaRuntime is not null && JavaCompatibility.Evaluate(selectedJavaRuntime, requiredMajor.Value).IsCompatible
@@ -226,18 +329,27 @@ public partial class MainWindow : Window
 
     private void UpdateJavaDisplay(int? requiredMajor = null)
     {
-        if (JavaBox is null) return;
+        if (JavaBox is null || SettingsJavaText is null) return;
+
+        SettingsRuntimeCountText.Text = javaRuntimes.Count == 1
+            ? "1 runtime detectado"
+            : $"{javaRuntimes.Count} runtimes detectados";
 
         if (selectedJavaRuntime is null)
         {
             JavaBox.Text = javaRuntimes.Count == 0 ? "No se detectó Java" : "Sin runtime compatible";
             JavaBox.ToolTip = "Puedes seleccionar un runtime manualmente.";
             JavaBox.BorderBrush = new SolidColorBrush(Color.FromRgb(164, 73, 73));
+            SettingsJavaText.Text = JavaBox.Text;
+            SettingsJavaPathText.Text = "Selecciona un runtime o vuelve a ejecutar la detección.";
             return;
         }
 
-        JavaBox.Text = $"Java {selectedJavaRuntime.MajorVersion} · {selectedJavaRuntime.Vendor} · {selectedJavaRuntime.Architecture}";
+        var summary = $"Java {selectedJavaRuntime.MajorVersion} · {selectedJavaRuntime.Vendor} · {selectedJavaRuntime.Architecture}";
+        JavaBox.Text = summary;
         JavaBox.ToolTip = selectedJavaRuntime.JavaExecutable;
+        SettingsJavaText.Text = summary;
+        SettingsJavaPathText.Text = selectedJavaRuntime.JavaExecutable;
 
         var compatible = requiredMajor is not > 0 || JavaCompatibility.Evaluate(selectedJavaRuntime, requiredMajor.Value).IsCompatible;
         JavaBox.BorderBrush = new SolidColorBrush(compatible
@@ -245,35 +357,80 @@ public partial class MainWindow : Window
             : Color.FromRgb(164, 73, 73));
     }
 
+    private void UpdateMemorySummary()
+    {
+        var recommended = MemoryRecommendation.RecommendMiB(memorySnapshot.TotalMiB);
+        var total = memorySnapshot.TotalMiB > 0 ? FormatMemory(memorySnapshot.TotalMiB) : "desconocida";
+        var available = memorySnapshot.AvailableMiB > 0 ? FormatMemory(memorySnapshot.AvailableMiB) : "desconocida";
+        SettingsMemorySummary.Text = $"Sistema: {total} · Disponible: {available} · Recomendado: {FormatMemory(recommended)}";
+        InstallMemoryHintText.Text = $"Recomendado para este equipo: {FormatMemory(recommended)} · límite seguro {FormatMemory((long)RamSlider.Maximum)}";
+    }
+
+    private static string FormatMemory(long memoryMiB) => memoryMiB >= 1024
+        ? $"{memoryMiB / 1024d:0.#} GB"
+        : $"{memoryMiB} MB";
+
+    private void UpdateRamLabels(double installValue, double settingsValue)
+    {
+        if (RamText is not null) RamText.Text = FormatMemory((long)installValue);
+        if (SettingsRamText is not null) SettingsRamText.Text = FormatMemory((long)settingsValue);
+    }
+
     private async void ShowLibrary_Click(object sender, RoutedEventArgs e) => await ShowLibraryAsync();
     private void ShowInstall_Click(object sender, RoutedEventArgs e) => ShowInstall();
+    private void ShowSettings_Click(object sender, RoutedEventArgs e) => ShowSettings();
 
     private async Task ShowLibraryAsync()
     {
+        ShowOnly(LibraryPanel);
+        SetActiveNavigation(LibraryNavButton);
         await RefreshInstancesAsync();
-        LibraryPanel.Visibility = Visibility.Visible;
-        InstallPanel.Visibility = Visibility.Collapsed;
-        LibraryNavButton.Background = new SolidColorBrush(Color.FromRgb(25, 36, 56));
-        LibraryNavButton.Foreground = Brushes.White;
-        InstallNavButton.Background = Brushes.Transparent;
-        InstallNavButton.Foreground = new SolidColorBrush(Color.FromRgb(150, 162, 183));
     }
 
     private void ShowInstall()
     {
-        LibraryPanel.Visibility = Visibility.Collapsed;
-        InstallPanel.Visibility = Visibility.Visible;
-        InstallNavButton.Background = new SolidColorBrush(Color.FromRgb(25, 36, 56));
-        InstallNavButton.Foreground = Brushes.White;
-        LibraryNavButton.Background = Brushes.Transparent;
-        LibraryNavButton.Foreground = new SolidColorBrush(Color.FromRgb(150, 162, 183));
+        ShowOnly(InstallPanel);
+        SetActiveNavigation(InstallNavButton);
+        SyncSettingsControls();
+    }
+
+    private void ShowSettings()
+    {
+        ShowOnly(SettingsPanel);
+        SetActiveNavigation(SettingsNavButton);
+        SyncSettingsControls();
+        UpdateMemorySummary();
+        SettingsStatusText.Text = "Los cambios se guardan localmente.";
+    }
+
+    private void ShowOnly(FrameworkElement panel)
+    {
+        LibraryPanel.Visibility = ReferenceEquals(panel, LibraryPanel) ? Visibility.Visible : Visibility.Collapsed;
+        InstallPanel.Visibility = ReferenceEquals(panel, InstallPanel) ? Visibility.Visible : Visibility.Collapsed;
+        SettingsPanel.Visibility = ReferenceEquals(panel, SettingsPanel) ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void SetActiveNavigation(Button active)
+    {
+        var inactiveForeground = new SolidColorBrush(Color.FromRgb(143, 154, 175));
+        var activeBackground = new SolidColorBrush(Color.FromRgb(24, 35, 52));
+        foreach (var button in new[] { LibraryNavButton, InstallNavButton, SettingsNavButton })
+        {
+            button.Background = ReferenceEquals(button, active) ? activeBackground : Brushes.Transparent;
+            button.Foreground = ReferenceEquals(button, active) ? Brushes.White : inactiveForeground;
+        }
     }
 
     private async void PrimaryButton_Click(object sender, RoutedEventArgs e)
     {
         if (busy || VersionBox.SelectedItem is not MinecraftVersion version) return;
-        await SaveLauncherSettingsAsync();
-        if (minecraft.IsInstalled(version.Id)) { await LaunchAsync(version.Id); return; }
+        await SaveInstallDefaultsAsync();
+
+        if (minecraft.IsInstalled(version.Id))
+        {
+            await LaunchAsync(version.Id);
+            return;
+        }
 
         operation = new CancellationTokenSource();
         try
@@ -294,9 +451,21 @@ public partial class MainWindow : Window
 
             await ShowLibraryAsync();
         }
-        catch (OperationCanceledException) { StatusText.Text = "Operación cancelada."; }
-        catch (Exception exception) { ShowError(exception); }
-        finally { SetBusy(false); RefreshButton(); operation?.Dispose(); operation = null; }
+        catch (OperationCanceledException)
+        {
+            StatusText.Text = "Operación cancelada.";
+        }
+        catch (Exception exception)
+        {
+            ShowError(exception);
+        }
+        finally
+        {
+            SetBusy(false);
+            RefreshButton();
+            operation?.Dispose();
+            operation = null;
+        }
     }
 
     private async void LibraryPlay_Click(object sender, RoutedEventArgs e)
@@ -305,7 +474,7 @@ public partial class MainWindow : Window
         var instance = await instanceManager.GetAsync(item.Id, lifetime.Token);
         if (instance is null)
         {
-            MessageBox.Show(this, "La instancia seleccionada ya no existe.", "Nexo Launcher", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, "La instancia seleccionada ya no existe.", "NEXO Client", MessageBoxButton.OK, MessageBoxImage.Warning);
             await RefreshInstancesAsync();
             return;
         }
@@ -316,7 +485,7 @@ public partial class MainWindow : Window
     private async Task LaunchAsync(string versionId, GameInstance? instance = null)
     {
         if (busy) return;
-        await SaveLauncherSettingsAsync();
+        await SaveInstallDefaultsAsync();
 
         var effective = LauncherSettingsResolver.Resolve(launcherSettings, instance?.Settings ?? new InstanceSettings());
         var runtime = await ResolveRuntimePathAsync(effective.JavaPath, instance is null ? "Global" : "Instancia", lifetime.Token)
@@ -324,8 +493,8 @@ public partial class MainWindow : Window
 
         if (runtime is null)
         {
-            ShowInstall();
-            MessageBox.Show(this, "NEXO no encontró un runtime Java válido. Usa “ELEGIR JAVA” para seleccionar uno.", "Java requerido", MessageBoxButton.OK, MessageBoxImage.Information);
+            ShowSettings();
+            MessageBox.Show(this, "NEXO no encontró un runtime Java válido. Selecciona uno en Configuración.", "Java requerido", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
@@ -342,7 +511,7 @@ public partial class MainWindow : Window
             var compatibility = JavaCompatibility.Evaluate(runtime, requiredMajor.Value);
             if (!compatibility.IsCompatible)
             {
-                ShowInstall();
+                ShowSettings();
                 selectedJavaRuntime = FindRecommendedRuntime(requiredMajor);
                 UpdateJavaDisplay(requiredMajor);
                 MessageBox.Show(this, compatibility.Message, "Java incompatible", MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -351,19 +520,27 @@ public partial class MainWindow : Window
         }
         else if (!File.Exists(runtime.JavawExecutable))
         {
-            ShowInstall();
+            ShowSettings();
             MessageBox.Show(this, "El runtime seleccionado no contiene javaw.exe.", "Java inválido", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
         try
         {
-            busy = true;
+            SetBusy(true, "Iniciando Minecraft…");
             LibraryPlayButton.IsEnabled = false;
-            PrimaryButton.IsEnabled = false;
 
-            var username = launcherSettings.Username;
-            var process = minecraft.Launch(new LaunchOptions(versionId, runtime.JavawExecutable, username, effective.MemoryMiB));
+            var memoryMiB = Math.Clamp(
+                effective.MemoryMiB,
+                MemoryRecommendation.MinimumMiB,
+                MemoryRecommendation.SafeMaximumMiB(memorySnapshot.TotalMiB));
+
+            var process = minecraft.Launch(new LaunchOptions(
+                versionId,
+                runtime.JavawExecutable,
+                launcherSettings.Username,
+                memoryMiB));
+
             await Task.Delay(700, lifetime.Token);
             if (!process.HasExited)
             {
@@ -375,10 +552,13 @@ public partial class MainWindow : Window
             throw new InvalidOperationException("Java terminó antes de iniciar Minecraft.");
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
-        catch (Exception exception) { ShowError(exception); }
+        catch (Exception exception)
+        {
+            ShowError(exception);
+        }
         finally
         {
-            busy = false;
+            SetBusy(false);
             RefreshButton();
             LibraryPlayButton.IsEnabled = InstancesList.SelectedItem is not null;
         }
@@ -405,14 +585,64 @@ public partial class MainWindow : Window
         catch { return null; }
     }
 
-    private void InstancesList_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateInstanceDetails(InstancesList.SelectedItem as InstanceItem);
-
-    private void UpdateInstanceDetails(InstanceItem? item)
+    private async void InstancesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        DetailName.Text = item?.Name ?? "Selecciona una instancia";
-        DetailSubtitle.Text = item is null ? "Los detalles aparecerán aquí." : "Lista para iniciar";
-        DetailVersion.Text = item?.VersionId ?? "—";
-        LibraryPlayButton.IsEnabled = item is not null && !busy;
+        try
+        {
+            await UpdateInstanceDetailsAsync(InstancesList.SelectedItem as InstanceItem);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+    }
+
+    private async Task UpdateInstanceDetailsAsync(InstanceItem? item)
+    {
+        if (item is null)
+        {
+            ResetInstanceDetails();
+            return;
+        }
+
+        DetailName.Text = item.Name;
+        DetailSubtitle.Text = "Resolviendo configuración…";
+        DetailVersion.Text = item.VersionId;
+        LibraryPlayButton.IsEnabled = !busy;
+
+        var instance = await instanceManager.GetAsync(item.Id, lifetime.Token);
+        if (instance is null)
+        {
+            ResetInstanceDetails();
+            return;
+        }
+
+        var effective = LauncherSettingsResolver.Resolve(launcherSettings, instance.Settings);
+        DetailLoader.Text = instance.Loader.ToString();
+        DetailMemory.Text = $"{FormatMemory(effective.MemoryMiB)} · {(instance.Settings.MemoryMiB is null ? "Global" : "Override")}";
+        DetailJava.Text = FormatJavaSetting(effective.JavaPath, instance.Settings.JavaPath is null ? "Global" : "Override");
+        DetailSubtitle.Text = "Lista para iniciar";
+    }
+
+    private string FormatJavaSetting(string? javaPath, string source)
+    {
+        if (string.IsNullOrWhiteSpace(javaPath))
+            return selectedJavaRuntime is null ? $"Automático · {source}" : $"Java {selectedJavaRuntime.MajorVersion} · Automático";
+
+        var normalized = NormalizeJavaExecutable(javaPath);
+        var runtime = javaRuntimes.FirstOrDefault(item =>
+            string.Equals(item.JavaExecutable, normalized, StringComparison.OrdinalIgnoreCase));
+        return runtime is null
+            ? $"{Path.GetFileName(Path.GetDirectoryName(normalized)) ?? "Java"} · {source}"
+            : $"Java {runtime.MajorVersion} · {runtime.Vendor} · {source}";
+    }
+
+    private void ResetInstanceDetails()
+    {
+        DetailName.Text = "Selecciona una instancia";
+        DetailSubtitle.Text = "Los detalles aparecerán aquí.";
+        DetailVersion.Text = "—";
+        DetailLoader.Text = "—";
+        DetailMemory.Text = "—";
+        DetailJava.Text = "—";
+        LibraryPlayButton.IsEnabled = false;
     }
 
     private async void BrowseJava_Click(object sender, RoutedEventArgs e)
@@ -425,6 +655,16 @@ public partial class MainWindow : Window
             catch { }
         }
 
+        await BrowseJavaAsync(requiredMajor, persistImmediately: true);
+    }
+
+    private async void SettingsBrowseJava_Click(object sender, RoutedEventArgs e)
+    {
+        await BrowseJavaAsync(null, persistImmediately: false);
+    }
+
+    private async Task BrowseJavaAsync(int? requiredMajor, bool persistImmediately)
+    {
         if (javaRuntimes.Count > 0)
         {
             var selector = new JavaRuntimeDialog(javaRuntimes, requiredMajor, selectedJavaRuntime) { Owner = this };
@@ -433,17 +673,23 @@ public partial class MainWindow : Window
             {
                 selectedJavaRuntime = selector.SelectedRuntime;
                 UpdateJavaDisplay(requiredMajor);
-                await SaveLauncherSettingsAsync();
+                if (persistImmediately)
+                {
+                    await PersistLauncherSettingsAsync(launcherSettings with
+                    {
+                        JavaPath = selectedJavaRuntime.JavaExecutable
+                    });
+                }
                 return;
             }
 
             if (!selector.ManualBrowseRequested) return;
         }
 
-        await BrowseManualJavaAsync(requiredMajor);
+        await BrowseManualJavaAsync(requiredMajor, persistImmediately);
     }
 
-    private async Task BrowseManualJavaAsync(int? requiredMajor)
+    private async Task BrowseManualJavaAsync(int? requiredMajor, bool persistImmediately)
     {
         var dialog = new OpenFileDialog
         {
@@ -454,7 +700,10 @@ public partial class MainWindow : Window
 
         var executable = NormalizeJavaExecutable(dialog.FileName);
         JavaRuntime? runtime;
-        try { runtime = await javaInspector.InspectAsync(executable, "Manual", lifetime.Token); }
+        try
+        {
+            runtime = await javaInspector.InspectAsync(executable, "Manual", lifetime.Token);
+        }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { return; }
         catch (Exception exception)
         {
@@ -471,7 +720,15 @@ public partial class MainWindow : Window
         AddOrReplaceRuntime(runtime);
         selectedJavaRuntime = runtime;
         UpdateJavaDisplay(requiredMajor);
-        await SaveLauncherSettingsAsync();
+
+        try { await javaRuntimeCache.SaveAsync(javaRuntimes, lifetime.Token); }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch { }
+
+        if (persistImmediately)
+        {
+            await PersistLauncherSettingsAsync(launcherSettings with { JavaPath = runtime.JavaExecutable });
+        }
 
         if (requiredMajor is > 0)
         {
@@ -496,6 +753,51 @@ public partial class MainWindow : Window
         return File.Exists(java) ? java : fullPath;
     }
 
+    private async void RedetectJava_Click(object sender, RoutedEventArgs e)
+    {
+        if (javaRefreshRunning || busy) return;
+
+        SettingsStatusText.Text = "Detectando runtimes Java…";
+        SidebarStatusText.Text = "DETECTANDO JAVA";
+        try
+        {
+            javaRuntimeCache.Invalidate();
+            await LoadJavaRuntimesAsync(lifetime.Token, forceRefresh: true);
+            await RefreshJavaCompatibilityAsync();
+            SettingsStatusText.Text = javaRuntimes.Count == 0
+                ? "No se encontraron runtimes Java compatibles."
+                : $"Detección completada: {javaRuntimes.Count} runtime(s).";
+        }
+        finally
+        {
+            SidebarStatusText.Text = "NEXO CORE LISTO";
+        }
+    }
+
+    private void UseRecommendedMemory_Click(object sender, RoutedEventArgs e)
+    {
+        var recommended = Math.Clamp(
+            MemoryRecommendation.RecommendMiB(memorySnapshot.TotalMiB),
+            (int)SettingsRamSlider.Minimum,
+            (int)SettingsRamSlider.Maximum);
+        SettingsRamSlider.Value = recommended;
+        SettingsStatusText.Text = $"Memoria recomendada seleccionada: {FormatMemory(recommended)}.";
+    }
+
+    private async void SettingsSave_Click(object sender, RoutedEventArgs e)
+    {
+        var username = string.IsNullOrWhiteSpace(SettingsUsernameBox.Text) ? "Player" : SettingsUsernameBox.Text.Trim();
+        await PersistLauncherSettingsAsync(launcherSettings with
+        {
+            MemoryMiB = (int)SettingsRamSlider.Value,
+            JavaPath = selectedJavaRuntime?.JavaExecutable ?? launcherSettings.JavaPath,
+            Username = username,
+            CloseLauncherOnGameStart = SettingsCloseLauncherCheck.IsChecked != false
+        }, "Configuración guardada.");
+
+        await UpdateInstanceDetailsAsync(InstancesList.SelectedItem as InstanceItem);
+    }
+
     private async void VersionBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         RefreshButton();
@@ -504,7 +806,13 @@ public partial class MainWindow : Window
 
     private void RamSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (RamText is not null) RamText.Text = $"{e.NewValue / 1024:0.#} GB";
+        if (RamText is not null) RamText.Text = FormatMemory((long)e.NewValue);
+        if (!syncingSettingsUi && SettingsRamSlider is not null) SettingsRamSlider.Value = e.NewValue;
+    }
+
+    private void SettingsRamSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (SettingsRamText is not null) SettingsRamText.Text = FormatMemory((long)e.NewValue);
     }
 
     private void RefreshButton()
@@ -529,7 +837,18 @@ public partial class MainWindow : Window
         UsernameBox.IsEnabled = !value;
         RamSlider.IsEnabled = !value;
         PrimaryButton.IsEnabled = !value;
-        if (value) PrimaryButton.Content = "TRABAJANDO…";
+        RedetectJavaButton.IsEnabled = !value && !javaRefreshRunning;
+
+        if (value)
+        {
+            PrimaryButton.Content = "TRABAJANDO…";
+            SidebarStatusText.Text = "NEXO TRABAJANDO";
+        }
+        else
+        {
+            SidebarStatusText.Text = "NEXO CORE LISTO";
+        }
+
         if (status is not null) StatusText.Text = status;
         if (!value) Progress.Visibility = Visibility.Collapsed;
     }
@@ -537,7 +856,8 @@ public partial class MainWindow : Window
     private void ShowError(Exception exception)
     {
         StatusText.Text = "No se pudo completar la operación.";
-        MessageBox.Show(this, exception.Message, "Nexo Launcher", MessageBoxButton.OK, MessageBoxImage.Error);
+        SidebarStatusText.Text = "NEXO REQUIERE ATENCIÓN";
+        MessageBox.Show(this, exception.Message, "NEXO Client", MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     protected override void OnClosing(CancelEventArgs e)
