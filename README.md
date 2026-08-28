@@ -17,6 +17,7 @@ La experiencia visual toma como referencia el nivel de pulido de clientes como L
 - Java Manager con versión, proveedor, arquitectura y compatibilidad;
 - detección de múltiples instalaciones Java en `JAVA_HOME`, `PATH` y ubicaciones relevantes de Program Files;
 - inspección de runtimes con paralelismo acotado para mantener el launcher ligero;
+- timeout y terminación segura de runtimes defectuosos durante la inspección;
 - caché de runtimes Java válida durante 24 horas;
 - selección automática del Java correcto para cada versión de Minecraft;
 - prioridad para `javaVersion.majorVersion` publicado por Mojang y fallback histórico para releases antiguas;
@@ -76,7 +77,7 @@ dotnet build NexoLauncher.slnx
 dotnet run --project tests/NexoLauncher.Core.Tests
 ```
 
-El harness actual contiene 23 comprobaciones de memoria, configuración, instancias, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes y selección automática por versión.
+El harness actual contiene 24 comprobaciones de memoria, configuración, instancias, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes y selección automática por versión.
 
 ## Alcance actual
 

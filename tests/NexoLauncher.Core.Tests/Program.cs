@@ -292,6 +292,11 @@ Check("Java Manager parses legacy Java 8 notation", () =>
     Equal(8, JavaRuntimeInspector.ParseMajor("1.8.0_402"));
 });
 
+Check("Java Manager rejects output without a valid version", () =>
+{
+    Equal<JavaRuntime?>(null, JavaRuntimeInspector.Parse("not a Java runtime", @"C:\Java\bin\java.exe", "test"));
+});
+
 Check("Java Manager rejects an incompatible major version", () =>
 {
     var runtime = JavaRuntimeInspector.Parse("java.version = 17.0.12\njava.vendor = Test\nos.arch = amd64", @"C:\Java\bin\java.exe", "test")!;
@@ -306,7 +311,7 @@ if (failures.Count > 0)
     return 1;
 }
 
-Console.WriteLine("23 checks passed.");
+Console.WriteLine("24 checks passed.");
 return 0;
 
 void Check(string name, Action action)

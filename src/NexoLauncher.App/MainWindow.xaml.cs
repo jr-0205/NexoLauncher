@@ -19,6 +19,7 @@ using NexoLauncher.Java.Compatibility;
 using NexoLauncher.Java.Detection;
 using NexoLauncher.Java.Selection;
 using NexoLauncher.Minecraft;
+using NexoLauncher.Minecraft.Java;
 
 namespace NexoLauncher.App;
 
@@ -501,7 +502,9 @@ public partial class MainWindow : Window
         var effective = LauncherSettingsResolver.Resolve(launcherSettings, instance?.Settings ?? new InstanceSettings());
         var version = availableVersions.FirstOrDefault(item => item.Id == versionId);
 
-        int? requiredMajor = null;
+        // Las instancias instaladas deben seguir resolviendo Java aunque el catálogo
+        // remoto todavía no esté disponible durante este arranque.
+        int? requiredMajor = MinecraftJavaVersionPolicy.InferRequiredMajor(versionId);
         if (version is not null)
         {
             try { requiredMajor = await GetRequiredJavaMajorAsync(version, lifetime.Token); }

@@ -5,6 +5,8 @@ namespace NexoLauncher.Java.Detection;
 
 public sealed partial class JavaRuntimeInspector
 {
+    private static readonly TimeSpan InspectionTimeout = TimeSpan.FromSeconds(8);
+
     public async Task<JavaRuntime?> InspectAsync(string javaExecutable, string source, CancellationToken token = default)
     {
         if (!File.Exists(javaExecutable)) return null;
@@ -20,11 +22,39 @@ public sealed partial class JavaRuntimeInspector
         info.ArgumentList.Add("-version");
         using var process = Process.Start(info);
         if (process is null) return null;
-        var stdout = process.StandardOutput.ReadToEndAsync(token);
-        var stderr = process.StandardError.ReadToEndAsync(token);
-        await process.WaitForExitAsync(token);
+
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        using var timeout = new CancellationTokenSource(InspectionTimeout);
+        using var inspection = CancellationTokenSource.CreateLinkedTokenSource(token, timeout.Token);
+
+        try
+        {
+            await process.WaitForExitAsync(inspection.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            TryTerminate(process);
+            try { await process.WaitForExitAsync(CancellationToken.None); }
+            catch (InvalidOperationException) { }
+
+            token.ThrowIfCancellationRequested();
+            return null;
+        }
+
         if (process.ExitCode != 0) return null;
         return Parse(await stdout + await stderr, javaExecutable, source);
+    }
+
+    private static void TryTerminate(Process process)
+    {
+        try
+        {
+            if (!process.HasExited) process.Kill(entireProcessTree: true);
+        }
+        catch (InvalidOperationException) { }
+        catch (NotSupportedException) { }
+        catch (System.ComponentModel.Win32Exception) { }
     }
 
     public static JavaRuntime? Parse(string output, string javaExecutable, string source)
