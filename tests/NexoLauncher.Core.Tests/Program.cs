@@ -81,6 +81,7 @@ Check("Safe ZIP extraction blocks path traversal", () =>
     }
     finally { Directory.Delete(root, true); }
 });
+
 Check("Instance Manager persists and restores an isolated profile", () =>
 {
     var root = Path.Combine(Path.GetTempPath(), "nexo-tests", Guid.NewGuid().ToString("N"));
@@ -98,6 +99,27 @@ Check("Instance Manager persists and restores an isolated profile", () =>
     finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 });
 
+Check("Instance Manager persists Java and RAM overrides", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-tests", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var repository = new JsonInstanceRepository(root);
+        var manager = new InstanceManager(repository);
+        var created = manager.CreateAsync("Perfil runtime", "1.21.1").GetAwaiter().GetResult();
+        manager.UpdateSettingsAsync(created.Id, created.Settings with
+        {
+            MemoryMiB = 6144,
+            JavaPath = @"C:\Java\jdk-21\bin\java.exe"
+        }).GetAwaiter().GetResult();
+
+        var restored = manager.GetAsync(created.Id).GetAwaiter().GetResult();
+        Equal(6144, restored?.Settings.MemoryMiB);
+        Equal(@"C:\Java\jdk-21\bin\java.exe", restored?.Settings.JavaPath);
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+
 Check("Instance Manager supports multiple profiles for one Minecraft version", () =>
 {
     var first = GameInstance.Create("Perfil A", "1.21.1");
@@ -106,6 +128,7 @@ Check("Instance Manager supports multiple profiles for one Minecraft version", (
     Equal("1.21.1", first.MinecraftVersion);
     Equal("1.21.1", second.MinecraftVersion);
 });
+
 Check("Legacy migration creates one profile without moving game files", () =>
 {
     var root = Path.Combine(Path.GetTempPath(), "nexo-tests", Guid.NewGuid().ToString("N"));
@@ -124,6 +147,7 @@ Check("Legacy migration creates one profile without moving game files", () =>
     }
     finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 });
+
 Check("Minecraft rules apply the last matching Windows rule", () =>
 {
     using var json = JsonDocument.Parse("""{"rules":[{"action":"disallow"},{"action":"allow","os":{"name":"windows"}}]}""");
@@ -146,6 +170,7 @@ Check("Verified downloader rejects insecure HTTP", () =>
     catch (InvalidDataException) { rejected = true; }
     Equal(true, rejected);
 });
+
 Check("Java Manager parses a modern runtime", () =>
 {
     var output = "java.version = 21.0.4\njava.vendor = Eclipse Adoptium\nos.arch = amd64\n";
@@ -167,13 +192,14 @@ Check("Java Manager rejects an incompatible major version", () =>
     Equal(false, result.IsCompatible);
     Equal(true, result.Message.Contains("Java 21", StringComparison.Ordinal));
 });
+
 if (failures.Count > 0)
 {
     Console.Error.WriteLine(string.Join(Environment.NewLine, failures));
     return 1;
 }
 
-Console.WriteLine("14 checks passed.");
+Console.WriteLine("15 checks passed.");
 return 0;
 
 void Check(string name, Action action)
@@ -196,9 +222,3 @@ static void Equal<T>(T expected, T actual)
         throw new InvalidOperationException($"Expected {expected}, got {actual}.");
     }
 }
-
-
-
-
-
-
