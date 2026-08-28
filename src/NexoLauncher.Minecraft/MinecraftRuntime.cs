@@ -15,7 +15,7 @@ public sealed class MinecraftRuntime
     public MinecraftRuntime(HttpClient http, string dataRoot)
     {
         var paths = new MinecraftPaths(dataRoot);
-        metadata = new MojangMetadataClient(http);
+        metadata = new MojangMetadataClient(http, Path.Combine(paths.Root, "cache", "version_manifest_v2.json"));
         installer = new VanillaInstaller(new VerifiedDownloader(http), paths);
         launcher = new MinecraftLauncher(paths);
     }
