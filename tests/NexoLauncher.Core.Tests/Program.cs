@@ -8,6 +8,7 @@ using NexoLauncher.Minecraft.Rules;
 using NexoLauncher.Java;
 using NexoLauncher.Java.Detection;
 using NexoLauncher.Java.Compatibility;
+using NexoLauncher.Java.Selection;
 using NexoLauncher.Application.Configuration;
 using NexoLauncher.Application.Instances;
 using NexoLauncher.Domain.Configuration;
@@ -44,12 +45,12 @@ Check("RAM ceiling leaves memory for Windows", () =>
     Equal(32768, MemoryRecommendation.SafeMaximumMiB(65536));
 });
 
-Check("Global settings are overridden only by instance settings", () =>
+Check("Java is automatic globally and only instances can override it", () =>
 {
-    var global = new LauncherSettings(4096, @"C:\Java\global\bin\java.exe", "Player");
+    var global = new LauncherSettings(4096, @"C:\Java\legacy-global\bin\java.exe", "Player");
     var inherited = LauncherSettingsResolver.Resolve(global, new InstanceSettings());
     Equal(4096, inherited.MemoryMiB);
-    Equal(@"C:\Java\global\bin\java.exe", inherited.JavaPath);
+    Equal<string?>(null, inherited.JavaPath);
 
     var overridden = LauncherSettingsResolver.Resolve(global, new InstanceSettings(6144, @"C:\Java\instance\bin\java.exe"));
     Equal(6144, overridden.MemoryMiB);
@@ -63,10 +64,10 @@ Check("Launcher settings persist atomically", () =>
     {
         var path = Path.Combine(root, "settings.json");
         var store = new JsonLauncherSettingsStore(path);
-        store.SaveAsync(new LauncherSettings(6144, @"C:\Java\jdk-21\bin\java.exe", "NexoUser")).GetAwaiter().GetResult();
+        store.SaveAsync(new LauncherSettings(6144, null, "NexoUser")).GetAwaiter().GetResult();
         var restored = store.LoadAsync().GetAwaiter().GetResult();
         Equal(6144, restored.MemoryMiB);
-        Equal(@"C:\Java\jdk-21\bin\java.exe", restored.JavaPath);
+        Equal<string?>(null, restored.JavaPath);
         Equal("NexoUser", restored.Username);
         Equal(false, File.Exists(path + ".tmp"));
     }
@@ -94,6 +95,31 @@ Check("Java runtime cache restores valid local runtimes", () =>
         Equal("Test Vendor", restored[0].Vendor);
     }
     finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+
+Check("Java selector chooses the runtime required by each Minecraft version", () =>
+{
+    JavaRuntime[] runtimes =
+    [
+        new(@"C:\Java\8\bin\java.exe", @"C:\Java\8\bin\javaw.exe", 8, "1.8.0_402", "Test 8", "amd64", "Program Files"),
+        new(@"C:\Java\17\bin\java.exe", @"C:\Java\17\bin\javaw.exe", 17, "17.0.12", "Test 17", "amd64", "Program Files"),
+        new(@"C:\Java\21\bin\java.exe", @"C:\Java\21\bin\javaw.exe", 21, "21.0.4", "Test 21", "amd64", "Program Files")
+    ];
+
+    Equal(8, JavaRuntimeSelector.Select(runtimes, 8)?.MajorVersion);
+    Equal(17, JavaRuntimeSelector.Select(runtimes, 17)?.MajorVersion);
+    Equal(21, JavaRuntimeSelector.Select(runtimes, 21)?.MajorVersion);
+});
+
+Check("Java selector reports a missing required major instead of using the wrong Java", () =>
+{
+    JavaRuntime[] runtimes =
+    [
+        new(@"C:\Java\17\bin\java.exe", @"C:\Java\17\bin\javaw.exe", 17, "17.0.12", "Test 17", "amd64", "Program Files"),
+        new(@"C:\Java\21\bin\java.exe", @"C:\Java\21\bin\javaw.exe", 21, "21.0.4", "Test 21", "amd64", "Program Files")
+    ];
+
+    Equal<JavaRuntime?>(null, JavaRuntimeSelector.Select(runtimes, 8));
 });
 
 Check("Launch arguments stay tokenized", () =>
@@ -270,7 +296,7 @@ if (failures.Count > 0)
     return 1;
 }
 
-Console.WriteLine("20 checks passed.");
+Console.WriteLine("22 checks passed.");
 return 0;
 
 void Check(string name, Action action)
