@@ -4,7 +4,7 @@ Launcher nativo y ligero para Minecraft Java en Windows. Está construido con C#
 
 La experiencia visual toma como referencia el nivel de pulido de clientes como Lunar Client, pero NEXO mantiene código, arquitectura, identidad y componentes propios.
 
-## Estado actual · Runtime Experience 0.3
+## Estado actual · Runtime Experience 0.4
 
 - interfaz WPF nativa con biblioteca, nueva instalación y configuración global;
 - perfiles/instancias independientes con `instance.json`;
@@ -15,14 +15,38 @@ La experiencia visual toma como referencia el nivel de pulido de clientes como L
 - verificación SHA-1 de los archivos publicados por Mojang;
 - extracción ZIP segura contra path traversal;
 - Java Manager con versión, proveedor, arquitectura y compatibilidad;
-- detección Java limitada a rutas relevantes, sin escaneo recursivo pesado de Program Files;
+- detección de múltiples instalaciones Java en `JAVA_HOME`, `PATH` y ubicaciones relevantes de Program Files;
+- inspección de runtimes con paralelismo acotado para mantener el launcher ligero;
 - caché de runtimes Java válida durante 24 horas;
-- selección automática del Java compatible con `javaVersion.majorVersion` de Mojang;
+- selección automática del Java correcto para cada versión de Minecraft;
+- prioridad para `javaVersion.majorVersion` publicado por Mojang y fallback histórico para releases antiguas;
+- no existe un Java global obligatorio: NEXO mantiene todos los runtimes detectados y escoge Java 8, 16, 17, 21, etc. según la instancia que se inicie;
+- los overrides manuales de Java quedan reservados para una instancia concreta;
 - selector visual de runtimes y búsqueda manual de `java.exe`/`javaw.exe`;
-- configuración global con herencia `Global Default -> Instance Override`;
+- configuración global para RAM, perfil local y comportamiento del launcher;
 - RAM recomendada y límite seguro basados en memoria física de Windows;
 - cierre configurable del launcher después de iniciar Minecraft;
 - usuario local mientras la autenticación Microsoft sigue fuera del flujo de producción.
+
+## Selección automática de Java
+
+El flujo normal no requiere configurar un Java predeterminado:
+
+```text
+Minecraft seleccionado
+        ↓
+Requisito Java de Mojang
+        ↓
+Catálogo de runtimes detectados
+        ↓
+Selección automática por major version
+        ↓
+Validación x64 + javaw.exe
+        ↓
+Launch
+```
+
+Ejemplo: si el equipo tiene Java 8, 17 y 21 instalados, una instancia antigua puede arrancar con Java 8, una versión intermedia con Java 17 y una versión moderna con Java 21 sin cambiar ajustes globales.
 
 ## Datos locales
 
@@ -52,7 +76,7 @@ dotnet build NexoLauncher.slnx
 dotnet run --project tests/NexoLauncher.Core.Tests
 ```
 
-El harness actual contiene 20 comprobaciones de memoria, configuración, instancias, descargas, ZIP seguro, reglas de Minecraft, Java y caché de runtimes.
+El harness actual contiene 23 comprobaciones de memoria, configuración, instancias, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes y selección automática por versión.
 
 ## Alcance actual
 
