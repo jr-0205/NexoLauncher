@@ -248,9 +248,10 @@
         <TextBlock x:Name="DetailJava" Text="—" FontSize="12" Foreground="#B8C1D0" Margin="0,6,0,0" TextWrapping="Wrap"/>
        </StackPanel>
 
-       <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="104"/><ColumnDefinition/></Grid.ColumnDefinitions>
-        <Button x:Name="EditInstanceButton" Content="EDITAR" Style="{StaticResource GhostButton}" IsEnabled="False" Click="EditInstance_Click" Margin="0,0,9,0"/>
-        <Button Grid.Column="1" x:Name="LibraryPlayButton" Content="▶  INICIAR" Style="{StaticResource PrimaryButton}" Background="#167A42" IsEnabled="False" Click="LibraryPlay_Click"/>
+       <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="78"/><ColumnDefinition Width="86"/><ColumnDefinition/></Grid.ColumnDefinitions>
+        <Button x:Name="DeleteInstanceButton" Content="BORRAR" Style="{StaticResource GhostButton}" Foreground="#FF8E8E" IsEnabled="False" Click="DeleteInstance_Click" Margin="0,0,8,0"/>
+        <Button Grid.Column="1" x:Name="EditInstanceButton" Content="EDITAR" Style="{StaticResource GhostButton}" IsEnabled="False" Click="EditInstance_Click" Margin="0,0,9,0"/>
+        <Button Grid.Column="2" x:Name="LibraryPlayButton" Content="▶  INICIAR" Style="{StaticResource PrimaryButton}" Background="#167A42" IsEnabled="False" Click="LibraryPlay_Click"/>
        </Grid>
       </Grid>
      </Border>
