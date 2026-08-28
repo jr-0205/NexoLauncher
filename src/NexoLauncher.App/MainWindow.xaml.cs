@@ -17,6 +17,7 @@ using NexoLauncher.Infrastructure.System;
 using NexoLauncher.Java;
 using NexoLauncher.Java.Compatibility;
 using NexoLauncher.Java.Detection;
+using NexoLauncher.Java.Selection;
 using NexoLauncher.Minecraft;
 
 namespace NexoLauncher.App;
@@ -60,7 +61,7 @@ public partial class MainWindow : Window
         javaDetector = new JavaRuntimeDetector(javaInspector);
 
         InstallPathText.Text = paths.Root;
-        JavaBox.Text = "Detectando Java…";
+        JavaBox.Text = "Detectando runtimes Java…";
         SidebarStatusText.Text = "INICIALIZANDO NEXO";
 
         RamSlider.PreviewMouseLeftButtonUp += async (_, _) => await SaveInstallDefaultsAsync();
@@ -109,10 +110,19 @@ public partial class MainWindow : Window
             };
         }
 
+        // Desde NEXO 0.4 Java global deja de ser un requisito. Java se resuelve por versión.
         launcherSettings = (launcherSettings with
         {
-            MemoryMiB = Math.Clamp(launcherSettings.MemoryMiB, MemoryRecommendation.MinimumMiB, safeMaximum)
+            MemoryMiB = Math.Clamp(launcherSettings.MemoryMiB, MemoryRecommendation.MinimumMiB, safeMaximum),
+            JavaPath = null
         }).Normalize();
+
+        if (existed)
+        {
+            try { await launcherSettingsStore.SaveAsync(launcherSettings, lifetime.Token); }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+            catch { }
+        }
 
         SyncSettingsControls();
         UpdateMemorySummary();
@@ -145,7 +155,8 @@ public partial class MainWindow : Window
         var safeMaximum = MemoryRecommendation.SafeMaximumMiB(memorySnapshot.TotalMiB);
         launcherSettings = (settings with
         {
-            MemoryMiB = Math.Clamp(settings.MemoryMiB, MemoryRecommendation.MinimumMiB, safeMaximum)
+            MemoryMiB = Math.Clamp(settings.MemoryMiB, MemoryRecommendation.MinimumMiB, safeMaximum),
+            JavaPath = null
         }).Normalize();
 
         try
@@ -170,7 +181,6 @@ public partial class MainWindow : Window
         await PersistLauncherSettingsAsync(launcherSettings with
         {
             MemoryMiB = (int)RamSlider.Value,
-            JavaPath = selectedJavaRuntime?.JavaExecutable ?? launcherSettings.JavaPath,
             Username = username
         });
     }
@@ -242,9 +252,7 @@ public partial class MainWindow : Window
 
             javaRuntimes.Clear();
             javaRuntimes.AddRange(runtimes);
-
-            selectedJavaRuntime = await ResolveRuntimePathAsync(launcherSettings.JavaPath, "Global", token)
-                                  ?? FindRecommendedRuntime(null);
+            selectedJavaRuntime = FindRecommendedRuntime(null);
             UpdateJavaDisplay();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -264,6 +272,7 @@ public partial class MainWindow : Window
     {
         if (VersionBox.SelectedItem is not MinecraftVersion version)
         {
+            selectedJavaRuntime = FindRecommendedRuntime(null);
             UpdateJavaDisplay();
             return;
         }
@@ -281,25 +290,23 @@ public partial class MainWindow : Window
 
         if (VersionBox.SelectedItem is not MinecraftVersion current || current.Id != version.Id) return;
 
-        if (requiredMajor is > 0 &&
-            (selectedJavaRuntime is null || !JavaCompatibility.Evaluate(selectedJavaRuntime, requiredMajor.Value).IsCompatible))
-        {
-            selectedJavaRuntime = FindRecommendedRuntime(requiredMajor);
-        }
-        else if (selectedJavaRuntime is null)
-        {
-            selectedJavaRuntime = FindRecommendedRuntime(requiredMajor);
-        }
-
+        selectedJavaRuntime = FindRecommendedRuntime(requiredMajor);
         UpdateJavaDisplay(requiredMajor);
 
         if (!busy && InstallPanel.Visibility == Visibility.Visible)
         {
-            StatusText.Text = requiredMajor is > 0
-                ? selectedJavaRuntime is not null && JavaCompatibility.Evaluate(selectedJavaRuntime, requiredMajor.Value).IsCompatible
-                    ? $"Minecraft {version.Id} · Java {requiredMajor} compatible listo."
-                    : $"Minecraft {version.Id} requiere Java {requiredMajor}. No se encontró un runtime compatible."
-                : $"Minecraft {version.Id} · requisito de Java no publicado.";
+            if (selectedJavaRuntime is not null)
+            {
+                StatusText.Text = requiredMajor is > 0
+                    ? $"Minecraft {version.Id} requiere Java {requiredMajor}. NEXO eligió Java {selectedJavaRuntime.MajorVersion} automáticamente."
+                    : $"Minecraft {version.Id} · NEXO eligió Java {selectedJavaRuntime.MajorVersion} automáticamente.";
+            }
+            else
+            {
+                StatusText.Text = requiredMajor is > 0
+                    ? $"Minecraft {version.Id} requiere Java {requiredMajor}. No está instalado."
+                    : $"Minecraft {version.Id} · no se encontró un runtime Java utilizable.";
+            }
         }
     }
 
@@ -313,48 +320,52 @@ public partial class MainWindow : Window
 
     private JavaRuntime? FindRecommendedRuntime(int? requiredMajor)
     {
-        IEnumerable<JavaRuntime> candidates = javaRuntimes;
-        if (requiredMajor is > 0)
-            candidates = candidates.Where(runtime => JavaCompatibility.Evaluate(runtime, requiredMajor.Value).IsCompatible);
-        else if (Environment.Is64BitOperatingSystem)
-            candidates = candidates.Where(runtime => runtime.Is64Bit && File.Exists(runtime.JavawExecutable));
-        else
-            candidates = candidates.Where(runtime => File.Exists(runtime.JavawExecutable));
-
-        return candidates
-            .OrderByDescending(runtime => runtime.MajorVersion)
-            .ThenBy(runtime => runtime.Vendor, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
+        var usable = javaRuntimes
+            .Where(IsRuntimeUsable)
+            .ToArray();
+        return JavaRuntimeSelector.Select(usable, requiredMajor);
     }
+
+    private static bool IsRuntimeUsable(JavaRuntime runtime)
+        => File.Exists(runtime.JavaExecutable)
+           && File.Exists(runtime.JavawExecutable)
+           && (!Environment.Is64BitOperatingSystem || runtime.Is64Bit);
 
     private void UpdateJavaDisplay(int? requiredMajor = null)
     {
         if (JavaBox is null || SettingsJavaText is null) return;
 
+        var majors = JavaRuntimeSelector.DetectedMajors(javaRuntimes);
         SettingsRuntimeCountText.Text = javaRuntimes.Count == 1
             ? "1 runtime detectado"
             : $"{javaRuntimes.Count} runtimes detectados";
 
+        SettingsJavaText.Text = "Selección automática por versión";
+        SettingsJavaPathText.Text = majors.Count == 0
+            ? "No hay runtimes Java detectados."
+            : "Disponibles: " + string.Join(" · ", majors.Select(major => $"Java {major}"));
+
         if (selectedJavaRuntime is null)
         {
-            JavaBox.Text = javaRuntimes.Count == 0 ? "No se detectó Java" : "Sin runtime compatible";
-            JavaBox.ToolTip = "Puedes seleccionar un runtime manualmente.";
+            JavaBox.Text = requiredMajor is > 0
+                ? $"Automático · Falta Java {requiredMajor}"
+                : javaRuntimes.Count == 0 ? "Automático · No se detectó Java" : "Automático · Sin runtime utilizable";
+            JavaBox.ToolTip = "NEXO selecciona Java automáticamente según la versión de Minecraft.";
             JavaBox.BorderBrush = new SolidColorBrush(Color.FromRgb(164, 73, 73));
-            SettingsJavaText.Text = JavaBox.Text;
-            SettingsJavaPathText.Text = "Selecciona un runtime o vuelve a ejecutar la detección.";
             return;
         }
 
-        var summary = $"Java {selectedJavaRuntime.MajorVersion} · {selectedJavaRuntime.Vendor} · {selectedJavaRuntime.Architecture}";
-        JavaBox.Text = summary;
+        JavaBox.Text = $"Automático · Java {selectedJavaRuntime.MajorVersion} · {selectedJavaRuntime.Vendor} · {selectedJavaRuntime.Architecture}";
         JavaBox.ToolTip = selectedJavaRuntime.JavaExecutable;
-        SettingsJavaText.Text = summary;
-        SettingsJavaPathText.Text = selectedJavaRuntime.JavaExecutable;
+        JavaBox.BorderBrush = new SolidColorBrush(Color.FromRgb(58, 128, 91));
+    }
 
-        var compatible = requiredMajor is not > 0 || JavaCompatibility.Evaluate(selectedJavaRuntime, requiredMajor.Value).IsCompatible;
-        JavaBox.BorderBrush = new SolidColorBrush(compatible
-            ? Color.FromRgb(58, 128, 91)
-            : Color.FromRgb(164, 73, 73));
+    private string DetectedJavaSummary()
+    {
+        var majors = JavaRuntimeSelector.DetectedMajors(javaRuntimes);
+        return majors.Count == 0
+            ? "ninguno"
+            : string.Join(", ", majors.Select(major => $"Java {major}"));
     }
 
     private void UpdateMemorySummary()
@@ -400,7 +411,7 @@ public partial class MainWindow : Window
         SetActiveNavigation(SettingsNavButton);
         SyncSettingsControls();
         UpdateMemorySummary();
-        SettingsStatusText.Text = "Los cambios se guardan localmente.";
+        SettingsStatusText.Text = "Java se selecciona automáticamente según la versión del juego.";
     }
 
     private void ShowOnly(FrameworkElement panel)
@@ -488,46 +499,73 @@ public partial class MainWindow : Window
         await SaveInstallDefaultsAsync();
 
         var effective = LauncherSettingsResolver.Resolve(launcherSettings, instance?.Settings ?? new InstanceSettings());
-        var runtime = await ResolveRuntimePathAsync(effective.JavaPath, instance is null ? "Global" : "Instancia", lifetime.Token)
-                      ?? selectedJavaRuntime;
-
-        if (runtime is null)
-        {
-            ShowSettings();
-            MessageBox.Show(this, "NEXO no encontró un runtime Java válido. Selecciona uno en Configuración.", "Java requerido", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
         var version = availableVersions.FirstOrDefault(item => item.Id == versionId);
+
         int? requiredMajor = null;
         if (version is not null)
         {
             try { requiredMajor = await GetRequiredJavaMajorAsync(version, lifetime.Token); }
             catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { return; }
+            catch { }
         }
 
-        if (requiredMajor is > 0)
+        JavaRuntime? runtime;
+        if (!string.IsNullOrWhiteSpace(effective.JavaPath))
         {
-            var compatibility = JavaCompatibility.Evaluate(runtime, requiredMajor.Value);
-            if (!compatibility.IsCompatible)
+            runtime = await ResolveRuntimePathAsync(effective.JavaPath, "Override de instancia", lifetime.Token);
+            if (runtime is null)
+            {
+                MessageBox.Show(this,
+                    "El Java configurado específicamente para esta instancia ya no existe o no es válido.",
+                    "Override Java inválido",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
+            if (requiredMajor is > 0)
+            {
+                var overrideCompatibility = JavaCompatibility.Evaluate(runtime, requiredMajor.Value);
+                if (!overrideCompatibility.IsCompatible)
+                {
+                    MessageBox.Show(this,
+                        overrideCompatibility.Message + " Quita el override de la instancia para volver a selección automática.",
+                        "Override Java incompatible",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+            }
+        }
+        else
+        {
+            runtime = FindRecommendedRuntime(requiredMajor);
+
+            if (runtime is null && !javaRefreshRunning)
+            {
+                await LoadJavaRuntimesAsync(lifetime.Token, forceRefresh: true);
+                runtime = FindRecommendedRuntime(requiredMajor);
+            }
+
+            if (runtime is null)
             {
                 ShowSettings();
-                selectedJavaRuntime = FindRecommendedRuntime(requiredMajor);
-                UpdateJavaDisplay(requiredMajor);
-                MessageBox.Show(this, compatibility.Message, "Java incompatible", MessageBoxButton.OK, MessageBoxImage.Warning);
+                var requirement = requiredMajor is > 0 ? $"Java {requiredMajor}" : "un runtime Java compatible";
+                MessageBox.Show(this,
+                    $"Minecraft {versionId} necesita {requirement}. Detectados: {DetectedJavaSummary()}. Instala el runtime necesario y pulsa “DETECTAR DE NUEVO”.",
+                    "Java requerido",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
                 return;
             }
         }
-        else if (!File.Exists(runtime.JavawExecutable))
-        {
-            ShowSettings();
-            MessageBox.Show(this, "El runtime seleccionado no contiene javaw.exe.", "Java inválido", MessageBoxButton.OK, MessageBoxImage.Warning);
-            return;
-        }
+
+        selectedJavaRuntime = runtime;
+        UpdateJavaDisplay(requiredMajor);
 
         try
         {
-            SetBusy(true, "Iniciando Minecraft…");
+            SetBusy(true, $"Iniciando Minecraft {versionId} con Java {runtime.MajorVersion}…");
             LibraryPlayButton.IsEnabled = false;
 
             var memoryMiB = Math.Clamp(
@@ -617,21 +655,34 @@ public partial class MainWindow : Window
         var effective = LauncherSettingsResolver.Resolve(launcherSettings, instance.Settings);
         DetailLoader.Text = instance.Loader.ToString();
         DetailMemory.Text = $"{FormatMemory(effective.MemoryMiB)} · {(instance.Settings.MemoryMiB is null ? "Global" : "Override")}";
-        DetailJava.Text = FormatJavaSetting(effective.JavaPath, instance.Settings.JavaPath is null ? "Global" : "Override");
+
+        if (!string.IsNullOrWhiteSpace(instance.Settings.JavaPath))
+        {
+            DetailJava.Text = FormatJavaOverride(instance.Settings.JavaPath);
+        }
+        else if (javaRequirements.TryGetValue(item.VersionId, out var cachedRequirement))
+        {
+            var automatic = FindRecommendedRuntime(cachedRequirement);
+            DetailJava.Text = automatic is null
+                ? "Automático · runtime pendiente"
+                : $"Java {automatic.MajorVersion} · Automático";
+        }
+        else
+        {
+            DetailJava.Text = "Automático · Según versión";
+        }
+
         DetailSubtitle.Text = "Lista para iniciar";
     }
 
-    private string FormatJavaSetting(string? javaPath, string source)
+    private string FormatJavaOverride(string javaPath)
     {
-        if (string.IsNullOrWhiteSpace(javaPath))
-            return selectedJavaRuntime is null ? $"Automático · {source}" : $"Java {selectedJavaRuntime.MajorVersion} · Automático";
-
         var normalized = NormalizeJavaExecutable(javaPath);
         var runtime = javaRuntimes.FirstOrDefault(item =>
             string.Equals(item.JavaExecutable, normalized, StringComparison.OrdinalIgnoreCase));
         return runtime is null
-            ? $"{Path.GetFileName(Path.GetDirectoryName(normalized)) ?? "Java"} · {source}"
-            : $"Java {runtime.MajorVersion} · {runtime.Vendor} · {source}";
+            ? $"Override · {Path.GetFileName(Path.GetDirectoryName(normalized)) ?? "Java"}"
+            : $"Java {runtime.MajorVersion} · {runtime.Vendor} · Override";
     }
 
     private void ResetInstanceDetails()
@@ -655,15 +706,16 @@ public partial class MainWindow : Window
             catch { }
         }
 
-        await BrowseJavaAsync(requiredMajor, persistImmediately: true);
+        await BrowseJavaAsync(requiredMajor);
     }
 
     private async void SettingsBrowseJava_Click(object sender, RoutedEventArgs e)
     {
-        await BrowseJavaAsync(null, persistImmediately: false);
+        await BrowseJavaAsync(null);
+        SettingsStatusText.Text = "El runtime elegido solo es una vista previa. El arranque sigue en modo automático por versión.";
     }
 
-    private async Task BrowseJavaAsync(int? requiredMajor, bool persistImmediately)
+    private async Task BrowseJavaAsync(int? requiredMajor)
     {
         if (javaRuntimes.Count > 0)
         {
@@ -673,23 +725,16 @@ public partial class MainWindow : Window
             {
                 selectedJavaRuntime = selector.SelectedRuntime;
                 UpdateJavaDisplay(requiredMajor);
-                if (persistImmediately)
-                {
-                    await PersistLauncherSettingsAsync(launcherSettings with
-                    {
-                        JavaPath = selectedJavaRuntime.JavaExecutable
-                    });
-                }
                 return;
             }
 
             if (!selector.ManualBrowseRequested) return;
         }
 
-        await BrowseManualJavaAsync(requiredMajor, persistImmediately);
+        await BrowseManualJavaAsync(requiredMajor);
     }
 
-    private async Task BrowseManualJavaAsync(int? requiredMajor, bool persistImmediately)
+    private async Task BrowseManualJavaAsync(int? requiredMajor)
     {
         var dialog = new OpenFileDialog
         {
@@ -725,11 +770,6 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         catch { }
 
-        if (persistImmediately)
-        {
-            await PersistLauncherSettingsAsync(launcherSettings with { JavaPath = runtime.JavaExecutable });
-        }
-
         if (requiredMajor is > 0)
         {
             var result = JavaCompatibility.Evaluate(runtime, requiredMajor.Value);
@@ -757,7 +797,7 @@ public partial class MainWindow : Window
     {
         if (javaRefreshRunning || busy) return;
 
-        SettingsStatusText.Text = "Detectando runtimes Java…";
+        SettingsStatusText.Text = "Detectando todos los runtimes Java…";
         SidebarStatusText.Text = "DETECTANDO JAVA";
         try
         {
@@ -765,8 +805,8 @@ public partial class MainWindow : Window
             await LoadJavaRuntimesAsync(lifetime.Token, forceRefresh: true);
             await RefreshJavaCompatibilityAsync();
             SettingsStatusText.Text = javaRuntimes.Count == 0
-                ? "No se encontraron runtimes Java compatibles."
-                : $"Detección completada: {javaRuntimes.Count} runtime(s).";
+                ? "No se encontraron runtimes Java."
+                : $"Detección completada: {javaRuntimes.Count} runtime(s) · {DetectedJavaSummary()}.";
         }
         finally
         {
@@ -790,10 +830,9 @@ public partial class MainWindow : Window
         await PersistLauncherSettingsAsync(launcherSettings with
         {
             MemoryMiB = (int)SettingsRamSlider.Value,
-            JavaPath = selectedJavaRuntime?.JavaExecutable ?? launcherSettings.JavaPath,
             Username = username,
             CloseLauncherOnGameStart = SettingsCloseLauncherCheck.IsChecked != false
-        }, "Configuración guardada.");
+        }, "Configuración guardada. Java permanece en selección automática por versión.");
 
         await UpdateInstanceDetailsAsync(InstancesList.SelectedItem as InstanceItem);
     }
