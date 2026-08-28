@@ -21,6 +21,7 @@ public sealed class MinecraftRuntime
     }
 
     public Task<IReadOnlyList<MinecraftVersion>> GetReleaseVersionsAsync(CancellationToken token = default) => metadata.GetReleaseVersionsAsync(token);
+    public Task<int?> GetRequiredJavaMajorAsync(MinecraftVersion version, CancellationToken token = default) => metadata.GetRequiredJavaMajorAsync(version, token);
     public bool IsInstalled(string id) => installer.IsInstalled(id);
     public Task InstallAsync(MinecraftVersion version, IProgress<InstallProgress>? progress = null, CancellationToken token = default) => installer.InstallAsync(version, progress, token);
     public Process Launch(LaunchOptions options) => launcher.Launch(options);
