@@ -152,7 +152,7 @@
       </StackPanel>
      </Border>
      <Border Height="1" Background="#202D41" Margin="0,0,0,15"/>
-     <TextBlock Text="NEXO Client 0.3" Foreground="#68758A" FontSize="11"/>
+     <TextBlock Text="NEXO Client 0.4" Foreground="#68758A" FontSize="11"/>
      <TextBlock Text="Nativo · Sin telemetría" Foreground="#4F5C70" FontSize="10" Margin="0,4,0,0"/>
     </StackPanel>
    </Grid>
@@ -248,7 +248,10 @@
         <TextBlock x:Name="DetailJava" Text="—" FontSize="12" Foreground="#B8C1D0" Margin="0,6,0,0" TextWrapping="Wrap"/>
        </StackPanel>
 
-       <Button Grid.Row="2" x:Name="LibraryPlayButton" Content="▶  INICIAR" Style="{StaticResource PrimaryButton}" Background="#167A42" IsEnabled="False" Click="LibraryPlay_Click"/>
+       <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="104"/><ColumnDefinition/></Grid.ColumnDefinitions>
+        <Button x:Name="EditInstanceButton" Content="EDITAR" Style="{StaticResource GhostButton}" IsEnabled="False" Click="EditInstance_Click" Margin="0,0,9,0"/>
+        <Button Grid.Column="1" x:Name="LibraryPlayButton" Content="▶  INICIAR" Style="{StaticResource PrimaryButton}" Background="#167A42" IsEnabled="False" Click="LibraryPlay_Click"/>
+       </Grid>
       </Grid>
      </Border>
     </Grid>
@@ -270,6 +273,17 @@
         <StackPanel><TextBlock Text="Versión estable" Style="{StaticResource LabelStyle}"/><ComboBox x:Name="VersionBox" Style="{StaticResource ComboStyle}" SelectionChanged="VersionBox_SelectionChanged"/></StackPanel>
         <StackPanel Grid.Column="2"><TextBlock Text="Nombre de jugador" Style="{StaticResource LabelStyle}"/><TextBox x:Name="UsernameBox" Style="{StaticResource FieldStyle}" Text="Player" MaxLength="16"/></StackPanel>
        </Grid>
+
+       <Grid Margin="0,18,0,0">
+        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="18"/><ColumnDefinition/></Grid.ColumnDefinitions>
+        <StackPanel><TextBlock Text="Loader" Style="{StaticResource LabelStyle}"/><ComboBox x:Name="LoaderBox" Style="{StaticResource ComboStyle}" SelectionChanged="LoaderBox_SelectionChanged"/></StackPanel>
+        <StackPanel Grid.Column="2"><TextBlock Text="Versión del loader" Style="{StaticResource LabelStyle}"/><ComboBox x:Name="LoaderVersionBox" Style="{StaticResource ComboStyle}" SelectionChanged="LoaderVersionBox_SelectionChanged"/></StackPanel>
+       </Grid>
+
+       <StackPanel Margin="0,18,0,0">
+        <TextBlock Text="Nombre de la instancia" Style="{StaticResource LabelStyle}"/>
+        <TextBox x:Name="InstanceNameBox" Style="{StaticResource FieldStyle}" MaxLength="64"/>
+       </StackPanel>
 
        <Grid Margin="0,22,0,0">
         <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="12"/><ColumnDefinition Width="132"/></Grid.ColumnDefinitions>

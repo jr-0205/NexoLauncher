@@ -9,31 +9,36 @@ namespace NexoLauncher.Minecraft.Launching;
 
 public sealed class MinecraftLauncher(MinecraftPaths paths)
 {
-    public Process Launch(LaunchOptions options)
+    public Process Launch(LaunchOptions options, LaunchPlan? plan = null)
     {
         Validate(options);
         using var metadata = JsonDocument.Parse(File.ReadAllBytes(paths.VersionJson(options.VersionId)));
         var root = metadata.RootElement;
         if (!root.TryGetProperty("arguments", out var arguments)) throw new NotSupportedException("Esta versión antigua aún no es compatible.");
-        Directory.CreateDirectory(paths.GameDirectory(options.VersionId));
-        var classPath = BuildClassPath(root, options.VersionId);
-        var values = Replacements(root, options, classPath);
+        var gameDirectory = Path.GetFullPath(plan?.GameDirectory ?? paths.GameDirectory(options.VersionId));
+        Directory.CreateDirectory(gameDirectory);
+        var classPath = BuildClassPath(root, options.VersionId, plan?.AdditionalClassPath);
+        var values = Replacements(root, options, classPath, gameDirectory);
         var startInfo = new ProcessStartInfo
         {
             FileName = options.JavaExecutable,
-            WorkingDirectory = paths.GameDirectory(options.VersionId),
+            WorkingDirectory = gameDirectory,
             UseShellExecute = false
         };
         startInfo.ArgumentList.Add("-Xms512M");
         startInfo.ArgumentList.Add($"-Xmx{options.MemoryMiB}M");
         AddArguments(startInfo, arguments.GetProperty("jvm"), values);
+        AddPlainArguments(startInfo, plan?.JvmArguments, values);
+        AddPlainArguments(startInfo, options.JvmArguments, values);
         AddLoggingArgument(startInfo, root);
-        startInfo.ArgumentList.Add(root.GetProperty("mainClass").GetString()!);
+        startInfo.ArgumentList.Add(plan?.MainClass ?? root.GetProperty("mainClass").GetString()!);
         AddArguments(startInfo, arguments.GetProperty("game"), values);
+        AddPlainArguments(startInfo, plan?.GameArguments, values);
+        AddWindowArguments(startInfo, options);
         return Process.Start(startInfo) ?? throw new InvalidOperationException("Windows no pudo iniciar Java.");
     }
 
-    private List<string> BuildClassPath(JsonElement root, string versionId)
+    private List<string> BuildClassPath(JsonElement root, string versionId, IReadOnlyList<string>? additional)
     {
         var result = root.GetProperty("libraries").EnumerateArray()
             .Where(item => MinecraftRuleEvaluator.Allows(item))
@@ -41,21 +46,41 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
             .Where(path => path is not null)
             .Select(path => Path.Combine(paths.Libraries, path!.Replace('/', Path.DirectorySeparatorChar))).ToList();
         result.Add(paths.ClientJar(versionId));
-        return result;
+        if (additional is not null) result.AddRange(additional);
+        return result.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
     }
 
-    private Dictionary<string, string> Replacements(JsonElement root, LaunchOptions options, List<string> classPath) => new()
+    private Dictionary<string, string> Replacements(JsonElement root, LaunchOptions options, List<string> classPath, string gameDirectory) => new()
     {
         ["${auth_player_name}"] = options.Username, ["${version_name}"] = options.VersionId,
-        ["${game_directory}"] = paths.GameDirectory(options.VersionId), ["${assets_root}"] = paths.Assets,
+        ["${game_directory}"] = gameDirectory, ["${assets_root}"] = paths.Assets,
         ["${assets_index_name}"] = root.GetProperty("assetIndex").GetProperty("id").GetString()!,
         ["${auth_uuid}"] = options.AccountId ?? OfflineUuid(options.Username), ["${auth_access_token}"] = options.AccessToken ?? "0",
         ["${clientid}"] = string.Empty, ["${auth_xuid}"] = string.Empty, ["${user_type}"] = options.AccessToken is null ? "legacy" : "msa",
         ["${version_type}"] = root.GetProperty("type").GetString() ?? "release", ["${natives_directory}"] = paths.Natives(options.VersionId),
-        ["${launcher_name}"] = "NexoLauncher", ["${launcher_version}"] = "0.2.0",
+        ["${launcher_name}"] = "NexoLauncher", ["${launcher_version}"] = "0.4.0",
         ["${classpath}"] = string.Join(Path.PathSeparator, classPath), ["${classpath_separator}"] = Path.PathSeparator.ToString(),
         ["${library_directory}"] = paths.Libraries
     };
+
+    private static void AddPlainArguments(ProcessStartInfo info, IReadOnlyList<string>? arguments, Dictionary<string, string> values)
+    {
+        if (arguments is null) return;
+        foreach (var argument in arguments.Where(value => !string.IsNullOrWhiteSpace(value)))
+            info.ArgumentList.Add(Replace(argument, values));
+    }
+
+    private static void AddWindowArguments(ProcessStartInfo info, LaunchOptions options)
+    {
+        if (options.WindowWidth is > 0 && options.WindowHeight is > 0)
+        {
+            info.ArgumentList.Add("--width");
+            info.ArgumentList.Add(options.WindowWidth.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            info.ArgumentList.Add("--height");
+            info.ArgumentList.Add(options.WindowHeight.Value.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+        if (options.Fullscreen) info.ArgumentList.Add("--fullscreen");
+    }
 
     private void AddLoggingArgument(ProcessStartInfo info, JsonElement root)
     {
@@ -87,4 +112,3 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
     }
     private static string OfflineUuid(string username) { var hash = MD5.HashData(Encoding.UTF8.GetBytes("OfflinePlayer:" + username)); hash[6] = (byte)((hash[6] & 15) | 48); hash[8] = (byte)((hash[8] & 63) | 128); return Convert.ToHexString(hash).ToLowerInvariant(); }
 }
-

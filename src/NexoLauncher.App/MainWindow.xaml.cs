@@ -48,6 +48,7 @@ public partial class MainWindow : Window
     private bool busy;
     private bool syncingSettingsUi;
     private bool javaRefreshRunning;
+    private bool loaderVersionsLoading;
 
     public MainWindow()
     {
@@ -64,6 +65,12 @@ public partial class MainWindow : Window
         InstallPathText.Text = paths.Root;
         JavaBox.Text = "Detectando runtimes Java…";
         SidebarStatusText.Text = "INICIALIZANDO NEXO";
+        LoaderBox.ItemsSource = new[]
+        {
+            new LoaderChoice(LoaderType.Vanilla, "Vanilla"),
+            new LoaderChoice(LoaderType.Fabric, "Fabric")
+        };
+        LoaderBox.SelectedIndex = 0;
 
         RamSlider.PreviewMouseLeftButtonUp += async (_, _) => await SaveInstallDefaultsAsync();
         UsernameBox.LostKeyboardFocus += async (_, _) => await SaveInstallDefaultsAsync();
@@ -216,6 +223,8 @@ public partial class MainWindow : Window
             availableVersions = await minecraft.GetReleaseVersionsAsync(lifetime.Token);
             VersionBox.ItemsSource = availableVersions;
             VersionBox.SelectedIndex = availableVersions.Count > 0 ? 0 : -1;
+            if (availableVersions.Count > 0 && string.IsNullOrWhiteSpace(InstanceNameBox.Text))
+                InstanceNameBox.Text = "Minecraft " + availableVersions[0].Id;
             StatusText.Text = $"{availableVersions.Count} versiones estables disponibles.";
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
@@ -438,11 +447,16 @@ public partial class MainWindow : Window
         if (busy || VersionBox.SelectedItem is not MinecraftVersion version) return;
         await SaveInstallDefaultsAsync();
 
-        if (minecraft.IsInstalled(version.Id))
+        var loader = SelectedLoader();
+        var loaderVersion = loader.Type == LoaderType.Vanilla ? null : (LoaderVersionBox.SelectedItem as LoaderVersion)?.Version;
+        if (loader.Type != LoaderType.Vanilla && string.IsNullOrWhiteSpace(loaderVersion))
         {
-            await LaunchAsync(version.Id);
+            MessageBox.Show(this, "Selecciona una versión de Fabric.", "Loader requerido", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
+        var instanceName = string.IsNullOrWhiteSpace(InstanceNameBox.Text)
+            ? $"Minecraft {version.Id} · {loader.Name}"
+            : InstanceNameBox.Text.Trim();
 
         operation = new CancellationTokenSource();
         try
@@ -455,11 +469,11 @@ public partial class MainWindow : Window
                 Progress.Value = value.Percentage;
             });
 
-            await minecraft.InstallAsync(version, reporter, operation.Token);
+            var loaderId = LoaderId(loader.Type);
+            if (!minecraft.IsInstalled(version.Id, loaderId, loaderVersion))
+                await minecraft.InstallAsync(new LoaderInstallRequest(version, loaderVersion), loaderId, reporter, operation.Token);
 
-            var existing = (await instanceManager.ListAsync(operation.Token))
-                .FirstOrDefault(instance => instance.MinecraftVersion == version.Id && instance.Loader == LoaderType.Vanilla);
-            _ = existing ?? await instanceManager.CreateAsync($"Minecraft {version.Id}", version.Id, cancellationToken: operation.Token);
+            await instanceManager.CreateAsync(instanceName, version.Id, loader.Type, loaderVersion, operation.Token);
 
             await ShowLibraryAsync();
         }
@@ -576,11 +590,20 @@ public partial class MainWindow : Window
                 MemoryRecommendation.MinimumMiB,
                 MemoryRecommendation.SafeMaximumMiB(memorySnapshot.TotalMiB));
 
+            var loaderId = LoaderId(instance?.Loader ?? LoaderType.Vanilla);
+            var gameDirectory = instance is null
+                ? Path.Combine(paths.Instances, versionId, "game")
+                : Path.Combine(instanceRepository.GetInstanceDirectory(instance.Id), "game");
+            var plan = minecraft.CreateLaunchPlan(versionId, loaderId, instance?.LoaderVersion, gameDirectory);
             var process = minecraft.Launch(new LaunchOptions(
                 versionId,
                 runtime.JavawExecutable,
                 launcherSettings.Username,
-                memoryMiB));
+                memoryMiB,
+                JvmArguments: effective.JvmArguments,
+                WindowWidth: effective.WindowWidth,
+                WindowHeight: effective.WindowHeight,
+                Fullscreen: effective.Fullscreen == true), plan);
 
             await Task.Delay(700, lifetime.Token);
             if (!process.HasExited)
@@ -676,6 +699,7 @@ public partial class MainWindow : Window
         }
 
         DetailSubtitle.Text = "Lista para iniciar";
+        EditInstanceButton.IsEnabled = !busy;
     }
 
     private string FormatJavaOverride(string javaPath)
@@ -697,6 +721,7 @@ public partial class MainWindow : Window
         DetailMemory.Text = "—";
         DetailJava.Text = "—";
         LibraryPlayButton.IsEnabled = false;
+        EditInstanceButton.IsEnabled = false;
     }
 
     private async void BrowseJava_Click(object sender, RoutedEventArgs e)
@@ -842,8 +867,79 @@ public partial class MainWindow : Window
 
     private async void VersionBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        if (VersionBox.SelectedItem is MinecraftVersion selected &&
+            (string.IsNullOrWhiteSpace(InstanceNameBox.Text) || InstanceNameBox.Text.StartsWith("Minecraft ", StringComparison.Ordinal)))
+            InstanceNameBox.Text = "Minecraft " + selected.Id;
+        await RefreshLoaderVersionsAsync();
         RefreshButton();
         await RefreshJavaCompatibilityAsync();
+    }
+
+    private async void LoaderBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        await RefreshLoaderVersionsAsync();
+        RefreshButton();
+    }
+
+    private void LoaderVersionBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => RefreshButton();
+
+    private async Task RefreshLoaderVersionsAsync()
+    {
+        if (LoaderVersionBox is null || LoaderBox?.SelectedItem is not LoaderChoice loader) return;
+        if (loader.Type == LoaderType.Vanilla)
+        {
+            LoaderVersionBox.ItemsSource = new[] { new LoaderVersion("Vanilla", true) };
+            LoaderVersionBox.SelectedIndex = 0;
+            LoaderVersionBox.IsEnabled = false;
+            return;
+        }
+        if (VersionBox.SelectedItem is not MinecraftVersion version) return;
+
+        loaderVersionsLoading = true;
+        LoaderVersionBox.IsEnabled = false;
+        LoaderVersionBox.ItemsSource = null;
+        try
+        {
+            StatusText.Text = $"Consultando versiones de {loader.Name}…";
+            var versions = await minecraft.GetLoaderVersionsAsync(LoaderId(loader.Type), version.Id, lifetime.Token);
+            LoaderVersionBox.ItemsSource = versions;
+            LoaderVersionBox.SelectedIndex = versions.Count > 0 ? 0 : -1;
+            StatusText.Text = versions.Count == 0
+                ? $"{loader.Name} no publicó versiones para Minecraft {version.Id}."
+                : $"{versions.Count} versiones de {loader.Name} disponibles.";
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            StatusText.Text = "No se pudieron consultar las versiones del loader.";
+            MessageBox.Show(this, exception.Message, "Fabric", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            loaderVersionsLoading = false;
+            LoaderVersionBox.IsEnabled = !busy && LoaderVersionBox.Items.Count > 0;
+        }
+    }
+
+    private async void EditInstance_Click(object sender, RoutedEventArgs e)
+    {
+        if (InstancesList.SelectedItem is not InstanceItem item) return;
+        var instance = await instanceManager.GetAsync(item.Id, lifetime.Token);
+        if (instance is null) return;
+        var editor = new InstanceEditorDialog(instance) { Owner = this };
+        if (editor.ShowDialog() != true) return;
+
+        try
+        {
+            await instanceManager.UpdateAsync(instance.Id, editor.UpdatedName, editor.UpdatedSettings, lifetime.Token);
+            await RefreshInstancesAsync();
+            var refreshed = ((IEnumerable<InstanceItem>)InstancesList.ItemsSource).FirstOrDefault(value => value.Id == instance.Id);
+            if (refreshed is not null) InstancesList.SelectedItem = refreshed;
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, "Editar instancia", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void RamSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
@@ -862,8 +958,13 @@ public partial class MainWindow : Window
         if (PrimaryButton is null || busy) return;
         if (VersionBox.SelectedItem is MinecraftVersion version)
         {
-            PrimaryButton.Content = minecraft.IsInstalled(version.Id) ? "INICIAR" : "DESCARGAR";
-            PrimaryButton.IsEnabled = true;
+            var loader = SelectedLoader();
+            var loaderVersion = loader.Type == LoaderType.Vanilla ? null : (LoaderVersionBox.SelectedItem as LoaderVersion)?.Version;
+            var selectionComplete = loader.Type == LoaderType.Vanilla || !string.IsNullOrWhiteSpace(loaderVersion);
+            PrimaryButton.Content = selectionComplete && minecraft.IsInstalled(version.Id, LoaderId(loader.Type), loaderVersion)
+                ? "CREAR INSTANCIA"
+                : "DESCARGAR Y CREAR";
+            PrimaryButton.IsEnabled = selectionComplete;
         }
         else
         {
@@ -872,14 +973,28 @@ public partial class MainWindow : Window
         }
     }
 
+    private LoaderChoice SelectedLoader()
+        => LoaderBox?.SelectedItem as LoaderChoice ?? new LoaderChoice(LoaderType.Vanilla, "Vanilla");
+
+    private static string LoaderId(LoaderType type) => type switch
+    {
+        LoaderType.Vanilla => "vanilla",
+        LoaderType.Fabric => "fabric",
+        _ => throw new NotSupportedException($"El loader {type} todavía no forma parte de NEXO 0.4.")
+    };
+
     private void SetBusy(bool value, string? status = null)
     {
         busy = value;
         VersionBox.IsEnabled = !value;
+        LoaderBox.IsEnabled = !value;
+        LoaderVersionBox.IsEnabled = !value && !loaderVersionsLoading && SelectedLoader().Type != LoaderType.Vanilla;
+        InstanceNameBox.IsEnabled = !value;
         UsernameBox.IsEnabled = !value;
         RamSlider.IsEnabled = !value;
         PrimaryButton.IsEnabled = !value;
         RedetectJavaButton.IsEnabled = !value && !javaRefreshRunning;
+        EditInstanceButton.IsEnabled = !value && InstancesList.SelectedItem is not null;
 
         if (value)
         {
@@ -913,4 +1028,8 @@ public partial class MainWindow : Window
     }
 
     private sealed record InstanceItem(InstanceId Id, string VersionId, string Name, string Subtitle, DateTimeOffset Modified);
+    private sealed record LoaderChoice(LoaderType Type, string Name)
+    {
+        public override string ToString() => Name;
+    }
 }

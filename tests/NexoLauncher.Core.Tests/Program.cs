@@ -6,6 +6,7 @@ using System.Text.Json;
 using NexoLauncher.Minecraft.Downloads;
 using NexoLauncher.Minecraft.Rules;
 using NexoLauncher.Minecraft.Java;
+using NexoLauncher.Minecraft.Loaders;
 using NexoLauncher.Java;
 using NexoLauncher.Java.Detection;
 using NexoLauncher.Java.Compatibility;
@@ -305,13 +306,59 @@ Check("Java Manager rejects an incompatible major version", () =>
     Equal(true, result.Message.Contains("Java 21", StringComparison.Ordinal));
 });
 
+Check("Fabric metadata exposes stable loader versions", () =>
+{
+    var bytes = """[{"loader":{"version":"0.16.14","stable":true}},{"loader":{"version":"0.16.13","stable":false}}]"""u8.ToArray();
+    var versions = FabricMetadataClient.ParseLoaderVersions(bytes);
+    Equal(2, versions.Count);
+    Equal("0.16.14", versions[0].Version);
+    Equal(true, versions[0].Stable);
+});
+
+Check("Fabric Maven coordinates resolve to a safe library path", () =>
+{
+    var resolved = FabricLibraryResolver.Resolve("net.fabricmc:fabric-loader:0.16.14");
+    Equal("net/fabricmc/fabric-loader/0.16.14/fabric-loader-0.16.14.jar", resolved.RelativePath);
+});
+
+Check("Fabric Maven coordinates block path traversal", () =>
+{
+    var blocked = false;
+    try { FabricLibraryResolver.Resolve("net.fabricmc:../escape:1.0"); }
+    catch (InvalidDataException) { blocked = true; }
+    Equal(true, blocked);
+});
+
+Check("Fabric instances persist their loader version", () =>
+{
+    var instance = GameInstance.Create("Fabric", "1.21.1", LoaderType.Fabric, "0.16.14");
+    Equal(LoaderType.Fabric, instance.Loader);
+    Equal("0.16.14", instance.LoaderVersion);
+});
+
+Check("Instance editor updates name and overrides atomically", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-tests", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var repository = new JsonInstanceRepository(root);
+        var manager = new InstanceManager(repository);
+        var created = manager.CreateAsync("Original", "1.21.1").GetAwaiter().GetResult();
+        var updated = manager.UpdateAsync(created.Id, "Editada", new InstanceSettings(5120, null, ["-XX:+UseG1GC"], 1280, 720, false)).GetAwaiter().GetResult();
+        Equal("Editada", updated.Name);
+        Equal(5120, updated.Settings.MemoryMiB);
+        Equal(1280, updated.Settings.WindowWidth);
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+
 if (failures.Count > 0)
 {
     Console.Error.WriteLine(string.Join(Environment.NewLine, failures));
     return 1;
 }
 
-Console.WriteLine("24 checks passed.");
+Console.WriteLine("29 checks passed.");
 return 0;
 
 void Check(string name, Action action)

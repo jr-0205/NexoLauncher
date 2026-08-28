@@ -4,7 +4,7 @@ Launcher nativo y ligero para Minecraft Java en Windows. Está construido con C#
 
 La experiencia visual toma como referencia el nivel de pulido de clientes como Lunar Client, pero NEXO mantiene código, arquitectura, identidad y componentes propios.
 
-## Estado actual · Runtime Experience 0.4
+## Estado actual · Loader Runtime 0.4
 
 - interfaz WPF nativa con biblioteca, nueva instalación y configuración global;
 - perfiles/instancias independientes con `instance.json`;
@@ -28,6 +28,13 @@ La experiencia visual toma como referencia el nivel de pulido de clientes como L
 - RAM recomendada y límite seguro basados en memoria física de Windows;
 - cierre configurable del launcher después de iniciar Minecraft;
 - usuario local mientras la autenticación Microsoft sigue fuera del flujo de producción.
+- arquitectura de loaders mediante `ILoaderProvider`;
+- proveedores Vanilla y Fabric separados del `MainWindow`;
+- catálogo y perfiles desde la API oficial de Fabric;
+- selección y persistencia de versión de Fabric por instancia;
+- `LaunchPlan` con `KnotClient`, bibliotecas adicionales y argumentos del loader;
+- directorio de juego realmente aislado por GUID de instancia;
+- editor de instancia para nombre, RAM, Java, ventana, pantalla completa y argumentos JVM;
 
 ## Selección automática de Java
 
@@ -77,10 +84,10 @@ dotnet build NexoLauncher.slnx
 dotnet run --project tests/NexoLauncher.Core.Tests
 ```
 
-El harness actual contiene 24 comprobaciones de memoria, configuración, instancias, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes y selección automática por versión.
+El harness actual contiene 29 comprobaciones de memoria, configuración, instancias, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes, loaders y selección automática por versión.
 
 ## Alcance actual
 
-Vanilla es el proveedor funcional actual. Fabric, Forge, NeoForge, Content Manager, autenticación oficial Microsoft/Xbox, Mission Control y el módulo in-game de NEXO se desarrollarán como subsistemas separados, no como lógica añadida al `MainWindow`.
+Vanilla y Fabric son los proveedores funcionales de 0.4. Forge, NeoForge, Content Manager, autenticación oficial Microsoft/Xbox, Mission Control y el módulo in-game de NEXO se desarrollarán como subsistemas separados, no como lógica añadida al `MainWindow`.
 
 La autenticación local no equivale a una cuenta comprada y no sustituye la autenticación oficial de Minecraft.

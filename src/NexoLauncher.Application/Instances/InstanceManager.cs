@@ -24,13 +24,20 @@ public sealed class InstanceManager(IInstanceRepository repository)
     }
 
     public async Task<GameInstance> UpdateSettingsAsync(InstanceId id, InstanceSettings settings, CancellationToken cancellationToken = default)
+        => await UpdateAsync(id, null, settings, cancellationToken);
+
+    public async Task<GameInstance> UpdateAsync(InstanceId id, string? name, InstanceSettings settings, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(settings);
         var instance = await repository.GetAsync(id, cancellationToken)
             ?? throw new InvalidOperationException("La instancia seleccionada ya no existe.");
 
+        name = string.IsNullOrWhiteSpace(name) ? instance.Name : name.Trim();
+        if (name.Length is < 1 or > 64) throw new ArgumentException("El nombre debe tener entre 1 y 64 caracteres.", nameof(name));
+
         var updated = instance with
         {
+            Name = name,
             Settings = settings,
             UpdatedAt = DateTimeOffset.UtcNow
         };
