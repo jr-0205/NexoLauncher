@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
@@ -9,7 +10,7 @@ namespace NexoLauncher.Minecraft.Launching;
 
 public sealed class MinecraftLauncher(MinecraftPaths paths)
 {
-    public Process Launch(LaunchOptions options, LaunchPlan? plan = null)
+    public MinecraftLaunchSession Launch(LaunchOptions options, LaunchPlan? plan = null)
     {
         Validate(options);
         using var metadata = JsonDocument.Parse(File.ReadAllBytes(paths.VersionJson(options.VersionId)));
@@ -23,7 +24,10 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
         {
             FileName = options.JavaExecutable,
             WorkingDirectory = gameDirectory,
-            UseShellExecute = false
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
         };
         startInfo.ArgumentList.Add("-Xms512M");
         startInfo.ArgumentList.Add($"-Xmx{options.MemoryMiB}M");
@@ -35,7 +39,59 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
         AddArguments(startInfo, arguments.GetProperty("game"), values);
         AddPlainArguments(startInfo, plan?.GameArguments, values);
         AddWindowArguments(startInfo, options);
-        return Process.Start(startInfo) ?? throw new InvalidOperationException("Windows no pudo iniciar Java.");
+        return StartCaptured(startInfo, options.VersionId);
+    }
+
+    private MinecraftLaunchSession StartCaptured(ProcessStartInfo startInfo, string versionId)
+    {
+        var logs = Path.Combine(paths.Root, "logs");
+        Directory.CreateDirectory(logs);
+        var safeVersion = string.Concat(versionId.Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
+        var logPath = Path.Combine(logs, $"minecraft-{safeVersion}-{DateTimeOffset.Now:yyyyMMdd-HHmmss}.log");
+        var recent = new ConcurrentQueue<string>();
+        var writer = new StreamWriter(new FileStream(logPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
+        writer.WriteLine($"NEXO Client 0.5 · Minecraft {versionId}");
+        writer.WriteLine($"Java: {startInfo.FileName}");
+        writer.WriteLine($"Directorio: {startInfo.WorkingDirectory}");
+
+        Process process;
+        try
+        {
+            process = Process.Start(startInfo) ?? throw new InvalidOperationException("Windows no pudo iniciar Java.");
+        }
+        catch
+        {
+            writer.Dispose();
+            throw;
+        }
+
+        var completion = CompleteOutputAsync();
+        return new MinecraftLaunchSession(process, logPath, completion, recent);
+
+        async Task CompleteOutputAsync()
+        {
+            try
+            {
+                await Task.WhenAll(
+                    PumpAsync(process.StandardOutput, "OUT"),
+                    PumpAsync(process.StandardError, "ERR"));
+            }
+            finally
+            {
+                lock (writer) writer.Dispose();
+            }
+        }
+
+        async Task PumpAsync(StreamReader reader, string source)
+        {
+            while (await reader.ReadLineAsync() is { } line)
+            {
+                var formatted = $"[{source}] {line}";
+                recent.Enqueue(formatted);
+                while (recent.Count > 60) recent.TryDequeue(out _);
+                lock (writer) writer.WriteLine(formatted);
+            }
+        }
     }
 
     private List<string> BuildClassPath(JsonElement root, string versionId, IReadOnlyList<string>? additional)
@@ -111,4 +167,27 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
         if (options.Username.Length is < 3 or > 16 || options.Username.Any(character => !char.IsLetterOrDigit(character) && character != '_')) throw new ArgumentException("Usuario inválido.");
     }
     private static string OfflineUuid(string username) { var hash = MD5.HashData(Encoding.UTF8.GetBytes("OfflinePlayer:" + username)); hash[6] = (byte)((hash[6] & 15) | 48); hash[8] = (byte)((hash[8] & 63) | 128); return Convert.ToHexString(hash).ToLowerInvariant(); }
+}
+
+public sealed class MinecraftLaunchSession(
+    Process process,
+    string logPath,
+    Task outputCompletion,
+    ConcurrentQueue<string> recentOutput)
+{
+    public Process Process { get; } = process;
+    public string LogPath { get; } = logPath;
+    public Task OutputCompletion { get; } = outputCompletion;
+
+    public async Task<string> GetFailureDetailsAsync(int maximumLines = 12)
+    {
+        try { await OutputCompletion.WaitAsync(TimeSpan.FromSeconds(2)); }
+        catch (TimeoutException) { }
+
+        var lines = recentOutput
+            .Where(line => !string.IsNullOrWhiteSpace(line))
+            .TakeLast(Math.Max(1, maximumLines))
+            .ToArray();
+        return lines.Length == 0 ? "Java no produjo información de diagnóstico." : string.Join(Environment.NewLine, lines);
+    }
 }
