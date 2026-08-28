@@ -14,7 +14,8 @@ public sealed class JsonJavaRuntimeCache(string cachePath)
 
         try
         {
-            var age = DateTimeOffset.UtcNow - File.GetLastWriteTimeUtc(path);
+            var lastWrite = new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero);
+            var age = DateTimeOffset.UtcNow - lastWrite;
             if (age > maxAge) return [];
 
             await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096,
