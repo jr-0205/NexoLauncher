@@ -706,6 +706,7 @@ public partial class MainWindow : Window
 
         DetailSubtitle.Text = "Lista para iniciar";
         EditInstanceButton.IsEnabled = !busy;
+        DeleteInstanceButton.IsEnabled = !busy;
     }
 
     private string FormatJavaOverride(string javaPath)
@@ -728,6 +729,7 @@ public partial class MainWindow : Window
         DetailJava.Text = "—";
         LibraryPlayButton.IsEnabled = false;
         EditInstanceButton.IsEnabled = false;
+        DeleteInstanceButton.IsEnabled = false;
     }
 
     private async void BrowseJava_Click(object sender, RoutedEventArgs e)
@@ -948,6 +950,41 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void DeleteInstance_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || InstancesList.SelectedItem is not InstanceItem item) return;
+
+        var confirmation = MessageBox.Show(
+            this,
+            $"¿Eliminar definitivamente el pack '{item.Name}'?\n\n" +
+            "Se borrarán su mundo, mods, configuración y todos los archivos guardados dentro de esta instancia. " +
+            "Esta acción no se puede deshacer.",
+            "Confirmar eliminación",
+            MessageBoxButton.YesNo,
+            MessageBoxImage.Warning,
+            MessageBoxResult.No);
+        if (confirmation != MessageBoxResult.Yes) return;
+
+        try
+        {
+            SetBusy(true, $"Eliminando {item.Name}…");
+            var deleted = await instanceManager.DeleteAsync(item.Id, lifetime.Token);
+            await RefreshInstancesAsync();
+            StatusText.Text = deleted
+                ? $"El pack '{item.Name}' fue eliminado."
+                : "El pack ya no existía.";
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, "Eliminar pack", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
+
     private void RamSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         if (RamText is not null) RamText.Text = FormatMemory((long)e.NewValue);
@@ -1003,6 +1040,7 @@ public partial class MainWindow : Window
         PrimaryButton.IsEnabled = !value;
         RedetectJavaButton.IsEnabled = !value && !javaRefreshRunning;
         EditInstanceButton.IsEnabled = !value && InstancesList.SelectedItem is not null;
+        DeleteInstanceButton.IsEnabled = !value && InstancesList.SelectedItem is not null;
 
         if (value)
         {
