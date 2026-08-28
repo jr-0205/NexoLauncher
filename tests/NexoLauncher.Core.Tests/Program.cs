@@ -5,6 +5,7 @@ using System.IO.Compression;
 using System.Text.Json;
 using NexoLauncher.Minecraft.Downloads;
 using NexoLauncher.Minecraft.Rules;
+using NexoLauncher.Java;
 using NexoLauncher.Java.Detection;
 using NexoLauncher.Java.Compatibility;
 using NexoLauncher.Application.Configuration;
@@ -13,6 +14,7 @@ using NexoLauncher.Domain.Configuration;
 using NexoLauncher.Domain.Instances;
 using NexoLauncher.Infrastructure.Configuration;
 using NexoLauncher.Infrastructure.Instances;
+using NexoLauncher.Infrastructure.Java;
 
 var failures = new List<string>();
 
@@ -33,6 +35,13 @@ Check("RAM recommendation scales conservatively with system memory", () =>
     Equal(2048, MemoryRecommendation.RecommendMiB(4096));
     Equal(4096, MemoryRecommendation.RecommendMiB(16384));
     Equal(8192, MemoryRecommendation.RecommendMiB(65536));
+});
+
+Check("RAM ceiling leaves memory for Windows", () =>
+{
+    Equal(6144, MemoryRecommendation.SafeMaximumMiB(8192));
+    Equal(1024, MemoryRecommendation.SafeMaximumMiB(2048));
+    Equal(32768, MemoryRecommendation.SafeMaximumMiB(65536));
 });
 
 Check("Global settings are overridden only by instance settings", () =>
@@ -60,6 +69,29 @@ Check("Launcher settings persist atomically", () =>
         Equal(@"C:\Java\jdk-21\bin\java.exe", restored.JavaPath);
         Equal("NexoUser", restored.Username);
         Equal(false, File.Exists(path + ".tmp"));
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+
+Check("Java runtime cache restores valid local runtimes", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-tests", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var bin = Path.Combine(root, "jdk-21", "bin");
+        Directory.CreateDirectory(bin);
+        var java = Path.Combine(bin, "java.exe");
+        var javaw = Path.Combine(bin, "javaw.exe");
+        File.WriteAllText(java, "test");
+        File.WriteAllText(javaw, "test");
+
+        var cache = new JsonJavaRuntimeCache(Path.Combine(root, "java-runtimes.json"));
+        cache.SaveAsync([new JavaRuntime(java, javaw, 21, "21.0.4", "Test Vendor", "amd64", "test")]).GetAwaiter().GetResult();
+        var restored = cache.LoadAsync(TimeSpan.FromDays(1)).GetAwaiter().GetResult();
+
+        Equal(1, restored.Count);
+        Equal(21, restored[0].MajorVersion);
+        Equal("Test Vendor", restored[0].Vendor);
     }
     finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 });
@@ -238,7 +270,7 @@ if (failures.Count > 0)
     return 1;
 }
 
-Console.WriteLine("18 checks passed.");
+Console.WriteLine("20 checks passed.");
 return 0;
 
 void Check(string name, Action action)
