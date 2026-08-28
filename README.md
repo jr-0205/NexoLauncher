@@ -25,7 +25,7 @@ La experiencia visual toma como referencia el nivel de pulido de clientes como L
 - selector visual de runtimes y búsqueda manual de `java.exe`/`javaw.exe`;
 - configuración global para RAM, perfil local y comportamiento del launcher;
 - RAM recomendada y límite seguro basados en memoria física de Windows;
-- cierre configurable del launcher después de iniciar Minecraft;
+- cierre configurable del launcher al iniciar Minecraft;
 - usuario local mientras la autenticación Microsoft sigue fuera del flujo de producción.
 
 ## Selección automática de Java
