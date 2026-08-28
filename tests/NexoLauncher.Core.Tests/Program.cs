@@ -237,6 +237,30 @@ Check("Instance Manager supports multiple profiles for one Minecraft version", (
     Equal("1.21.1", second.MinecraftVersion);
 });
 
+Check("Instance Manager deletes only the selected isolated pack", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-tests", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var repository = new JsonInstanceRepository(root);
+        var manager = new InstanceManager(repository);
+        var selected = manager.CreateAsync("Pack temporal", "1.21.1").GetAwaiter().GetResult();
+        var preserved = manager.CreateAsync("Pack conservado", "1.20.1").GetAwaiter().GetResult();
+        var selectedDirectory = repository.GetInstanceDirectory(selected.Id);
+        var preservedDirectory = repository.GetInstanceDirectory(preserved.Id);
+        Directory.CreateDirectory(Path.Combine(selectedDirectory, "game", "saves", "Mundo"));
+        File.WriteAllText(Path.Combine(selectedDirectory, "game", "saves", "Mundo", "level.dat"), "test");
+
+        Equal(true, manager.DeleteAsync(selected.Id).GetAwaiter().GetResult());
+        Equal(false, Directory.Exists(selectedDirectory));
+        Equal(true, Directory.Exists(preservedDirectory));
+        Equal<string?>(null, manager.GetAsync(selected.Id).GetAwaiter().GetResult());
+        Equal("Pack conservado", manager.GetAsync(preserved.Id).GetAwaiter().GetResult()?.Name);
+        Equal(false, manager.DeleteAsync(selected.Id).GetAwaiter().GetResult());
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+
 Check("Legacy migration creates one profile without moving game files", () =>
 {
     var root = Path.Combine(Path.GetTempPath(), "nexo-tests", Guid.NewGuid().ToString("N"));
@@ -381,7 +405,7 @@ if (failures.Count > 0)
     return 1;
 }
 
-Console.WriteLine("32 checks passed.");
+Console.WriteLine("33 checks passed.");
 return 0;
 
 void Check(string name, Action action)
