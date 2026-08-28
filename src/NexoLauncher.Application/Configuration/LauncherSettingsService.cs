@@ -27,7 +27,7 @@ public static class LauncherSettingsResolver
         var normalized = global.Normalize();
         return new ResolvedInstanceSettings(
             instance.MemoryMiB is > 0 ? instance.MemoryMiB.Value : normalized.MemoryMiB,
-            string.IsNullOrWhiteSpace(instance.JavaPath) ? normalized.JavaPath : instance.JavaPath,
+            string.IsNullOrWhiteSpace(instance.JavaPath) ? null : instance.JavaPath,
             instance.JvmArguments ?? [],
             instance.WindowWidth,
             instance.WindowHeight,
