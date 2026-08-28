@@ -26,7 +26,7 @@ La experiencia visual toma como referencia el nivel de pulido de clientes como L
 - selector visual de runtimes y búsqueda manual de `java.exe`/`javaw.exe`;
 - configuración global para RAM, perfil local y comportamiento del launcher;
 - RAM recomendada y límite seguro basados en memoria física de Windows;
-- cierre configurable del launcher después de iniciar Minecraft;
+- cierre configurable del launcher al iniciar Minecraft;
 - usuario local mientras la autenticación Microsoft sigue fuera del flujo de producción.
 - arquitectura de loaders mediante `ILoaderProvider`;
 - proveedores Vanilla y Fabric separados del `MainWindow`;
@@ -92,6 +92,6 @@ El harness actual contiene 33 comprobaciones de memoria, configuración, instanc
 
 ## Alcance actual
 
-Vanilla y Fabric son los proveedores funcionales de 0.4. La rama 0.5 incorpora proveedores de Forge y NeoForge basados en sus instaladores y repositorios Maven oficiales. Content Manager, autenticación oficial Microsoft/Xbox, Mission Control y el módulo in-game de NEXO se desarrollarán como subsistemas separados, no como lógica añadida al `MainWindow`.
+Vanilla, Fabric, Forge y NeoForge forman parte de la línea unificada de NEXO 0.5. Content Manager, autenticación oficial Microsoft/Xbox, Mission Control y el módulo in-game de NEXO se desarrollarán como subsistemas separados, no como lógica añadida al `MainWindow`.
 
 La autenticación local no equivale a una cuenta comprada y no sustituye la autenticación oficial de Minecraft.
