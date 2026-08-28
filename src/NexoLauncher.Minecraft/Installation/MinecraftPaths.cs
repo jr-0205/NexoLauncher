@@ -13,5 +13,9 @@ public sealed class MinecraftPaths(string root)
     public string GameDirectory(string id) => Path.Combine(VersionDirectory(id), "game");
     public string FabricProfile(string minecraftVersion, string loaderVersion) =>
         Path.Combine(VersionDirectory(minecraftVersion), "loaders", "fabric", loaderVersion, "profile.json");
+    public string LoaderProfile(string loaderId, string minecraftVersion, string loaderVersion) =>
+        Path.Combine(VersionDirectory(minecraftVersion), "loaders", loaderId, loaderVersion, "profile.json");
+    public string LoaderInstaller(string loaderId, string minecraftVersion, string loaderVersion) =>
+        Path.Combine(VersionDirectory(minecraftVersion), "loaders", loaderId, loaderVersion, "installer.jar");
     public void EnsureCreated() { Directory.CreateDirectory(Instances); Directory.CreateDirectory(Libraries); Directory.CreateDirectory(Assets); }
 }

@@ -5,7 +5,10 @@ public static class FabricLibraryResolver
     public static (string RelativePath, string FileName) Resolve(string coordinate)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(coordinate);
-        var parts = coordinate.Split(':', StringSplitOptions.TrimEntries);
+        var extensionSplit = coordinate.Split('@', StringSplitOptions.TrimEntries);
+        if (extensionSplit.Length > 2 || (extensionSplit.Length == 2 && extensionSplit[1] != "jar"))
+            throw new InvalidDataException("Coordenada Maven de Fabric no válida: " + coordinate);
+        var parts = extensionSplit[0].Split(':', StringSplitOptions.TrimEntries);
         if (parts.Length is < 3 or > 4 || parts.Any(string.IsNullOrWhiteSpace))
             throw new InvalidDataException("Coordenada Maven de Fabric no válida: " + coordinate);
 

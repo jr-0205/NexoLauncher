@@ -336,6 +336,29 @@ Check("Fabric instances persist their loader version", () =>
     Equal("0.16.14", instance.LoaderVersion);
 });
 
+Check("Forge metadata filters versions for one Minecraft release", () =>
+{
+    var bytes = """<metadata><versioning><versions><version>1.20.1-47.3.0</version><version>1.21.1-52.0.1</version></versions></versioning></metadata>"""u8.ToArray();
+    var versions = MavenMetadataParser.ParseVersions(bytes);
+    Equal(2, versions.Count);
+    Equal("1.20.1-47.3.0", versions[0]);
+});
+
+Check("NeoForge maps Minecraft releases to its official version line", () =>
+{
+    Equal("21.1.", InstallerLoaderMetadataClient.NeoForgePrefix("1.21.1"));
+    Equal("20.6.", InstallerLoaderMetadataClient.NeoForgePrefix("1.20.6"));
+    Equal<string?>(null, InstallerLoaderMetadataClient.NeoForgePrefix("1.19.4"));
+});
+
+Check("Forge and NeoForge instances persist loader versions", () =>
+{
+    var forge = GameInstance.Create("Forge", "1.20.1", LoaderType.Forge, "47.3.0");
+    var neoForge = GameInstance.Create("NeoForge", "1.21.1", LoaderType.NeoForge, "21.1.200");
+    Equal(LoaderType.Forge, forge.Loader);
+    Equal("21.1.200", neoForge.LoaderVersion);
+});
+
 Check("Instance editor updates name and overrides atomically", () =>
 {
     var root = Path.Combine(Path.GetTempPath(), "nexo-tests", Guid.NewGuid().ToString("N"));
@@ -358,7 +381,7 @@ if (failures.Count > 0)
     return 1;
 }
 
-Console.WriteLine("29 checks passed.");
+Console.WriteLine("32 checks passed.");
 return 0;
 
 void Check(string name, Action action)

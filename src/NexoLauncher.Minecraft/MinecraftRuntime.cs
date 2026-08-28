@@ -21,10 +21,13 @@ public sealed class MinecraftRuntime
         var downloader = new VerifiedDownloader(http);
         var installer = new VanillaInstaller(downloader, paths);
         launcher = new MinecraftLauncher(paths);
+        var installerMetadata = new InstallerLoaderMetadataClient(http);
         ILoaderProvider[] providers =
         [
             new VanillaLoaderProvider(installer),
-            new FabricLoaderProvider(new FabricMetadataClient(http), installer, downloader, paths)
+            new FabricLoaderProvider(new FabricMetadataClient(http), installer, downloader, paths),
+            new InstallerLoaderProvider("forge", installerMetadata, installer, downloader, paths),
+            new InstallerLoaderProvider("neoforge", installerMetadata, installer, downloader, paths)
         ];
         loaders = providers.ToDictionary(provider => provider.Id, StringComparer.OrdinalIgnoreCase);
     }

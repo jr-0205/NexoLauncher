@@ -27,7 +27,7 @@ public sealed record LoaderVersion(string Version, bool Stable)
     public override string ToString() => Stable ? Version + " · estable" : Version;
 }
 
-public sealed record LoaderInstallRequest(MinecraftVersion Version, string? LoaderVersion);
+public sealed record LoaderInstallRequest(MinecraftVersion Version, string? LoaderVersion, string? JavaExecutable = null);
 
 public sealed record LaunchPlan(
     string VersionId,

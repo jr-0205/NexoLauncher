@@ -58,7 +58,7 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
         ["${auth_uuid}"] = options.AccountId ?? OfflineUuid(options.Username), ["${auth_access_token}"] = options.AccessToken ?? "0",
         ["${clientid}"] = string.Empty, ["${auth_xuid}"] = string.Empty, ["${user_type}"] = options.AccessToken is null ? "legacy" : "msa",
         ["${version_type}"] = root.GetProperty("type").GetString() ?? "release", ["${natives_directory}"] = paths.Natives(options.VersionId),
-        ["${launcher_name}"] = "NexoLauncher", ["${launcher_version}"] = "0.4.0",
+        ["${launcher_name}"] = "NexoLauncher", ["${launcher_version}"] = "0.5.0",
         ["${classpath}"] = string.Join(Path.PathSeparator, classPath), ["${classpath_separator}"] = Path.PathSeparator.ToString(),
         ["${library_directory}"] = paths.Libraries
     };

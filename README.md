@@ -4,7 +4,7 @@ Launcher nativo y ligero para Minecraft Java en Windows. Está construido con C#
 
 La experiencia visual toma como referencia el nivel de pulido de clientes como Lunar Client, pero NEXO mantiene código, arquitectura, identidad y componentes propios.
 
-## Estado actual · Loader Runtime 0.4
+## Estado actual · Loader Runtime 0.5
 
 - interfaz WPF nativa con biblioteca, nueva instalación y configuración global;
 - perfiles/instancias independientes con `instance.json`;
@@ -35,6 +35,9 @@ La experiencia visual toma como referencia el nivel de pulido de clientes como L
 - `LaunchPlan` con `KnotClient`, bibliotecas adicionales y argumentos del loader;
 - directorio de juego realmente aislado por GUID de instancia;
 - editor de instancia para nombre, RAM, Java, ventana, pantalla completa y argumentos JVM;
+- catálogo de versiones Forge y NeoForge desde sus repositorios Maven oficiales;
+- ejecución aislada de los instaladores oficiales para conservar sus procesadores y parches;
+- perfiles Forge/NeoForge importados a la arquitectura común de `LaunchPlan`;
 
 ## Selección automática de Java
 
@@ -84,10 +87,10 @@ dotnet build NexoLauncher.slnx
 dotnet run --project tests/NexoLauncher.Core.Tests
 ```
 
-El harness actual contiene 29 comprobaciones de memoria, configuración, instancias, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes, loaders y selección automática por versión.
+El harness actual contiene 32 comprobaciones de memoria, configuración, instancias, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes, loaders y selección automática por versión.
 
 ## Alcance actual
 
-Vanilla y Fabric son los proveedores funcionales de 0.4. Forge, NeoForge, Content Manager, autenticación oficial Microsoft/Xbox, Mission Control y el módulo in-game de NEXO se desarrollarán como subsistemas separados, no como lógica añadida al `MainWindow`.
+Vanilla y Fabric son los proveedores funcionales de 0.4. La rama 0.5 incorpora proveedores de Forge y NeoForge basados en sus instaladores y repositorios Maven oficiales. Content Manager, autenticación oficial Microsoft/Xbox, Mission Control y el módulo in-game de NEXO se desarrollarán como subsistemas separados, no como lógica añadida al `MainWindow`.
 
 La autenticación local no equivale a una cuenta comprada y no sustituye la autenticación oficial de Minecraft.

@@ -68,7 +68,9 @@ public partial class MainWindow : Window
         LoaderBox.ItemsSource = new[]
         {
             new LoaderChoice(LoaderType.Vanilla, "Vanilla"),
-            new LoaderChoice(LoaderType.Fabric, "Fabric")
+            new LoaderChoice(LoaderType.Fabric, "Fabric"),
+            new LoaderChoice(LoaderType.Forge, "Forge"),
+            new LoaderChoice(LoaderType.NeoForge, "NeoForge")
         };
         LoaderBox.SelectedIndex = 0;
 
@@ -451,7 +453,7 @@ public partial class MainWindow : Window
         var loaderVersion = loader.Type == LoaderType.Vanilla ? null : (LoaderVersionBox.SelectedItem as LoaderVersion)?.Version;
         if (loader.Type != LoaderType.Vanilla && string.IsNullOrWhiteSpace(loaderVersion))
         {
-            MessageBox.Show(this, "Selecciona una versión de Fabric.", "Loader requerido", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(this, $"Selecciona una versión de {loader.Name}.", "Loader requerido", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
         var instanceName = string.IsNullOrWhiteSpace(InstanceNameBox.Text)
@@ -471,7 +473,11 @@ public partial class MainWindow : Window
 
             var loaderId = LoaderId(loader.Type);
             if (!minecraft.IsInstalled(version.Id, loaderId, loaderVersion))
-                await minecraft.InstallAsync(new LoaderInstallRequest(version, loaderVersion), loaderId, reporter, operation.Token);
+            {
+                if (loader.Type is LoaderType.Forge or LoaderType.NeoForge && selectedJavaRuntime is null)
+                    throw new InvalidOperationException($"{loader.Name} necesita un runtime Java compatible. Espera a que NEXO termine de detectar Java.");
+                await minecraft.InstallAsync(new LoaderInstallRequest(version, loaderVersion, selectedJavaRuntime?.JavaExecutable), loaderId, reporter, operation.Token);
+            }
 
             await instanceManager.CreateAsync(instanceName, version.Id, loader.Type, loaderVersion, operation.Token);
 
@@ -912,7 +918,7 @@ public partial class MainWindow : Window
         catch (Exception exception)
         {
             StatusText.Text = "No se pudieron consultar las versiones del loader.";
-            MessageBox.Show(this, exception.Message, "Fabric", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, exception.Message, loader.Name, MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
         {
@@ -980,7 +986,9 @@ public partial class MainWindow : Window
     {
         LoaderType.Vanilla => "vanilla",
         LoaderType.Fabric => "fabric",
-        _ => throw new NotSupportedException($"El loader {type} todavía no forma parte de NEXO 0.4.")
+        LoaderType.Forge => "forge",
+        LoaderType.NeoForge => "neoforge",
+        _ => throw new NotSupportedException($"El loader {type} todavía no forma parte de NEXO.")
     };
 
     private void SetBusy(bool value, string? status = null)
