@@ -6,6 +6,7 @@
     <ProjectReference Include="..\NexoLauncher.Application\NexoLauncher.Application.csproj" />
     <ProjectReference Include="..\NexoLauncher.Infrastructure\NexoLauncher.Infrastructure.csproj" />
     <ProjectReference Include="..\NexoLauncher.Minecraft\NexoLauncher.Minecraft.csproj" />
+    <ProjectReference Include="..\NexoLauncher.Java\NexoLauncher.Java.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
