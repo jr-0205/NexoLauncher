@@ -1,12 +1,15 @@
 using NexoLauncher.Core.Configuration;
+using NexoLauncher.Core.Installation;
 using NexoLauncher.Core.Launching;
 using NexoLauncher.Minecraft.Security;
 using System.IO.Compression;
 using System.Text.Json;
+using NexoLauncher.Minecraft;
 using NexoLauncher.Minecraft.Downloads;
 using NexoLauncher.Minecraft.Rules;
 using NexoLauncher.Minecraft.Java;
 using NexoLauncher.Minecraft.Loaders;
+using NexoLauncher.Minecraft.Launching;
 using NexoLauncher.Java;
 using NexoLauncher.Java.Detection;
 using NexoLauncher.Java.Compatibility;
@@ -20,6 +23,32 @@ using NexoLauncher.Infrastructure.Instances;
 using NexoLauncher.Infrastructure.Java;
 
 var failures = new List<string>();
+
+
+Check("NEXO paths follow the Lunar Client layout", () =>
+{
+    var paths = NexoPaths.ForCurrentUser();
+    var expectedRoot = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+        ".lunarclient");
+
+    Equal(Path.Combine(expectedRoot, "nexo"), paths.Root);
+    Equal(Path.Combine(expectedRoot, "profiles"), paths.Instances);
+    Equal(Path.Combine(expectedRoot, "jre"), paths.Runtime);
+    Equal(Path.Combine(expectedRoot, "cache", "nexo"), paths.Cache);
+    Equal(Path.Combine(expectedRoot, "logs", "nexo"), paths.Logs);
+});
+
+Check("Classpath identity keeps native classifiers separate", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-library-identity");
+    var regular = Path.Combine(root, "org", "lwjgl", "lwjgl-glfw", "3.3.3", "lwjgl-glfw-3.3.3.jar");
+    var native = Path.Combine(root, "org", "lwjgl", "lwjgl-glfw", "3.3.3", "lwjgl-glfw-3.3.3-natives-windows.jar");
+    var newer = Path.Combine(root, "org", "lwjgl", "lwjgl-glfw", "3.3.4", "lwjgl-glfw-3.3.4.jar");
+
+    Equal(LibraryArtifactIdentity.FromPath(regular), LibraryArtifactIdentity.FromPath(newer));
+    Equal(false, LibraryArtifactIdentity.FromPath(regular) == LibraryArtifactIdentity.FromPath(native));
+});
 
 Check("RAM is capped while reserving memory for Windows", () =>
 {
@@ -291,6 +320,19 @@ Check("Minecraft feature rules remain disabled unless requested", () =>
     using var json = JsonDocument.Parse("""{"rules":[{"action":"allow","features":{"has_custom_resolution":true}}]}""");
     Equal(false, MinecraftRuleEvaluator.Allows(json.RootElement));
     Equal(true, MinecraftRuleEvaluator.Allows(json.RootElement, new HashSet<string> { "has_custom_resolution" }));
+});
+
+
+Check("Download planning deduplicates repeated Minecraft assets", () =>
+{
+    var destination = Path.Combine(Path.GetTempPath(), "nexo-shared-asset");
+    var jobs = DownloadJobPlanner.Deduplicate(
+    [
+        new DownloadJob("https://resources.download.minecraft.net/aa/hash", destination, "hash"),
+        new DownloadJob("https://resources.download.minecraft.net/aa/hash", destination, "hash")
+    ]);
+
+    Equal(1, jobs.Count);
 });
 
 Check("Verified downloader rejects insecure HTTP", () =>

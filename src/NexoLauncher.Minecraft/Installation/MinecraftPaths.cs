@@ -1,8 +1,10 @@
 namespace NexoLauncher.Minecraft.Installation;
 
-public sealed class MinecraftPaths(string root)
+public sealed class MinecraftPaths(string root, string? cacheRoot = null, string? logsRoot = null)
 {
     public string Root { get; } = Path.GetFullPath(root);
+    public string Cache { get; } = Path.GetFullPath(cacheRoot ?? Path.Combine(root, "cache"));
+    public string Logs { get; } = Path.GetFullPath(logsRoot ?? Path.Combine(root, "logs"));
     public string Instances => Path.Combine(Root, "instances");
     public string Libraries => Path.Combine(Root, "libraries");
     public string Assets => Path.Combine(Root, "assets");
@@ -17,5 +19,12 @@ public sealed class MinecraftPaths(string root)
         Path.Combine(VersionDirectory(minecraftVersion), "loaders", loaderId, loaderVersion, "profile.json");
     public string LoaderInstaller(string loaderId, string minecraftVersion, string loaderVersion) =>
         Path.Combine(VersionDirectory(minecraftVersion), "loaders", loaderId, loaderVersion, "installer.jar");
-    public void EnsureCreated() { Directory.CreateDirectory(Instances); Directory.CreateDirectory(Libraries); Directory.CreateDirectory(Assets); }
+    public void EnsureCreated()
+    {
+        Directory.CreateDirectory(Instances);
+        Directory.CreateDirectory(Libraries);
+        Directory.CreateDirectory(Assets);
+        Directory.CreateDirectory(Cache);
+        Directory.CreateDirectory(Logs);
+    }
 }

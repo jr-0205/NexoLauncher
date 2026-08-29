@@ -14,10 +14,10 @@ public sealed class MinecraftRuntime
     private readonly MinecraftLauncher launcher;
     private readonly IReadOnlyDictionary<string, ILoaderProvider> loaders;
 
-    public MinecraftRuntime(HttpClient http, string dataRoot)
+    public MinecraftRuntime(HttpClient http, string dataRoot, string? cacheRoot = null, string? logsRoot = null)
     {
-        var paths = new MinecraftPaths(dataRoot);
-        metadata = new MojangMetadataClient(http, Path.Combine(paths.Root, "cache", "version_manifest_v2.json"));
+        var paths = new MinecraftPaths(dataRoot, cacheRoot, logsRoot);
+        metadata = new MojangMetadataClient(http, Path.Combine(paths.Cache, "version_manifest_v2.json"));
         var downloader = new VerifiedDownloader(http);
         var installer = new VanillaInstaller(downloader, paths);
         launcher = new MinecraftLauncher(paths);

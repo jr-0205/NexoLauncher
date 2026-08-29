@@ -49,6 +49,17 @@ public sealed class JavaRuntimeDetector(JavaRuntimeInspector inspector)
             yield return (Path.Combine(directory.Trim('"'), "java.exe"), "PATH");
         }
 
+        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var lunarJre = Path.Combine(userProfile, ".lunarclient", "jre");
+        if (Directory.Exists(lunarJre))
+        {
+            IEnumerable<string> lunarCandidates;
+            try { lunarCandidates = Directory.EnumerateFiles(lunarJre, "java.exe", SearchOption.AllDirectories).ToArray(); }
+            catch { lunarCandidates = []; }
+
+            foreach (var candidate in lunarCandidates)
+                yield return (candidate, "Lunar Client");
+        }
         foreach (var root in ProgramFilesRoots())
         {
             if (!Directory.Exists(root)) continue;

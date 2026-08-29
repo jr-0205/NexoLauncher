@@ -55,7 +55,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         paths.EnsureCreated();
 
-        minecraft = new MinecraftRuntime(httpClient, paths.Root);
+        minecraft = new MinecraftRuntime(httpClient, paths.Root, paths.Cache, paths.Logs);
         instanceRepository = new JsonInstanceRepository(paths.Instances);
         instanceManager = new InstanceManager(instanceRepository);
         launcherSettingsStore = new JsonLauncherSettingsStore(Path.Combine(paths.Root, "settings.json"));
@@ -598,7 +598,7 @@ public partial class MainWindow : Window
 
             var loaderId = LoaderId(instance?.Loader ?? LoaderType.Vanilla);
             var gameDirectory = instance is null
-                ? Path.Combine(paths.Instances, versionId, "game")
+                ? Path.Combine(paths.Instances, "nexo-" + versionId, "game")
                 : Path.Combine(instanceRepository.GetInstanceDirectory(instance.Id), "game");
             var plan = minecraft.CreateLaunchPlan(versionId, loaderId, instance?.LoaderVersion, gameDirectory);
             var session = minecraft.Launch(new LaunchOptions(

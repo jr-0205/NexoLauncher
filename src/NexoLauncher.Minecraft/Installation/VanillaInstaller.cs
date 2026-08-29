@@ -49,19 +49,20 @@ public sealed class VanillaInstaller(VerifiedDownloader downloader, MinecraftPat
             jobs.Add(new DownloadJob(file.GetProperty("url").GetString()!, Path.Combine(paths.Assets, "log_configs", file.GetProperty("id").GetString()!), Optional(file, "sha1")));
         }
 
+        var uniqueJobs = DownloadJobPlanner.Deduplicate(jobs);
         var completed = 0;
-        await Parallel.ForEachAsync(jobs, new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = token }, async (job, ct) =>
+        await Parallel.ForEachAsync(uniqueJobs, new ParallelOptions { MaxDegreeOfParallelism = 8, CancellationToken = token }, async (job, ct) =>
         {
             await downloader.DownloadAsync(job.Url, job.Path, job.Sha1, ct);
-            progress?.Report(new("Descargando archivos", Interlocked.Increment(ref completed), jobs.Count));
+            progress?.Report(new("Descargando archivos", Interlocked.Increment(ref completed), uniqueJobs.Count));
         });
 
         var nativeDirectory = paths.Natives(version.Id);
         if (Directory.Exists(nativeDirectory)) Directory.Delete(nativeDirectory, true);
         Directory.CreateDirectory(nativeDirectory);
-        foreach (var native in jobs.Where(job => job.IsNative))
+        foreach (var native in uniqueJobs.Where(job => job.IsNative))
             SafeArchiveExtractor.ExtractZip(native.Path, nativeDirectory, entry => !entry.FullName.StartsWith("META-INF/", StringComparison.OrdinalIgnoreCase));
-        progress?.Report(new("Instalación lista", jobs.Count, jobs.Count));
+        progress?.Report(new("Instalación lista", uniqueJobs.Count, uniqueJobs.Count));
     }
 
     private DownloadJob CreateArtifactJob(JsonElement artifact, bool native = false) => new(

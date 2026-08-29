@@ -10,7 +10,7 @@ La experiencia visual toma como referencia el nivel de pulido de clientes como L
 - perfiles/instancias independientes con `instance.json`;
 - catálogo de versiones estables desde el manifiesto oficial de Mojang;
 - caché local del manifiesto y metadatos de versión para reducir red y acelerar aperturas;
-- instalación Vanilla aislada en `%LOCALAPPDATA%\NexoLauncher`;
+- datos del launcher aislados bajo `%USERPROFILE%\.lunarclient`, con perfiles compatibles en `profiles`;
 - descarga paralela de cliente, bibliotecas, assets y nativos;
 - verificación SHA-1 de los archivos publicados por Mojang;
 - extracción ZIP segura contra path traversal;
@@ -64,14 +64,16 @@ Ejemplo: si el equipo tiene Java 8, 17 y 21 instalados, una instancia antigua pu
 ## Datos locales
 
 ```text
-%LOCALAPPDATA%\NexoLauncher
-├── settings.json
-├── cache\
-├── instances\
-├── libraries\
-├── assets\
-├── runtime\
-└── logs\
+%USERPROFILE%\.lunarclient
+├── nexo\
+│   ├── settings.json
+│   ├── instances\
+│   ├── libraries\
+│   └── assets\
+├── cache\nexo\
+├── jre\
+├── logs\nexo\
+└── profiles\
 ```
 
 Los archivos de configuración se escriben mediante archivo temporal y movimiento atómico cuando corresponde. NEXO no almacena contraseñas.

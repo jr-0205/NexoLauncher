@@ -44,7 +44,7 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
 
     private MinecraftLaunchSession StartCaptured(ProcessStartInfo startInfo, string versionId)
     {
-        var logs = Path.Combine(paths.Root, "logs");
+        var logs = paths.Logs;
         Directory.CreateDirectory(logs);
         var logPath = Path.Combine(logs, "latest-minecraft.log");
         var recent = new ConcurrentQueue<string>();
@@ -111,7 +111,7 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
 
     void AddOrReplace(string path)
     {
-        var key = ArtifactKey(path);
+        var key = LibraryArtifactIdentity.FromPath(path);
         if (indexByArtifact.TryGetValue(key, out var existingIndex)) ordered[existingIndex] = path;
         else { indexByArtifact[key] = ordered.Count; ordered.Add(path); }
     }
@@ -120,16 +120,6 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
     ordered.Add(paths.ClientJar(versionId));
     if (additional is not null) foreach (var path in additional) AddOrReplace(path);
     return ordered;
-}
-
-// Para ".../libraries/org/ow2/asm/asm/9.10.1/asm-9.10.1.jar" devuelve
-// ".../libraries/org/ow2/asm/asm" (grupo + artefacto, sin la carpeta de versión),
-// que es la clave que identifica "la misma librería" sin importar la versión exacta.
-private static string ArtifactKey(string path)
-{
-    var versionDirectory = Path.GetDirectoryName(path);
-    var artifactDirectory = versionDirectory is null ? null : Path.GetDirectoryName(versionDirectory);
-    return artifactDirectory ?? path;
 }
 
     private Dictionary<string, string> Replacements(JsonElement root, LaunchOptions options, List<string> classPath, string gameDirectory) => new()
