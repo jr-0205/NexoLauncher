@@ -1,89 +1,156 @@
 # NEXO Client
 
-Launcher nativo y ligero para Minecraft Java en Windows. Está construido con C#/.NET 10 y WPF: no usa Electron, navegador integrado, anuncios, overlays ni telemetría propia.
+Launcher nativo y ligero para Minecraft Java en Windows, construido con C#/.NET 10 y WPF. NEXO no usa Electron, navegador integrado, anuncios, overlays ni telemetría propia.
 
-La experiencia visual toma como referencia el nivel de pulido de clientes como Lunar Client, pero NEXO mantiene código, arquitectura, identidad y componentes propios.
+La experiencia visual puede tomar referencias de nivel de pulido de otros launchers, pero NEXO mantiene código, arquitectura, identidad y componentes propios.
 
-## Estado actual · Loader Runtime 0.5.1
+## Estado actual · NEXO 0.5.2
 
-- interfaz WPF nativa con biblioteca, nueva instalación y configuración global;
-- perfiles/instancias independientes con `instance.json`;
-- catálogo de versiones estables desde el manifiesto oficial de Mojang;
-- caché local del manifiesto y metadatos de versión para reducir red y acelerar aperturas;
-- datos del launcher completamente aislados bajo `%LOCALAPPDATA%\NexoLauncher`;
-- descarga paralela de cliente, bibliotecas, assets y nativos;
-- verificación SHA-1 de los archivos publicados por Mojang;
-- extracción ZIP segura contra path traversal;
-- Java Manager con versión, proveedor, arquitectura y compatibilidad;
-- detección de múltiples instalaciones Java en `JAVA_HOME`, `PATH` y ubicaciones relevantes de Program Files;
-- inspección de runtimes con paralelismo acotado para mantener el launcher ligero;
-- timeout y terminación segura de runtimes defectuosos durante la inspección;
-- caché de runtimes Java válida durante 24 horas;
-- selección automática del Java correcto para cada versión de Minecraft;
-- prioridad para `javaVersion.majorVersion` publicado por Mojang y fallback histórico para releases antiguas;
-- no existe un Java global obligatorio: NEXO mantiene todos los runtimes detectados y escoge Java 8, 16, 17, 21, etc. según la instancia que se inicie;
-- los overrides manuales de Java quedan reservados para una instancia concreta;
-- selector visual de runtimes y búsqueda manual de `java.exe`/`javaw.exe`;
-- configuración global para RAM, perfil local y comportamiento del launcher;
-- RAM recomendada y límite seguro basados en memoria física de Windows;
-- cierre configurable del launcher al iniciar Minecraft;
-- usuario local mientras la autenticación Microsoft sigue fuera del flujo de producción.
-- arquitectura de loaders mediante `ILoaderProvider`;
-- proveedores Vanilla y Fabric separados del `MainWindow`;
-- catálogo y perfiles desde la API oficial de Fabric;
-- selección y persistencia de versión de Fabric por instancia;
-- `LaunchPlan` con `KnotClient`, bibliotecas adicionales y argumentos del loader;
-- directorio de juego realmente aislado por GUID de instancia;
-- editor de instancia para nombre, RAM, Java, ventana, pantalla completa y argumentos JVM;
-- eliminación segura de packs completos desde la biblioteca, siempre con confirmación explícita;
-- administrador de contenido por instancia para mods, texturas/resource packs, shaders, datapacks y archivos de configuración;
-- catálogo integrado de Modrinth con búsqueda por instancia, filtros de versión/loader, dependencias y verificación SHA-512;
-- importación de exports oficiales de CurseForge (`manifest.json` + `overrides`) mediante `CURSEFORGE_API_KEY`, con verificación de integridad;
-- importación segura de `.zip`, `.lcpack` y `.mrpack`, copiando solo archivos físicos incluidos y reportando referencias remotas faltantes;
-- catálogo de versiones Forge y NeoForge desde sus repositorios Maven oficiales;
-- ejecución aislada de los instaladores oficiales para conservar sus procesadores y parches;
-- perfiles Forge/NeoForge importados a la arquitectura común de `LaunchPlan`;
-- diagnóstico de arranque con código de salida, últimas líneas de Java y registro fijo en `logs/latest-minecraft.log`, incluso si el fallo ocurre antes de iniciar Java;
+La línea 0.5.2 estabiliza la arquitectura interna antes de continuar agregando subsistemas mayores.
 
-## Selección automática de Java
+- Vanilla, Fabric, Forge y NeoForge integrados mediante providers de loader;
+- múltiples perfiles de una misma versión y loader sin compartir datos mutables;
+- identidad física permanente por GUID: el nombre visible nunca forma parte de la ruta de una instancia;
+- recursos pesados reutilizables centralizados bajo `shared`;
+- `game` privado por instancia para mods, config, mundos, opciones, logs y demás datos escritos por Minecraft;
+- `instance.json` versionado (`schemaVersion`) como fuente persistente de configuración del perfil;
+- migración automática del layout 0.5.1 hacia GUIDs sin destruir los datos del perfil;
+- backups del manifest antes de transformar un perfil heredado;
+- creación de perfiles mediante staging y publicación final;
+- escritura atómica de manifests y launcher settings;
+- Java Manager con detección de múltiples runtimes y selección automática por versión;
+- Java override únicamente por instancia;
+- RAM recomendada y límite seguro basados en memoria física;
+- descargas oficiales de Minecraft por HTTPS con validación SHA-1 cuando Mojang proporciona hash;
+- ZIP extraction protegida contra path traversal;
+- natives extraídos por lanzamiento en un directorio privado y efímero, no en una carpeta global mutable;
+- logs de proceso con nombre único por lanzamiento;
+- editor de instancia y eliminación destructiva con confirmación explícita;
+- duplicación completa de perfiles con nuevo GUID (menú contextual o `Ctrl+D` en la biblioteca);
+- Content Manager para mods, resource packs, shaders, datapacks y archivos de configuración;
+- catálogo Modrinth con filtros de versión/loader, dependencias requeridas y SHA-512;
+- importación `.mrpack` oficial: descarga `files[]`, respeta `env.client`, aplica `overrides`/`client-overrides` y verifica SHA-512/SHA-1;
+- importación de exports CurseForge con `manifest.json`, validación de versión/loader, hashes y overrides;
+- visor de lanzamiento con PID, tiempo, log y detención del proceso;
+- harness de regresión cuyo total se calcula dinámicamente para evitar documentación desactualizada;
+- workflow de CI para Windows + .NET SDK `10.0.202` preparado en `.github/workflows/ci.yml`.
 
-El flujo normal no requiere configurar un Java predeterminado:
+## Regla de arquitectura
+
+> Compartir lo inmutable y costoso. Aislar todo lo mutable y perteneciente al usuario.
+
+Una versión de Minecraft **no** es una instancia.
+
+Ejemplos válidos en paralelo dentro de la biblioteca:
 
 ```text
-Minecraft seleccionado
-        ↓
-Requisito Java de Mojang
-        ↓
-Catálogo de runtimes detectados
-        ↓
-Selección automática por major version
-        ↓
-Validación x64 + javaw.exe
-        ↓
-Launch
+Vanilla       -> Minecraft 1.21.1
+Cobblemon     -> Minecraft 1.21.1 + Fabric
+Survival      -> Minecraft 1.21.1
+Testing       -> Minecraft 1.21.1 + NeoForge
+Modpack A     -> Minecraft 1.21.1 + Fabric
+Modpack B     -> Minecraft 1.21.1 + Fabric
 ```
 
-Ejemplo: si el equipo tiene Java 8, 17 y 21 instalados, una instancia antigua puede arrancar con Java 8, una versión intermedia con Java 17 y una versión moderna con Java 21 sin cambiar ajustes globales.
+Los perfiles pueden compartir Minecraft base, libraries, assets y runtimes Java. Nunca comparten accidentalmente `mods`, `config`, `saves`, `options.txt`, `servers.dat`, resource packs, shaders, logs del juego ni cualquier otro archivo escrito dentro de su `gameDirectory`.
 
-## Datos locales
+## Árbol de datos
 
 ```text
-%LOCALAPPDATA%\NexoLauncher
-├── settings.json
-├── cache\
+%LOCALAPPDATA%\NexoLauncher\
+├── shared\
+│   ├── assets\
+│   │   ├── indexes\
+│   │   └── objects\
+│   ├── libraries\
+│   ├── versions\
+│   │   └── <minecraft-version>\
+│   └── runtimes\
+│       └── java\
 ├── instances\
-│   ├── Fabric\Nombre del perfil\
-│   ├── Forge\Nombre del perfil\
-│   ├── NeoForge\Nombre del perfil\
-│   └── Vanilla\Nombre del perfil\
-├── versions\
-├── libraries\
-├── assets\
-├── runtime\
-└── logs\
+│   └── <INSTANCE-GUID>\
+│       ├── instance.json
+│       ├── game\
+│       │   ├── mods\
+│       │   ├── config\
+│       │   ├── saves\
+│       │   ├── resourcepacks\
+│       │   ├── shaderpacks\
+│       │   ├── screenshots\
+│       │   ├── logs\
+│       │   └── crash-reports\
+│       ├── runtime\
+│       │   └── natives\
+│       │       └── <launch-guid>\
+│       └── backups\
+├── cache\
+├── logs\
+│   └── launcher\
+└── launcher\
 ```
 
-Los archivos de configuración se escriben mediante archivo temporal y movimiento atómico cuando corresponde. NEXO no almacena contraseñas.
+Renombrar `Cobblemon` a `Cobblemon principal` solo actualiza metadata. La carpeta GUID no cambia.
+
+## `instance.json`
+
+El manifest actual usa schema versionado y rutas relativas. Conceptualmente:
+
+```json
+{
+  "schemaVersion": 2,
+  "id": "GUID",
+  "name": "Cobblemon",
+  "minecraftVersion": "1.21.1",
+  "loader": {
+    "type": "fabric",
+    "version": "0.16.14"
+  },
+  "java": {
+    "mode": "automatic",
+    "override": null
+  },
+  "memory": {
+    "minMb": 512,
+    "maxMb": 6144
+  },
+  "gameDirectory": "game"
+}
+```
+
+Classpath, Java seleccionado automáticamente, rutas finales de libraries y argumentos finales son estado derivado y se reconstruyen al iniciar.
+
+## CurseForge
+
+CurseForge distingue una cuenta de usuario de una credencial de su API para aplicaciones de terceros. NEXO **no** intenta obtener una API key mediante el login normal del usuario y no debe incrustar una key privada dentro del ejecutable distribuido.
+
+Durante desarrollo, los exports oficiales de CurseForge que contienen referencias remotas pueden probarse configurando:
+
+```powershell
+$env:CURSEFORGE_API_KEY="<developer-api-key>"
+```
+
+Los packs que solo contienen `overrides` físicos pueden importarse sin esa key. Para búsqueda/instalación directa desde el catálogo CurseForge en una versión distribuida de NEXO se requiere una integración de terceros aprobada que mantenga la credencial fuera del cliente.
+
+Además, la API de terceros respeta el control de distribución de cada proyecto: un archivo que su autor no permita distribuir mediante terceros no debe ser eludido por NEXO.
+
+## Modrinth
+
+La importación `.mrpack` ya no se limita a copiar archivos incluidos físicamente. NEXO interpreta `modrinth.index.json`, comprueba Minecraft/loader, descarga las entradas remotas compatibles con cliente, aplica overrides y valida hashes antes de publicar cada archivo dentro del `gameDirectory` de la instancia.
+
+## Java
+
+El flujo normal no necesita un Java global obligatorio:
+
+```text
+Instancia
+  -> metadata oficial de Minecraft
+  -> requisito Java
+  -> catálogo local de runtimes
+  -> Java compatible
+  -> launch
+```
+
+Cuando Mojang publica `javaVersion.majorVersion`, esa metadata tiene prioridad. Las tablas internas se usan solamente como fallback histórico.
 
 ## Ejecutar
 
@@ -93,15 +160,24 @@ dotnet run --project src/NexoLauncher.App
 
 ## Verificar
 
+El repositorio fija .NET SDK `10.0.202` mediante `global.json`.
+
 ```powershell
-dotnet build NexoLauncher.slnx
-dotnet run --project tests/NexoLauncher.Core.Tests
+dotnet restore NexoLauncher.slnx
+dotnet build NexoLauncher.slnx -c Release
+dotnet run --project tests/NexoLauncher.Core.Tests -c Release --no-build
 ```
 
-El harness actual contiene 37 comprobaciones de memoria, configuración, migración no destructiva, instancias, eliminación aislada de packs, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes, loaders y selección automática por versión.
+El harness comprueba, entre otros casos, perfiles con la misma versión/loader/nombre, renombrado sin movimiento físico, aislamiento de mods/config/saves/options, borrado sin tocar recursos compartidos, copia de perfil, manifests versionados, migraciones, staging abandonado, ZIP traversal, Java, loaders, `.lcpack`, `.mrpack` y CurseForge.
 
-## Alcance actual
+## Alcance pendiente
 
-Vanilla, Fabric, Forge y NeoForge forman parte de la línea unificada de NEXO 0.5. Content Manager, autenticación oficial Microsoft/Xbox, Mission Control y el módulo in-game de NEXO se desarrollarán como subsistemas separados, no como lógica añadida al `MainWindow`.
+La rama 0.5.2 se concentra en integridad de datos y estabilización. Continúan como trabajo posterior:
 
-La autenticación local no equivale a una cuenta comprada y no sustituye la autenticación oficial de Minecraft.
+- autenticación Microsoft/Xbox/Minecraft integrada al flujo normal;
+- backend/integración de producción aprobada para catálogo CurseForge sin exponer credenciales;
+- diagnóstico y reparación automática más amplia de instalaciones incompletas;
+- política/UI futura para múltiples Minecraft simultáneos (el filesystem ya no depende de un único directorio mutable);
+- Mission Control y módulo in-game como subsistemas separados.
+
+La autenticación local actual no equivale a una cuenta comprada y no sustituye la autenticación oficial de Minecraft.

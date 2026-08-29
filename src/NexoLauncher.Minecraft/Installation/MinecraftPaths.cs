@@ -11,7 +11,13 @@ public sealed class MinecraftPaths
         DataRoot = Path.GetFullPath(dataRoot);
         layout = new NexoPaths(DataRoot);
         Cache = Path.GetFullPath(cacheRoot ?? layout.Cache);
-        Logs = Path.GetFullPath(logsRoot ?? layout.LauncherLogs);
+
+        // Compatibilidad con callers 0.5.1 que enviaban <root>/logs. Ese valor ahora se
+        // resuelve al subdirectorio autoritativo logs/launcher.
+        var legacyLogs = Path.GetFullPath(Path.Combine(DataRoot, "logs"));
+        Logs = string.IsNullOrWhiteSpace(logsRoot) || PathsEqual(logsRoot, legacyLogs)
+            ? layout.LauncherLogs
+            : Path.GetFullPath(logsRoot);
     }
 
     public string DataRoot { get; }
@@ -62,6 +68,10 @@ public sealed class MinecraftPaths
         if (value.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) throw new InvalidDataException("Segmento de ruta no válido.");
         return value;
     }
+
+    private static bool PathsEqual(string left, string right) =>
+        string.Equals(Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
 
     private static string WithSeparator(string path) =>
         Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
