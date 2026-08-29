@@ -627,7 +627,15 @@ public partial class MainWindow : Window
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            ShowError(exception);
+            var log = AppendLaunchFailureLog(versionId, instance, runtime, exception);
+            var logNotice = log.Error is null
+                ? $"Registro completo: {log.Path}"
+                : $"No se pudo guardar el registro en {log.Path}: {log.Error}";
+            ShowError(new InvalidOperationException(
+                exception.Message.Contains(log.Path, StringComparison.OrdinalIgnoreCase)
+                    ? exception.Message
+                    : $"{exception.Message}\n\n{logNotice}",
+                exception));
         }
         finally
         {
@@ -635,6 +643,26 @@ public partial class MainWindow : Window
             RefreshButton();
             LibraryPlayButton.IsEnabled = InstancesList.SelectedItem is not null;
         }
+    }
+
+    private (string Path, string? Error) AppendLaunchFailureLog(string versionId, GameInstance? instance, JavaRuntime runtime, Exception exception)
+    {
+        var logPath = Path.Combine(paths.Logs, "latest-minecraft.log");
+        try
+        {
+            Directory.CreateDirectory(paths.Logs);
+            File.AppendAllText(logPath,
+                $"{Environment.NewLine}[NEXO] Fallo de lanzamiento · {DateTimeOffset.Now:O}{Environment.NewLine}" +
+                $"Minecraft: {versionId}{Environment.NewLine}" +
+                $"Loader: {instance?.Loader.ToString() ?? "Vanilla"} {instance?.LoaderVersion}{Environment.NewLine}" +
+                $"Java: {runtime.JavaExecutable} · versión {runtime.MajorVersion}{Environment.NewLine}" +
+                $"{exception}{Environment.NewLine}");
+        }
+        catch (Exception logException) when (logException is IOException or UnauthorizedAccessException)
+        {
+            return (logPath, logException.Message);
+        }
+        return (logPath, null);
     }
 
     private async Task<JavaRuntime?> ResolveRuntimePathAsync(string? configuredPath, string source, CancellationToken token)
