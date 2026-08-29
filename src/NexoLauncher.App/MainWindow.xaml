@@ -152,7 +152,7 @@
       </StackPanel>
      </Border>
      <Border Height="1" Background="#202D41" Margin="0,0,0,15"/>
-     <TextBlock Text="NEXO Client 0.4" Foreground="#68758A" FontSize="11"/>
+     <TextBlock Text="NEXO Client 0.5.1" Foreground="#68758A" FontSize="11"/>
      <TextBlock Text="Nativo · Sin telemetría" Foreground="#4F5C70" FontSize="10" Margin="0,4,0,0"/>
     </StackPanel>
    </Grid>
