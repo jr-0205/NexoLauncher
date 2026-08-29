@@ -81,6 +81,11 @@ public partial class MainWindow : Window
         {
             try
             {
+                var accidentalSharedRoot = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                    ".lunarclient");
+                await new AccidentalLunarLayoutImporter(accidentalSharedRoot, paths.Root, paths.Instances)
+                    .ImportAsync(lifetime.Token);
                 await LoadLauncherSettingsAsync();
                 await new LegacyInstallationMigrator(paths.Instances, instanceRepository).MigrateAsync(lifetime.Token);
                 await ShowLibraryAsync();
@@ -598,7 +603,7 @@ public partial class MainWindow : Window
 
             var loaderId = LoaderId(instance?.Loader ?? LoaderType.Vanilla);
             var gameDirectory = instance is null
-                ? Path.Combine(paths.Instances, "nexo-" + versionId, "game")
+                ? Path.Combine(paths.Instances, versionId, "game")
                 : Path.Combine(instanceRepository.GetInstanceDirectory(instance.Id), "game");
             var plan = minecraft.CreateLaunchPlan(versionId, loaderId, instance?.LoaderVersion, gameDirectory);
             var session = minecraft.Launch(new LaunchOptions(
