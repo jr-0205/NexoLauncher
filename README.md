@@ -4,13 +4,13 @@ Launcher nativo y ligero para Minecraft Java en Windows. Está construido con C#
 
 La experiencia visual toma como referencia el nivel de pulido de clientes como Lunar Client, pero NEXO mantiene código, arquitectura, identidad y componentes propios.
 
-## Estado actual · Loader Runtime 0.5
+## Estado actual · Loader Runtime 0.5.1
 
 - interfaz WPF nativa con biblioteca, nueva instalación y configuración global;
 - perfiles/instancias independientes con `instance.json`;
 - catálogo de versiones estables desde el manifiesto oficial de Mojang;
 - caché local del manifiesto y metadatos de versión para reducir red y acelerar aperturas;
-- datos del launcher aislados bajo `%USERPROFILE%\.lunarclient`, con perfiles compatibles en `profiles`;
+- datos del launcher completamente aislados bajo `%LOCALAPPDATA%\NexoLauncher`;
 - descarga paralela de cliente, bibliotecas, assets y nativos;
 - verificación SHA-1 de los archivos publicados por Mojang;
 - extracción ZIP segura contra path traversal;
@@ -64,19 +64,19 @@ Ejemplo: si el equipo tiene Java 8, 17 y 21 instalados, una instancia antigua pu
 ## Datos locales
 
 ```text
-%USERPROFILE%\.lunarclient
-├── nexo\
-│   ├── settings.json
-│   ├── instances\
-│   ├── libraries\
-│   └── assets\
-├── cache\nexo\
-├── jre\
-├── logs\nexo\
-└── profiles\
+%LOCALAPPDATA%\NexoLauncher
+├── settings.json
+├── cache\
+├── instances\
+├── libraries\
+├── assets\
+├── runtime\
+└── logs\
 ```
 
 Los archivos de configuración se escriben mediante archivo temporal y movimiento atómico cuando corresponde. NEXO no almacena contraseñas.
+
+La versión 0.5.1 recupera de forma no destructiva los perfiles NEXO que una compilación previa pudo crear accidentalmente bajo `.lunarclient`; los originales no se mueven ni se eliminan.
 
 ## Ejecutar
 
@@ -91,7 +91,7 @@ dotnet build NexoLauncher.slnx
 dotnet run --project tests/NexoLauncher.Core.Tests
 ```
 
-El harness actual contiene 33 comprobaciones de memoria, configuración, instancias, eliminación aislada de packs, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes, loaders y selección automática por versión.
+El harness actual contiene 37 comprobaciones de memoria, configuración, migración no destructiva, instancias, eliminación aislada de packs, descargas, ZIP seguro, reglas de Minecraft, Java, caché de runtimes, loaders y selección automática por versión.
 
 ## Alcance actual
 
