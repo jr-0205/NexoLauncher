@@ -25,18 +25,45 @@ using NexoLauncher.Infrastructure.Java;
 var failures = new List<string>();
 
 
-Check("NEXO paths follow the Lunar Client layout", () =>
+Check("NEXO paths remain isolated under LocalApplicationData", () =>
 {
     var paths = NexoPaths.ForCurrentUser();
     var expectedRoot = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-        ".lunarclient");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "NexoLauncher");
 
-    Equal(Path.Combine(expectedRoot, "nexo"), paths.Root);
-    Equal(Path.Combine(expectedRoot, "profiles"), paths.Instances);
-    Equal(Path.Combine(expectedRoot, "jre"), paths.Runtime);
-    Equal(Path.Combine(expectedRoot, "cache", "nexo"), paths.Cache);
-    Equal(Path.Combine(expectedRoot, "logs", "nexo"), paths.Logs);
+    Equal(expectedRoot, paths.Root);
+    Equal(Path.Combine(expectedRoot, "instances"), paths.Instances);
+    Equal(Path.Combine(expectedRoot, "runtime"), paths.Runtime);
+    Equal(Path.Combine(expectedRoot, "cache"), paths.Cache);
+    Equal(Path.Combine(expectedRoot, "logs"), paths.Logs);
+});
+
+Check("Accidental shared-layout import copies only NEXO profiles without modifying the source", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-import-tests", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var source = Path.Combine(root, "external");
+        var destination = Path.Combine(root, "local");
+        var instances = Path.Combine(destination, "instances");
+        var id = Guid.NewGuid().ToString("N");
+        var sourceInstance = Path.Combine(source, "profiles", id);
+        Directory.CreateDirectory(Path.Combine(sourceInstance, "game", "saves", "Mundo"));
+        Directory.CreateDirectory(Path.Combine(source, "profiles", "unrelated-profile"));
+        File.WriteAllText(Path.Combine(sourceInstance, "instance.json"), $$"""{"directoryName":"{{id}}"}""");
+        File.WriteAllText(Path.Combine(sourceInstance, "game", "saves", "Mundo", "level.dat"), "test");
+        File.WriteAllText(Path.Combine(source, "profiles", "unrelated-profile", "data.txt"), "untouched");
+
+        var imported = new AccidentalLunarLayoutImporter(source, destination, instances)
+            .ImportAsync().GetAwaiter().GetResult();
+
+        Equal(1, imported);
+        Equal(true, File.Exists(Path.Combine(instances, id, "game", "saves", "Mundo", "level.dat")));
+        Equal(true, File.Exists(Path.Combine(sourceInstance, "game", "saves", "Mundo", "level.dat")));
+        Equal(false, Directory.Exists(Path.Combine(instances, "unrelated-profile")));
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 });
 
 Check("Classpath identity keeps native classifiers separate", () =>
@@ -447,7 +474,7 @@ if (failures.Count > 0)
     return 1;
 }
 
-Console.WriteLine("33 checks passed.");
+Console.WriteLine("37 checks passed.");
 return 0;
 
 void Check(string name, Action action)
