@@ -15,6 +15,7 @@ public partial class JavaRuntimeDialog : Window
 
     public JavaRuntimeDialog(IReadOnlyList<JavaRuntime> runtimes, int? requiredMajor, JavaRuntime? selectedRuntime = null)
     {
+        NativeWindowTheme.ApplyDarkTitleBar(this);
         InitializeComponent();
         this.requiredMajor = requiredMajor;
 

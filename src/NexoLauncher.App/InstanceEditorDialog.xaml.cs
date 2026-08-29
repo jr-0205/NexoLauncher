@@ -12,6 +12,7 @@ public partial class InstanceEditorDialog : Window
 
     public InstanceEditorDialog(GameInstance instance)
     {
+        NativeWindowTheme.ApplyDarkTitleBar(this);
         InitializeComponent();
         UpdatedName = instance.Name;
         UpdatedSettings = instance.Settings;

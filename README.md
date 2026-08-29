@@ -36,6 +36,10 @@ La experiencia visual toma como referencia el nivel de pulido de clientes como L
 - directorio de juego realmente aislado por GUID de instancia;
 - editor de instancia para nombre, RAM, Java, ventana, pantalla completa y argumentos JVM;
 - eliminación segura de packs completos desde la biblioteca, siempre con confirmación explícita;
+- administrador de contenido por instancia para mods, texturas/resource packs, shaders, datapacks y archivos de configuración;
+- catálogo integrado de Modrinth con búsqueda por instancia, filtros de versión/loader, dependencias y verificación SHA-512;
+- importación de exports oficiales de CurseForge (`manifest.json` + `overrides`) mediante `CURSEFORGE_API_KEY`, con verificación de integridad;
+- importación segura de `.zip`, `.lcpack` y `.mrpack`, copiando solo archivos físicos incluidos y reportando referencias remotas faltantes;
 - catálogo de versiones Forge y NeoForge desde sus repositorios Maven oficiales;
 - ejecución aislada de los instaladores oficiales para conservar sus procesadores y parches;
 - perfiles Forge/NeoForge importados a la arquitectura común de `LaunchPlan`;
@@ -68,6 +72,11 @@ Ejemplo: si el equipo tiene Java 8, 17 y 21 instalados, una instancia antigua pu
 ├── settings.json
 ├── cache\
 ├── instances\
+│   ├── Fabric\Nombre del perfil\
+│   ├── Forge\Nombre del perfil\
+│   ├── NeoForge\Nombre del perfil\
+│   └── Vanilla\Nombre del perfil\
+├── versions\
 ├── libraries\
 ├── assets\
 ├── runtime\
@@ -75,8 +84,6 @@ Ejemplo: si el equipo tiene Java 8, 17 y 21 instalados, una instancia antigua pu
 ```
 
 Los archivos de configuración se escriben mediante archivo temporal y movimiento atómico cuando corresponde. NEXO no almacena contraseñas.
-
-La versión 0.5.1 recupera de forma no destructiva los perfiles NEXO que una compilación previa pudo crear accidentalmente bajo `.lunarclient`; los originales no se mueven ni se eliminan.
 
 ## Ejecutar
 

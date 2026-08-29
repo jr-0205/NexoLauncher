@@ -1,17 +1,17 @@
 <Window x:Class="NexoLauncher.App.MainWindow"
  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
- Title="NEXO Client" Width="1240" Height="760" MinWidth="1020" MinHeight="650"
- WindowStartupLocation="CenterScreen" Background="#080C12" Foreground="#F4F6FA"
- FontFamily="Segoe UI" UseLayoutRounding="True" SnapsToDevicePixels="True">
+ Title="NEXO Client" Width="1320" Height="820" MinWidth="1080" MinHeight="680"
+ WindowStartupLocation="CenterScreen" Background="#0B0E11" Foreground="#F4F6FA"
+ FontFamily="Segoe UI Variable Text" UseLayoutRounding="True" SnapsToDevicePixels="True" PreviewKeyDown="MainWindow_PreviewKeyDown">
  <Window.Resources>
-  <SolidColorBrush x:Key="Panel" Color="#101722"/>
-  <SolidColorBrush x:Key="PanelAlt" Color="#0D141E"/>
-  <SolidColorBrush x:Key="Stroke" Color="#263449"/>
-  <SolidColorBrush x:Key="Muted" Color="#93A0B5"/>
-  <SolidColorBrush x:Key="Accent" Color="#756AF4"/>
-  <SolidColorBrush x:Key="Success" Color="#55C989"/>
-  <SolidColorBrush x:Key="Danger" Color="#E27D73"/>
+  <SolidColorBrush x:Key="Panel" Color="#151A1E"/>
+  <SolidColorBrush x:Key="PanelAlt" Color="#101418"/>
+  <SolidColorBrush x:Key="Stroke" Color="#2D353B"/>
+  <SolidColorBrush x:Key="Muted" Color="#98A3AA"/>
+  <SolidColorBrush x:Key="Accent" Color="#4B7BFF"/>
+  <SolidColorBrush x:Key="Success" Color="#5B8CFF"/>
+  <SolidColorBrush x:Key="Danger" Color="#F07167"/>
 
   <Style x:Key="LabelStyle" TargetType="TextBlock">
    <Setter Property="Foreground" Value="#A8B2C4"/>
@@ -70,14 +70,15 @@
   <Style x:Key="NavButton" TargetType="Button">
    <Setter Property="Foreground" Value="#8F9AAF"/>
    <Setter Property="Background" Value="Transparent"/>
-   <Setter Property="BorderThickness" Value="0"/>
+   <Setter Property="BorderBrush" Value="Transparent"/>
+   <Setter Property="BorderThickness" Value="3,0,0,0"/>
    <Setter Property="HorizontalContentAlignment" Value="Left"/>
    <Setter Property="Padding" Value="14,12"/>
    <Setter Property="Cursor" Value="Hand"/>
    <Setter Property="Template">
     <Setter.Value>
      <ControlTemplate TargetType="Button">
-      <Border x:Name="Nav" Background="{TemplateBinding Background}" CornerRadius="8" Padding="{TemplateBinding Padding}">
+      <Border x:Name="Nav" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="8" Padding="{TemplateBinding Padding}">
        <ContentPresenter/>
       </Border>
       <ControlTemplate.Triggers>
@@ -120,38 +121,43 @@
  </Window.Resources>
 
  <Grid>
-  <Grid.ColumnDefinitions><ColumnDefinition Width="236"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+  <Grid.ColumnDefinitions><ColumnDefinition Width="252"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
 
-  <Border Background="#0C121B" BorderBrush="#202C3E" BorderThickness="0,0,1,0">
-   <Grid Margin="24,28,22,24">
+  <Border Background="#0C121B" BorderBrush="#2A3238" BorderThickness="0,0,1,0">
+   <Grid Margin="22,26,20,22">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
 
     <StackPanel>
-     <TextBlock Text="NEXO" FontSize="29" FontWeight="Bold" Foreground="#928AFF"/>
-     <TextBlock Text="CLIENT · MINECRAFT" FontSize="9" FontWeight="SemiBold" Foreground="#65738A" Margin="2,2,0,0"/>
+     <TextBlock Text="NEXO" FontSize="28" FontWeight="Bold" Foreground="#F4F7F5"/>
+     <TextBlock Text="MINECRAFT CLIENT" FontSize="9" FontWeight="SemiBold" Foreground="#5B8CFF" Margin="2,2,0,0"/>
     </StackPanel>
 
-    <StackPanel Grid.Row="1" Margin="0,48,0,0">
-     <TextBlock Text="LAUNCHER" Foreground="#56647A" FontSize="9" FontWeight="Bold" Margin="12,0,0,9"/>
+    <StackPanel Grid.Row="1" Margin="0,42,0,0">
+     <TextBlock Text="JUGAR" Foreground="#657178" FontSize="9" FontWeight="Bold" Margin="12,0,0,9"/>
      <Button x:Name="LibraryNavButton" Style="{StaticResource NavButton}" Click="ShowLibrary_Click">
-      <StackPanel Orientation="Horizontal"><TextBlock Text="▦" FontSize="17" Width="29"/><TextBlock Text="Mis instancias" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
+      <StackPanel Orientation="Horizontal"><TextBlock Text="▦" FontSize="16" Width="30" Foreground="#5B8CFF"/><TextBlock Text="Biblioteca" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
      </Button>
      <Button x:Name="InstallNavButton" Style="{StaticResource NavButton}" Click="ShowInstall_Click" Margin="0,4,0,0">
-      <StackPanel Orientation="Horizontal"><TextBlock Text="＋" FontSize="18" Width="29"/><TextBlock Text="Nueva instalación" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
+      <StackPanel Orientation="Horizontal"><TextBlock Text="＋" FontSize="17" Width="30"/><TextBlock Text="Crear instancia" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
      </Button>
-     <Button x:Name="SettingsNavButton" Style="{StaticResource NavButton}" Click="ShowSettings_Click" Margin="0,4,0,0">
-      <StackPanel Orientation="Horizontal"><TextBlock Text="⚙" FontSize="16" Width="29"/><TextBlock Text="Configuración" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
+     <TextBlock Text="GESTIONAR" Foreground="#657178" FontSize="9" FontWeight="Bold" Margin="12,24,0,9"/>
+     <Button x:Name="ContentNavButton" Style="{StaticResource NavButton}" Click="ShowContent_Click">
+      <StackPanel Orientation="Horizontal"><TextBlock Text="↓" FontSize="18" Width="30" Foreground="#61C7E8"/><TextBlock Text="Contenido" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
+     </Button>
+     <TextBlock Text="SISTEMA" Foreground="#657178" FontSize="9" FontWeight="Bold" Margin="12,24,0,9"/>
+     <Button x:Name="SettingsNavButton" Style="{StaticResource NavButton}" Click="ShowSettings_Click">
+      <StackPanel Orientation="Horizontal"><TextBlock Text="⚙" FontSize="15" Width="30"/><TextBlock Text="Configuración" FontWeight="SemiBold" VerticalAlignment="Center"/></StackPanel>
      </Button>
     </StackPanel>
 
     <StackPanel Grid.Row="2">
-     <Border Background="#101A28" CornerRadius="8" Padding="10,8" Margin="0,0,0,15">
+     <Border Background="#182026" CornerRadius="8" Padding="10,8" Margin="0,0,0,15">
       <StackPanel Orientation="Horizontal">
        <Ellipse Width="7" Height="7" Fill="{StaticResource Success}" VerticalAlignment="Center"/>
        <TextBlock x:Name="SidebarStatusText" Text="NEXO CORE LISTO" Foreground="#8F9CB0" FontSize="9" FontWeight="SemiBold" Margin="8,0,0,0"/>
       </StackPanel>
      </Border>
-     <Border Height="1" Background="#202D41" Margin="0,0,0,15"/>
+     <Border Height="1" Background="#263038" Margin="0,0,0,15"/>
      <TextBlock Text="NEXO Client 0.5.1" Foreground="#68758A" FontSize="11"/>
      <TextBlock Text="Nativo · Sin telemetría" Foreground="#4F5C70" FontSize="10" Margin="0,4,0,0"/>
     </StackPanel>
@@ -171,7 +177,7 @@
     </Grid>
 
     <Grid Grid.Row="1" Margin="0,26,0,0">
-     <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="322"/></Grid.ColumnDefinitions>
+     <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="350"/></Grid.ColumnDefinitions>
 
      <Grid Margin="0,0,24,0">
       <ListBox x:Name="InstancesList" Background="Transparent" BorderThickness="0" SelectionChanged="InstancesList_SelectionChanged"
@@ -183,9 +189,9 @@
          <Setter Property="Template">
           <Setter.Value>
            <ControlTemplate TargetType="ListBoxItem">
-            <Border x:Name="Selection" BorderBrush="Transparent" BorderThickness="2" CornerRadius="12" Padding="2"><ContentPresenter/></Border>
+            <Border x:Name="Selection" BorderBrush="Transparent" BorderThickness="2" CornerRadius="8" Padding="2"><ContentPresenter/></Border>
             <ControlTemplate.Triggers>
-             <Trigger Property="IsSelected" Value="True"><Setter TargetName="Selection" Property="BorderBrush" Value="#756AF4"/></Trigger>
+             <Trigger Property="IsSelected" Value="True"><Setter TargetName="Selection" Property="BorderBrush" Value="#4B7BFF"/></Trigger>
              <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Selection" Property="BorderBrush" Value="#394963"/></Trigger>
             </ControlTemplate.Triggers>
            </ControlTemplate>
@@ -195,20 +201,20 @@
        </ListBox.ItemContainerStyle>
        <ListBox.ItemTemplate>
         <DataTemplate>
-         <Grid Width="188">
-          <Grid.RowDefinitions><RowDefinition Height="198"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-          <Border CornerRadius="10" ClipToBounds="True">
+         <Grid Width="214">
+          <Grid.RowDefinitions><RowDefinition Height="154"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+          <Border CornerRadius="8" ClipToBounds="True">
            <Border.Background>
             <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-             <GradientStop Color="#3E35A0"/><GradientStop Color="#17233A" Offset="0.56"/><GradientStop Color="#0E151F" Offset="1"/>
+             <GradientStop Color="#244A9B"/><GradientStop Color="#17233A" Offset="0.56"/><GradientStop Color="#0E151F" Offset="1"/>
             </LinearGradientBrush>
            </Border.Background>
            <Grid>
-            <Ellipse Width="112" Height="112" Fill="#18FFFFFF"/>
-            <Border Width="80" Height="80" CornerRadius="18" Background="#202C40">
-             <StackPanel VerticalAlignment="Center"><TextBlock Text="N" FontSize="37" FontWeight="Bold" Foreground="#9188FF" HorizontalAlignment="Center"/><TextBlock Text="NEXO" FontSize="8" Foreground="#8995A9" HorizontalAlignment="Center"/></StackPanel>
+            <Border Width="104" Height="104" Background="#162129" CornerRadius="52"/>
+            <Border Width="68" Height="68" CornerRadius="8" Background="#202A2F" BorderBrush="#344249" BorderThickness="1">
+             <StackPanel VerticalAlignment="Center"><TextBlock Text="N" FontSize="30" FontWeight="Bold" Foreground="#5B8CFF" HorizontalAlignment="Center"/><TextBlock Text="NEXO" FontSize="8" Foreground="#8995A9" HorizontalAlignment="Center"/></StackPanel>
             </Border>
-            <Border VerticalAlignment="Bottom" Background="#90080C12" Padding="12,9"><TextBlock Text="LISTO PARA JUGAR" Foreground="#AAB5C7" FontSize="8" FontWeight="Bold"/></Border>
+            <Border VerticalAlignment="Bottom" Background="#D00B0E11" Padding="12,8"><TextBlock Text="PERFIL LISTO" Foreground="#8DB3FF" FontSize="8" FontWeight="Bold"/></Border>
            </Grid>
           </Border>
           <StackPanel Grid.Row="1" Margin="3,10,3,0">
@@ -221,7 +227,7 @@
       </ListBox>
 
       <StackPanel x:Name="EmptyLibrary" HorizontalAlignment="Center" VerticalAlignment="Center">
-       <Border Width="72" Height="72" Background="#151F2E" CornerRadius="18"><TextBlock Text="＋" FontSize="31" Foreground="#756AF4" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
+       <Border Width="72" Height="72" Background="#1B2227" CornerRadius="8"><TextBlock Text="＋" FontSize="31" Foreground="#5B8CFF" HorizontalAlignment="Center" VerticalAlignment="Center"/></Border>
        <TextBlock Text="Aún no hay instancias" FontSize="17" FontWeight="SemiBold" HorizontalAlignment="Center" Margin="0,17,0,0"/>
        <TextBlock Text="Crea una instalación para comenzar." Foreground="#78869C" Margin="0,6,0,0"/>
        <Button Content="CREAR INSTANCIA" Style="{StaticResource SecondaryButton}" Click="ShowInstall_Click" Margin="0,18,0,0"/>
@@ -232,7 +238,7 @@
       <Grid>
        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
        <StackPanel>
-        <TextBlock Text="INSTANCIA" Foreground="#6259CF" FontSize="9" FontWeight="Bold"/>
+        <TextBlock Text="INSTANCIA" Foreground="#5B8CFF" FontSize="9" FontWeight="Bold"/>
         <TextBlock x:Name="DetailName" Text="Selecciona una instancia" FontSize="21" FontWeight="SemiBold" TextWrapping="Wrap" Margin="0,8,0,0"/>
         <TextBlock x:Name="DetailSubtitle" Text="Los detalles aparecerán aquí." Foreground="#8290A6" Margin="0,6,0,0"/>
        </StackPanel>
@@ -242,16 +248,41 @@
         <TextBlock x:Name="DetailVersion" Text="—" FontSize="13" Margin="0,6,0,15"/>
         <TextBlock Text="LOADER" Foreground="#5D6A7F" FontSize="9" FontWeight="Bold"/>
         <TextBlock x:Name="DetailLoader" Text="—" FontSize="13" Margin="0,6,0,15"/>
+        <TextBlock Text="CARPETA DEL PERFIL" Foreground="#5D6A7F" FontSize="9" FontWeight="Bold"/>
+        <TextBlock x:Name="DetailLocation" Text="—" FontSize="11" Foreground="#8DB3FF" Margin="0,6,0,15" TextWrapping="Wrap"/>
         <TextBlock Text="MEMORIA" Foreground="#5D6A7F" FontSize="9" FontWeight="Bold"/>
         <TextBlock x:Name="DetailMemory" Text="—" FontSize="13" Margin="0,6,0,15"/>
         <TextBlock Text="JAVA" Foreground="#5D6A7F" FontSize="9" FontWeight="Bold"/>
         <TextBlock x:Name="DetailJava" Text="—" FontSize="12" Foreground="#B8C1D0" Margin="0,6,0,0" TextWrapping="Wrap"/>
+        <Border x:Name="LaunchMonitor" Visibility="Collapsed" Background="#101C31" BorderBrush="#356AE6" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,18,0,0">
+         <StackPanel>
+          <Grid>
+           <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+           <StackPanel Orientation="Horizontal">
+            <Ellipse Width="8" Height="8" Fill="#5B8CFF" VerticalAlignment="Center"/>
+            <TextBlock Text="  EN EJECUCIÓN" Foreground="#8DB3FF" FontSize="9" FontWeight="Bold" VerticalAlignment="Center"/>
+           </StackPanel>
+           <TextBlock Grid.Column="1" x:Name="LaunchElapsedText" Text="00:00" Foreground="#B8C8E8" FontSize="11" FontWeight="SemiBold"/>
+          </Grid>
+          <TextBlock x:Name="LaunchProfileText" Text="Minecraft" FontSize="13" FontWeight="SemiBold" Margin="0,9,0,0" TextTrimming="CharacterEllipsis"/>
+          <TextBlock x:Name="LaunchProcessText" Text="PID —" Foreground="#71819A" FontSize="10" Margin="0,4,0,10"/>
+          <Grid>
+           <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
+           <Button Content="VER LOG" Style="{StaticResource GhostButton}" Height="34" Padding="10,5" Click="OpenLaunchLog_Click" Margin="0,0,5,0"/>
+           <Button Grid.Column="1" Content="DETENER" Style="{StaticResource GhostButton}" Foreground="#FF8E8E" Height="34" Padding="10,5" Click="StopLaunch_Click" Margin="5,0,0,0"/>
+          </Grid>
+         </StackPanel>
+        </Border>
        </StackPanel>
 
-       <Grid Grid.Row="2"><Grid.ColumnDefinitions><ColumnDefinition Width="78"/><ColumnDefinition Width="86"/><ColumnDefinition/></Grid.ColumnDefinitions>
+       <Grid Grid.Row="2">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/><ColumnDefinition Width="120"/></Grid.ColumnDefinitions>
         <Button x:Name="DeleteInstanceButton" Content="BORRAR" Style="{StaticResource GhostButton}" Foreground="#FF8E8E" IsEnabled="False" Click="DeleteInstance_Click" Margin="0,0,8,0"/>
         <Button Grid.Column="1" x:Name="EditInstanceButton" Content="EDITAR" Style="{StaticResource GhostButton}" IsEnabled="False" Click="EditInstance_Click" Margin="0,0,9,0"/>
-        <Button Grid.Column="2" x:Name="LibraryPlayButton" Content="▶  INICIAR" Style="{StaticResource PrimaryButton}" Background="#167A42" IsEnabled="False" Click="LibraryPlay_Click"/>
+        <Button Grid.Column="2" Grid.RowSpan="2" x:Name="LibraryPlayButton" Content="▶  INICIAR" Style="{StaticResource PrimaryButton}" Background="#356AE6" IsEnabled="False" Click="LibraryPlay_Click"/>
+        <Button Grid.Row="1" x:Name="ContentInstanceButton" Content="CONTENIDO" ToolTip="Abrir catálogo para esta instancia" Style="{StaticResource SecondaryButton}" IsEnabled="False" Click="OpenInstanceContent_Click" Margin="0,8,8,0"/>
+        <Button Grid.Row="1" Grid.Column="1" x:Name="OpenContentFolderButton" Content="📁" ToolTip="Abrir carpeta de contenido de la instancia" Style="{StaticResource SecondaryButton}" IsEnabled="False" Click="OpenContentFolder_Click" Margin="0,8,9,0"/>
        </Grid>
       </Grid>
      </Border>
@@ -268,7 +299,7 @@
 
      <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,26,0,22">
       <StackPanel>
-       <TextBlock Text="CONFIGURACIÓN DE JUEGO" Foreground="#8F86FF" FontWeight="Bold" FontSize="10"/>
+       <TextBlock Text="CONFIGURACIÓN DE JUEGO" Foreground="#61C7E8" FontWeight="Bold" FontSize="10"/>
        <Grid Margin="0,21,0,0">
         <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="18"/><ColumnDefinition/></Grid.ColumnDefinitions>
         <StackPanel><TextBlock Text="Versión estable" Style="{StaticResource LabelStyle}"/><ComboBox x:Name="VersionBox" Style="{StaticResource ComboStyle}" SelectionChanged="VersionBox_SelectionChanged"/></StackPanel>
@@ -299,7 +330,7 @@
          <Slider x:Name="RamSlider" Minimum="1024" Maximum="8192" Value="4096" TickFrequency="512" IsSnapToTickEnabled="True" ValueChanged="RamSlider_ValueChanged" Foreground="{StaticResource Accent}"/>
          <TextBlock x:Name="InstallMemoryHintText" Text="NEXO ajusta el límite al hardware del equipo." Foreground="#627087" FontSize="10" Margin="0,7,0,0"/>
         </StackPanel>
-        <Border Grid.Column="1" Background="#1B2739" CornerRadius="6" Padding="8,5" VerticalAlignment="Top" Margin="0,20,0,0"><TextBlock x:Name="RamText" Text="4 GB" HorizontalAlignment="Center" FontWeight="SemiBold"/></Border>
+        <Border Grid.Column="1" Background="#1B2739" CornerRadius="5" Padding="8,5" VerticalAlignment="Top" Margin="0,20,0,0"><TextBlock x:Name="RamText" Text="4 GB" HorizontalAlignment="Center" FontWeight="SemiBold"/></Border>
        </Grid>
 
        <Border Background="#0C131D" BorderBrush="#1D2A3C" BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,22,0,0">
@@ -319,6 +350,67 @@
     </Grid>
    </ScrollViewer>
 
+   <ScrollViewer x:Name="ContentPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+    <Grid Margin="38,30,38,38" MaxWidth="980" HorizontalAlignment="Center">
+     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <StackPanel>
+      <Grid>
+       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="126"/></Grid.ColumnDefinitions>
+       <StackPanel>
+        <TextBlock x:Name="ContentProfileNameText" Text="Contenido" FontSize="29" FontWeight="SemiBold"/>
+        <TextBlock x:Name="ContentProfileMetaText" Text="Selecciona una instancia" Foreground="{StaticResource Muted}" Margin="0,6,0,0"/>
+       </StackPanel>
+       <Button Grid.Column="1" x:Name="ContentPlayButton" Content="▶  INICIAR" Style="{StaticResource PrimaryButton}" Click="PlaySelectedContentInstance_Click"/>
+      </Grid>
+      <Grid Margin="0,22,0,0">
+       <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+       <Border Background="#171D24" BorderBrush="#2B3540" BorderThickness="1" CornerRadius="8" Padding="5" HorizontalAlignment="Left">
+        <StackPanel Orientation="Horizontal">
+         <Button Content="CATÁLOGO" Style="{StaticResource PrimaryButton}" Height="38" Padding="16,7"/>
+         <Button Content="ARCHIVOS" Tag="game" Style="{StaticResource GhostButton}" Height="38" Padding="16,7" Margin="5,0,0,0" Click="OpenSelectedContentPath_Click"/>
+         <Button Content="MUNDOS" Tag="saves" Style="{StaticResource GhostButton}" Height="38" Padding="16,7" Margin="5,0,0,0" Click="OpenSelectedContentPath_Click"/>
+         <Button Content="LOGS" Tag="logs" Style="{StaticResource GhostButton}" Height="38" Padding="16,7" Margin="5,0,0,0" Click="OpenSelectedContentPath_Click"/>
+        </StackPanel>
+       </Border>
+       <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="16,0,0,0">
+        <Button x:Name="AddContentFilesButton" Content="＋  AÑADIR ARCHIVOS" Style="{StaticResource SecondaryButton}" Height="48" Padding="15,7" IsEnabled="False" Click="AddContentFiles_Click"/>
+        <Button x:Name="ImportModpackButton" Content="IMPORTAR MODPACK" Style="{StaticResource PrimaryButton}" Height="48" Padding="17,7" Margin="8,0,0,0" IsEnabled="False" Click="ImportModpack_Click"/>
+       </StackPanel>
+      </Grid>
+     </StackPanel>
+     <Border Grid.Row="1" Style="{StaticResource CardStyle}" Margin="0,24,0,18">
+      <Grid>
+       <Grid.ColumnDefinitions><ColumnDefinition Width="240"/><ColumnDefinition Width="16"/><ColumnDefinition Width="170"/><ColumnDefinition Width="16"/><ColumnDefinition/><ColumnDefinition Width="120"/></Grid.ColumnDefinitions>
+       <StackPanel><TextBlock Text="Instancia" Style="{StaticResource LabelStyle}"/><ComboBox x:Name="ContentInstanceBox" Style="{StaticResource ComboStyle}" DisplayMemberPath="Name" SelectionChanged="ContentInstanceBox_SelectionChanged"/></StackPanel>
+       <StackPanel Grid.Column="2"><TextBlock Text="Tipo" Style="{StaticResource LabelStyle}"/><ComboBox x:Name="ContentTypeBox" Style="{StaticResource ComboStyle}"/></StackPanel>
+       <StackPanel Grid.Column="4"><TextBlock Text="Buscar" Style="{StaticResource LabelStyle}"/><TextBox x:Name="ContentSearchBox" Style="{StaticResource FieldStyle}" KeyDown="ContentSearchBox_KeyDown"/></StackPanel>
+       <Button Grid.Column="5" Content="BUSCAR" Style="{StaticResource PrimaryButton}" Click="SearchContent_Click" Height="42" VerticalAlignment="Bottom"/>
+      </Grid>
+     </Border>
+     <StackPanel Grid.Row="2">
+      <TextBlock x:Name="ContentStatusText" Text="Selecciona una instancia y busca contenido." Foreground="#7F8CA0" FontSize="11" Margin="2,0,0,12"/>
+      <ListBox x:Name="ContentResultsList" Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+       <ListBox.ItemContainerStyle><Style TargetType="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch"/><Setter Property="Margin" Value="0,0,0,10"/><Setter Property="Padding" Value="0"/><Setter Property="Background" Value="Transparent"/><Setter Property="BorderThickness" Value="0"/></Style></ListBox.ItemContainerStyle>
+       <ListBox.ItemTemplate>
+        <DataTemplate>
+         <Border Background="{StaticResource Panel}" BorderBrush="#2A3238" BorderThickness="1" CornerRadius="8" Padding="14">
+          <Grid>
+           <Grid.ColumnDefinitions><ColumnDefinition Width="52"/><ColumnDefinition/><ColumnDefinition Width="112"/></Grid.ColumnDefinitions>
+           <Border Width="44" Height="44" CornerRadius="5" Background="#182335" VerticalAlignment="Top"><Image Source="{Binding IconUrl}" Stretch="UniformToFill"/></Border>
+           <StackPanel Grid.Column="1" Margin="12,0,14,0">
+            <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+            <TextBlock Text="{Binding Description}" Foreground="#8B98AC" FontSize="11" Margin="0,4,0,0" TextWrapping="Wrap" MaxHeight="34"/>
+            <TextBlock Foreground="#66758A" FontSize="9" Margin="0,7,0,0"><Run Text="por "/><Run Text="{Binding Author}"/><Run Text=" · "/><Run Text="{Binding Downloads, StringFormat={}{0:N0}}"/><Run Text=" descargas"/></TextBlock>
+           </StackPanel>
+           <Button Grid.Column="2" Content="INSTALAR" Tag="{Binding}" Style="{StaticResource SecondaryButton}" Click="InstallCatalogContent_Click" Height="38" VerticalAlignment="Center"/>
+          </Grid>
+         </Border>
+        </DataTemplate>
+       </ListBox.ItemTemplate>
+      </ListBox>
+     </StackPanel>
+    </Grid>
+   </ScrollViewer>
    <ScrollViewer x:Name="SettingsPanel" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
     <Grid Margin="44,32,44,40" MaxWidth="860" HorizontalAlignment="Center">
      <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
@@ -332,13 +424,13 @@
       <Grid>
        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="230"/></Grid.ColumnDefinitions>
        <StackPanel>
-        <TextBlock Text="MEMORIA" Foreground="#8F86FF" FontWeight="Bold" FontSize="10"/>
+        <TextBlock Text="MEMORIA" Foreground="#61C7E8" FontWeight="Bold" FontSize="10"/>
         <TextBlock Text="Memoria global para Minecraft" FontSize="17" FontWeight="SemiBold" Margin="0,9,0,0"/>
         <TextBlock x:Name="SettingsMemorySummary" Text="Detectando memoria del sistema…" Foreground="#7F8CA0" FontSize="11" Margin="0,5,0,0"/>
         <Grid Margin="0,18,0,0">
          <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="86"/></Grid.ColumnDefinitions>
          <Slider x:Name="SettingsRamSlider" Minimum="1024" Maximum="8192" Value="4096" TickFrequency="512" IsSnapToTickEnabled="True" ValueChanged="SettingsRamSlider_ValueChanged" Foreground="{StaticResource Accent}"/>
-         <Border Grid.Column="1" Background="#1B2739" CornerRadius="6" Padding="8,5" Margin="12,0,0,0"><TextBlock x:Name="SettingsRamText" Text="4 GB" HorizontalAlignment="Center" FontWeight="SemiBold"/></Border>
+         <Border Grid.Column="1" Background="#1B2739" CornerRadius="5" Padding="8,5" Margin="12,0,0,0"><TextBlock x:Name="SettingsRamText" Text="4 GB" HorizontalAlignment="Center" FontWeight="SemiBold"/></Border>
         </Grid>
        </StackPanel>
        <Button Grid.Column="1" Content="USAR RECOMENDADO" Style="{StaticResource GhostButton}" Click="UseRecommendedMemory_Click" Width="190" HorizontalAlignment="Right" VerticalAlignment="Bottom"/>
@@ -349,7 +441,7 @@
       <Grid>
        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="205"/></Grid.ColumnDefinitions>
        <StackPanel>
-        <TextBlock Text="JAVA RUNTIME" Foreground="#8F86FF" FontWeight="Bold" FontSize="10"/>
+        <TextBlock Text="JAVA RUNTIME" Foreground="#61C7E8" FontWeight="Bold" FontSize="10"/>
         <TextBlock x:Name="SettingsJavaText" Text="Detectando Java…" FontSize="17" FontWeight="SemiBold" Margin="0,9,0,0"/>
         <TextBlock x:Name="SettingsJavaPathText" Text="—" Foreground="#6F7D92" FontSize="10" Margin="0,5,0,0" TextTrimming="CharacterEllipsis"/>
         <TextBlock x:Name="SettingsRuntimeCountText" Text="0 runtimes detectados" Foreground="#8B98AC" FontSize="11" Margin="0,10,0,0"/>
@@ -365,7 +457,7 @@
       <Grid>
        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="270"/></Grid.ColumnDefinitions>
        <StackPanel>
-        <TextBlock Text="PERFIL LOCAL" Foreground="#8F86FF" FontWeight="Bold" FontSize="10"/>
+        <TextBlock Text="PERFIL LOCAL" Foreground="#61C7E8" FontWeight="Bold" FontSize="10"/>
         <TextBlock Text="Nombre predeterminado" FontSize="17" FontWeight="SemiBold" Margin="0,9,0,0"/>
         <TextBlock Text="Se usa mientras no haya una sesión Microsoft conectada." Foreground="#78869B" FontSize="11" Margin="0,5,0,0"/>
        </StackPanel>
@@ -380,7 +472,7 @@
       <Grid>
        <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="260"/></Grid.ColumnDefinitions>
        <StackPanel>
-        <TextBlock Text="COMPORTAMIENTO" Foreground="#8F86FF" FontWeight="Bold" FontSize="10"/>
+        <TextBlock Text="COMPORTAMIENTO" Foreground="#61C7E8" FontWeight="Bold" FontSize="10"/>
         <TextBlock Text="Al iniciar Minecraft" FontSize="17" FontWeight="SemiBold" Margin="0,9,0,0"/>
         <TextBlock Text="Cerrar el launcher reduce uso de RAM y procesos cuando el juego ya está activo." Foreground="#78869B" FontSize="11" Margin="0,5,0,0" TextWrapping="Wrap"/>
        </StackPanel>

@@ -19,6 +19,7 @@ using NexoLauncher.Application.Instances;
 using NexoLauncher.Domain.Configuration;
 using NexoLauncher.Domain.Instances;
 using NexoLauncher.Infrastructure.Configuration;
+using NexoLauncher.Infrastructure.Content;
 using NexoLauncher.Infrastructure.Instances;
 using NexoLauncher.Infrastructure.Java;
 
@@ -34,36 +35,10 @@ Check("NEXO paths remain isolated under LocalApplicationData", () =>
 
     Equal(expectedRoot, paths.Root);
     Equal(Path.Combine(expectedRoot, "instances"), paths.Instances);
+    Equal(Path.Combine(expectedRoot, "versions"), paths.Versions);
     Equal(Path.Combine(expectedRoot, "runtime"), paths.Runtime);
     Equal(Path.Combine(expectedRoot, "cache"), paths.Cache);
     Equal(Path.Combine(expectedRoot, "logs"), paths.Logs);
-});
-
-Check("Accidental shared-layout import copies only NEXO profiles without modifying the source", () =>
-{
-    var root = Path.Combine(Path.GetTempPath(), "nexo-import-tests", Guid.NewGuid().ToString("N"));
-    try
-    {
-        var source = Path.Combine(root, "external");
-        var destination = Path.Combine(root, "local");
-        var instances = Path.Combine(destination, "instances");
-        var id = Guid.NewGuid().ToString("N");
-        var sourceInstance = Path.Combine(source, "profiles", id);
-        Directory.CreateDirectory(Path.Combine(sourceInstance, "game", "saves", "Mundo"));
-        Directory.CreateDirectory(Path.Combine(source, "profiles", "unrelated-profile"));
-        File.WriteAllText(Path.Combine(sourceInstance, "instance.json"), $$"""{"directoryName":"{{id}}"}""");
-        File.WriteAllText(Path.Combine(sourceInstance, "game", "saves", "Mundo", "level.dat"), "test");
-        File.WriteAllText(Path.Combine(source, "profiles", "unrelated-profile", "data.txt"), "untouched");
-
-        var imported = new AccidentalLunarLayoutImporter(source, destination, instances)
-            .ImportAsync().GetAwaiter().GetResult();
-
-        Equal(1, imported);
-        Equal(true, File.Exists(Path.Combine(instances, id, "game", "saves", "Mundo", "level.dat")));
-        Equal(true, File.Exists(Path.Combine(sourceInstance, "game", "saves", "Mundo", "level.dat")));
-        Equal(false, Directory.Exists(Path.Combine(instances, "unrelated-profile")));
-    }
-    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 });
 
 Check("Classpath identity keeps native classifiers separate", () =>
@@ -468,13 +443,182 @@ Check("Instance editor updates name and overrides atomically", () =>
     finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
 });
 
+Check("Content Manager installs mods and texture packs inside one instance", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-content-tests", Guid.NewGuid().ToString("N"));
+    try
+    {
+        Directory.CreateDirectory(root);
+        var game = Path.Combine(root, "game");
+        var mod = Path.Combine(root, "example.jar");
+        var texture = Path.Combine(root, "textures.zip");
+        File.WriteAllText(mod, "jar");
+        using (var zip = ZipFile.Open(texture, ZipArchiveMode.Create))
+        {
+            zip.CreateEntry("pack.mcmeta");
+            zip.CreateEntry("assets/example/texture.png");
+        }
+        var result = new InstanceContentManager().ImportAsync(game, [mod, texture]).GetAwaiter().GetResult();
+        Equal(true, File.Exists(Path.Combine(game, "mods", "example.jar")));
+        Equal(true, File.Exists(Path.Combine(game, "resourcepacks", "textures.zip")));
+        Equal(2, result.FilesInstalled);
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+
+Check("Instance folders are grouped by loader and readable profile name", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-readable-profiles", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var repository = new JsonInstanceRepository(root);
+        var manager = new InstanceManager(repository);
+        var profile = manager.CreateAsync("Diosesmon Oficial", "1.21.1", LoaderType.Fabric, "0.16.14").GetAwaiter().GetResult();
+        Equal(Path.Combine(root, "Fabric", "Diosesmon Oficial"), repository.GetInstanceDirectory(profile.Id));
+        Equal(true, File.Exists(Path.Combine(root, "Fabric", "Diosesmon Oficial", "instance.json")));
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+
+Check("Profiles with the same visible name remain isolated", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-readable-profiles", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var repository = new JsonInstanceRepository(root);
+        var manager = new InstanceManager(repository);
+        var first = manager.CreateAsync("Survival", "1.21.1", LoaderType.Fabric, "0.16.14").GetAwaiter().GetResult();
+        var second = manager.CreateAsync("Survival", "1.21.1", LoaderType.Fabric, "0.16.14").GetAwaiter().GetResult();
+        Equal(false, repository.GetInstanceDirectory(first.Id) == repository.GetInstanceDirectory(second.Id));
+        Equal(2, manager.ListAsync().GetAwaiter().GetResult().Count);
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+
+Check("Renaming a profile moves its complete isolated game directory", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-readable-profiles", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var repository = new JsonInstanceRepository(root);
+        var manager = new InstanceManager(repository);
+        var profile = manager.CreateAsync("Pack antiguo", "1.21.1", LoaderType.Fabric, "0.16.14").GetAwaiter().GetResult();
+        var oldDirectory = repository.GetInstanceDirectory(profile.Id);
+        Directory.CreateDirectory(Path.Combine(oldDirectory, "game", "mods"));
+        File.WriteAllText(Path.Combine(oldDirectory, "game", "mods", "example.jar"), "test");
+        manager.UpdateAsync(profile.Id, "Pack nuevo", profile.Settings).GetAwaiter().GetResult();
+        var newDirectory = repository.GetInstanceDirectory(profile.Id);
+        Equal(Path.Combine(root, "Fabric", "Pack nuevo"), newDirectory);
+        Equal(false, Directory.Exists(oldDirectory));
+        Equal(true, File.Exists(Path.Combine(newDirectory, "game", "mods", "example.jar")));
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+
+Check("Shared Minecraft versions migrate out of the instances directory", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-layout-migration", Guid.NewGuid().ToString("N"));
+    try
+    {
+        var instances = Path.Combine(root, "instances");
+        var versions = Path.Combine(root, "versions");
+        var legacy = Path.Combine(instances, "1.21.8");
+        Directory.CreateDirectory(legacy);
+        File.WriteAllText(Path.Combine(legacy, "1.21.8.json"), "{}");
+        File.WriteAllText(Path.Combine(legacy, "1.21.8.jar"), "test");
+        Equal(1, new NexoDataLayoutMigrator(instances, versions).MigrateSharedVersions());
+        Equal(false, Directory.Exists(legacy));
+        Equal(true, File.Exists(Path.Combine(versions, "1.21.8", "1.21.8.jar")));
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+
+Check("Content Manager imports only physical lcpack overrides", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-lcpack-tests", Guid.NewGuid().ToString("N"));
+    try
+    {
+        Directory.CreateDirectory(root);
+        var pack = Path.Combine(root, "example.lcpack");
+        using (var zip = ZipFile.Open(pack, ZipArchiveMode.Create))
+        {
+            using (var writer = new StreamWriter(zip.CreateEntry("metadata.json").Open()))
+                writer.Write("{\"mods\":[{\"hash\":\"one\"},{\"hash\":\"two\"}],\"resourcepacks\":[{\"hash\":\"texture\"}]}");
+            using (var writer = new StreamWriter(zip.CreateEntry("overrides/mods/included.jar").Open())) writer.Write("jar");
+            using (var writer = new StreamWriter(zip.CreateEntry("private/internal.txt").Open())) writer.Write("ignored");
+        }
+        var game = Path.Combine(root, "game");
+        var result = new InstanceContentManager().ImportAsync(game, [pack]).GetAwaiter().GetResult();
+        Equal(true, File.Exists(Path.Combine(game, "mods", "included.jar")));
+        Equal(false, File.Exists(Path.Combine(game, "private", "internal.txt")));
+        Equal(2, result.ReferencedFilesMissing);
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+
+Check("Content Manager rejects packs for a different Minecraft version", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-content-compatibility", Guid.NewGuid().ToString("N"));
+    try
+    {
+        Directory.CreateDirectory(root);
+        var pack = Path.Combine(root, "fabric-1211.lcpack");
+        using (var zip = ZipFile.Open(pack, ZipArchiveMode.Create))
+        {
+            using (var writer = new StreamWriter(zip.CreateEntry("metadata.json").Open()))
+                writer.Write("{\"gameVersion\":\"1.21.1\",\"loaders\":[\"fabric\"]}");
+            using (var writer = new StreamWriter(zip.CreateEntry("overrides/mods/example.jar").Open())) writer.Write("jar");
+        }
+        var rejected = false;
+        try { new InstanceContentManager().ImportAsync(Path.Combine(root, "game"), [pack], "1.21.8", "fabric").GetAwaiter().GetResult(); }
+        catch (InvalidDataException exception) { rejected = exception.Message.Contains("1.21.1", StringComparison.Ordinal); }
+        Equal(true, rejected);
+        Equal(false, File.Exists(Path.Combine(root, "game", "mods", "example.jar")));
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+Check("Content Manager blocks archive path traversal", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-content-security", Guid.NewGuid().ToString("N"));
+    try
+    {
+        Directory.CreateDirectory(root);
+        var pack = Path.Combine(root, "unsafe.lcpack");
+        using (var zip = ZipFile.Open(pack, ZipArchiveMode.Create))
+            using (var writer = new StreamWriter(zip.CreateEntry("overrides/mods/../../../escape.jar").Open())) writer.Write("bad");
+        var blocked = false;
+        try { new InstanceContentManager().ImportAsync(Path.Combine(root, "game"), [pack]).GetAwaiter().GetResult(); }
+        catch (InvalidDataException) { blocked = true; }
+        Equal(true, blocked);
+        Equal(false, File.Exists(Path.Combine(root, "escape.jar")));
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
+Check("CurseForge importer recognizes official exported profiles", () =>
+{
+    var root = Path.Combine(Path.GetTempPath(), "nexo-curseforge-tests", Guid.NewGuid().ToString("N"));
+    try
+    {
+        Directory.CreateDirectory(root);
+        var pack = Path.Combine(root, "profile.zip");
+        using (var zip = ZipFile.Open(pack, ZipArchiveMode.Create))
+        {
+            using (var writer = new StreamWriter(zip.CreateEntry("manifest.json").Open()))
+                writer.Write("{\"name\":\"Example\",\"minecraft\":{\"version\":\"1.21.1\",\"modLoaders\":[{\"id\":\"fabric-0.16.14\",\"primary\":true}]},\"files\":[],\"overrides\":\"overrides\"}");
+            using (var writer = new StreamWriter(zip.CreateEntry("overrides/config/example.json").Open())) writer.Write("{}");
+        }
+        Equal(true, CurseForgePackInstaller.IsPack(pack));
+        Equal(false, CurseForgePackInstaller.IsPack(Path.Combine(root, "missing.zip")));
+    }
+    finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
+});
 if (failures.Count > 0)
 {
     Console.Error.WriteLine(string.Join(Environment.NewLine, failures));
     return 1;
 }
 
-Console.WriteLine("37 checks passed.");
+Console.WriteLine("42 checks passed.");
 return 0;
 
 void Check(string name, Action action)

@@ -4,11 +4,11 @@
         Title="Seleccionar Java · NEXO" Width="720" Height="540"
         MinWidth="620" MinHeight="480" ResizeMode="CanResizeWithGrip"
         WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
-        Background="#090D14" Foreground="#F4F6FA" FontFamily="Segoe UI" UseLayoutRounding="True">
+        Background="#0C1015" Foreground="#F4F6FA" FontFamily="Segoe UI Variable Text" UseLayoutRounding="True">
     <Window.Resources>
-        <SolidColorBrush x:Key="Panel" Color="#111824"/>
-        <SolidColorBrush x:Key="Stroke" Color="#29374C"/>
-        <SolidColorBrush x:Key="Accent" Color="#766AF4"/>
+        <SolidColorBrush x:Key="Panel" Color="#151B22"/>
+        <SolidColorBrush x:Key="Stroke" Color="#303A45"/>
+        <SolidColorBrush x:Key="Accent" Color="#4B7BFF"/>
         <Style x:Key="ActionButton" TargetType="Button">
             <Setter Property="Height" Value="40"/>
             <Setter Property="Padding" Value="18,8"/>
@@ -33,7 +33,7 @@
             </Setter>
         </Style>
         <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
-            <Setter Property="Background" Value="#253248"/>
+            <Setter Property="Background" Value="#222C36"/>
         </Style>
     </Window.Resources>
 
@@ -46,13 +46,13 @@
         </Grid.RowDefinitions>
 
         <StackPanel>
-            <TextBlock Text="JAVA RUNTIME" Foreground="#8F86FF" FontSize="11" FontWeight="Bold"/>
+            <TextBlock Text="JAVA RUNTIME" Foreground="#6E97FF" FontSize="11" FontWeight="Bold"/>
             <TextBlock Text="Seleccionar Java" FontSize="28" FontWeight="SemiBold" Margin="0,8,0,0"/>
             <TextBlock Text="NEXO detecta runtimes locales y evita iniciar Minecraft con una versión incompatible."
                        Foreground="#95A1B5" Margin="0,8,0,0" TextWrapping="Wrap"/>
         </StackPanel>
 
-        <Border Grid.Row="1" Background="#101722" BorderBrush="#202C3E" BorderThickness="1" CornerRadius="9" Padding="13,10" Margin="0,20,0,14">
+        <Border Grid.Row="1" Background="#151B22" BorderBrush="#28323C" BorderThickness="1" CornerRadius="8" Padding="13,10" Margin="0,20,0,14">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Text="REQUISITO" Foreground="#65738A" FontSize="10" FontWeight="Bold" VerticalAlignment="Center"/>
                 <TextBlock x:Name="RequirementText" Foreground="#DDE3EE" FontWeight="SemiBold" Margin="12,0,0,0" VerticalAlignment="Center"/>
@@ -70,12 +70,12 @@
                     <Setter Property="Template">
                         <Setter.Value>
                             <ControlTemplate TargetType="ListBoxItem">
-                                <Border x:Name="Card" Background="#111824" BorderBrush="#243146" BorderThickness="1" CornerRadius="10" Padding="16,14">
+                                <Border x:Name="Card" Background="#151B22" BorderBrush="#303A45" BorderThickness="1" CornerRadius="8" Padding="16,14">
                                     <ContentPresenter/>
                                 </Border>
                                 <ControlTemplate.Triggers>
-                                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="#465673"/></Trigger>
-                                    <Trigger Property="IsSelected" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="#766AF4"/><Setter TargetName="Card" Property="BorderThickness" Value="2"/></Trigger>
+                                    <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="#536473"/></Trigger>
+                                    <Trigger Property="IsSelected" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="#4B7BFF"/><Setter TargetName="Card" Property="BorderThickness" Value="2"/></Trigger>
                                 </ControlTemplate.Triggers>
                             </ControlTemplate>
                         </Setter.Value>
@@ -91,7 +91,7 @@
                             <TextBlock Text="{Binding VendorLine}" Foreground="#A4AFC1" Margin="0,4,0,0"/>
                             <TextBlock Text="{Binding Path}" Foreground="#66758D" FontSize="10" Margin="0,7,0,0" TextTrimming="CharacterEllipsis"/>
                         </StackPanel>
-                        <Border Grid.Column="1" Background="#1B2638" CornerRadius="7" Padding="10,6" VerticalAlignment="Center" Margin="18,0,0,0">
+                        <Border Grid.Column="1" Background="#222C36" CornerRadius="7" Padding="10,6" VerticalAlignment="Center" Margin="18,0,0,0">
                             <TextBlock Text="{Binding Status}" FontSize="10" FontWeight="Bold">
                                 <TextBlock.Style>
                                     <Style TargetType="TextBlock">

@@ -1,9 +1,12 @@
 using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Input;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using NexoLauncher.Application.Configuration;
 using NexoLauncher.Application.Instances;
@@ -11,6 +14,7 @@ using NexoLauncher.Core.Installation;
 using NexoLauncher.Domain.Configuration;
 using NexoLauncher.Domain.Instances;
 using NexoLauncher.Infrastructure.Configuration;
+using NexoLauncher.Infrastructure.Content;
 using NexoLauncher.Infrastructure.Instances;
 using NexoLauncher.Infrastructure.Java;
 using NexoLauncher.Infrastructure.System;
@@ -20,6 +24,7 @@ using NexoLauncher.Java.Detection;
 using NexoLauncher.Java.Selection;
 using NexoLauncher.Minecraft;
 using NexoLauncher.Minecraft.Java;
+using NexoLauncher.Minecraft.Launching;
 
 namespace NexoLauncher.App;
 
@@ -33,6 +38,9 @@ public partial class MainWindow : Window
     private readonly MinecraftRuntime minecraft;
     private readonly JsonInstanceRepository instanceRepository;
     private readonly InstanceManager instanceManager;
+    private readonly InstanceContentManager contentManager = new();
+    private readonly ModrinthContentClient contentCatalog;
+    private readonly CurseForgePackInstaller curseForgeInstaller;
     private readonly JsonLauncherSettingsStore launcherSettingsStore;
     private readonly JsonJavaRuntimeCache javaRuntimeCache;
     private readonly JavaRuntimeInspector javaInspector = new();
@@ -45,6 +53,11 @@ public partial class MainWindow : Window
     private SystemMemorySnapshot memorySnapshot = new(0, 0);
     private JavaRuntime? selectedJavaRuntime;
     private CancellationTokenSource? operation;
+    private MinecraftLaunchSession? activeLaunch;
+    private InstanceId? activeLaunchInstanceId;
+    private DateTimeOffset activeLaunchStartedAt;
+    private readonly DispatcherTimer launchTimer = new() { Interval = TimeSpan.FromSeconds(1) };
+    private bool launchStarting;
     private bool busy;
     private bool syncingSettingsUi;
     private bool javaRefreshRunning;
@@ -52,10 +65,15 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        NativeWindowTheme.ApplyDarkTitleBar(this);
         InitializeComponent();
         paths.EnsureCreated();
+        var layoutMigrator = new NexoDataLayoutMigrator(paths.Instances, paths.Versions);
+        layoutMigrator.MigrateSharedVersions();
 
         minecraft = new MinecraftRuntime(httpClient, paths.Root, paths.Cache, paths.Logs);
+        contentCatalog = new ModrinthContentClient(httpClient);
+        curseForgeInstaller = new CurseForgePackInstaller(httpClient);
         instanceRepository = new JsonInstanceRepository(paths.Instances);
         instanceManager = new InstanceManager(instanceRepository);
         launcherSettingsStore = new JsonLauncherSettingsStore(Path.Combine(paths.Root, "settings.json"));
@@ -73,6 +91,7 @@ public partial class MainWindow : Window
             new LoaderChoice(LoaderType.NeoForge, "NeoForge")
         };
         LoaderBox.SelectedIndex = 0;
+        launchTimer.Tick += (_, _) => UpdateLaunchElapsed();
 
         RamSlider.PreviewMouseLeftButtonUp += async (_, _) => await SaveInstallDefaultsAsync();
         UsernameBox.LostKeyboardFocus += async (_, _) => await SaveInstallDefaultsAsync();
@@ -81,13 +100,9 @@ public partial class MainWindow : Window
         {
             try
             {
-                var accidentalSharedRoot = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                    ".lunarclient");
-                await new AccidentalLunarLayoutImporter(accidentalSharedRoot, paths.Root, paths.Instances)
-                    .ImportAsync(lifetime.Token);
+                await layoutMigrator.NormalizeProfilesAsync(instanceRepository, lifetime.Token);
                 await LoadLauncherSettingsAsync();
-                await new LegacyInstallationMigrator(paths.Instances, instanceRepository).MigrateAsync(lifetime.Token);
+                await new LegacyInstallationMigrator(paths.Versions, instanceRepository).MigrateAsync(lifetime.Token);
                 await ShowLibraryAsync();
 
                 var javaTask = LoadJavaRuntimesAsync(lifetime.Token);
@@ -208,7 +223,7 @@ public partial class MainWindow : Window
                 instance.Id,
                 instance.MinecraftVersion,
                 instance.Name,
-                $"{instance.Loader} · Instalado",
+                $"{instance.Loader} · Minecraft {instance.MinecraftVersion}",
                 instance.UpdatedAt))
             .ToArray();
 
@@ -404,9 +419,23 @@ public partial class MainWindow : Window
         if (SettingsRamText is not null) SettingsRamText.Text = FormatMemory((long)settingsValue);
     }
 
+    private async void MainWindow_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == 0) return;
+        switch (e.Key)
+        {
+            case Key.D1: await ShowLibraryAsync(); break;
+            case Key.D2: ShowInstall(); break;
+            case Key.D3: await ShowContentAsync(); break;
+            case Key.D4: ShowSettings(); break;
+            default: return;
+        }
+        e.Handled = true;
+    }
     private async void ShowLibrary_Click(object sender, RoutedEventArgs e) => await ShowLibraryAsync();
     private void ShowInstall_Click(object sender, RoutedEventArgs e) => ShowInstall();
     private void ShowSettings_Click(object sender, RoutedEventArgs e) => ShowSettings();
+    private async void ShowContent_Click(object sender, RoutedEventArgs e) => await ShowContentAsync();
 
     private async Task ShowLibraryAsync()
     {
@@ -415,6 +444,129 @@ public partial class MainWindow : Window
         await RefreshInstancesAsync();
     }
 
+    private async Task ShowContentAsync()
+    {
+        ShowOnly(ContentPanel);
+        SetActiveNavigation(ContentNavButton);
+        var instances = await instanceManager.ListAsync(lifetime.Token);
+        ContentInstanceBox.ItemsSource = instances.Select(value => new ContentInstanceChoice(value.Id, value.Name, value.MinecraftVersion, value.Loader)).ToArray();
+        ContentTypeBox.ItemsSource = new[]
+        {
+            new ContentTypeChoice("mod", "Mods"),
+            new ContentTypeChoice("resourcepack", "Texturas"),
+            new ContentTypeChoice("shader", "Shaders"),
+            new ContentTypeChoice("datapack", "Datapacks")
+        };
+        if (ContentTypeBox.SelectedIndex < 0) ContentTypeBox.SelectedIndex = 0;
+        if (InstancesList.SelectedItem is InstanceItem selected)
+            ContentInstanceBox.SelectedItem = ((IEnumerable<ContentInstanceChoice>)ContentInstanceBox.ItemsSource).FirstOrDefault(value => value.Id == selected.Id);
+        if (ContentInstanceBox.SelectedIndex < 0 && ContentInstanceBox.Items.Count > 0) ContentInstanceBox.SelectedIndex = 0;
+        ContentStatusText.Text = instances.Count == 0 ? "Crea una instancia antes de instalar contenido." : "Busca contenido compatible en Modrinth.";
+    }
+
+    private void ContentInstanceBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ContentInstanceBox.SelectedItem is not ContentInstanceChoice instance)
+        {
+            ContentProfileNameText.Text = "Contenido";
+            ContentProfileMetaText.Text = "Selecciona una instancia";
+            AddContentFilesButton.IsEnabled = false;
+            ImportModpackButton.IsEnabled = false;
+            return;
+        }
+        ContentProfileNameText.Text = instance.Name;
+        ContentProfileMetaText.Text = $"{instance.Loader} {instance.MinecraftVersion} · Contenido de la instancia";
+        ContentResultsList.ItemsSource = null;
+        ContentStatusText.Text = "Busca contenido compatible o administra los archivos del perfil.";
+        AddContentFilesButton.IsEnabled = !busy;
+        ImportModpackButton.IsEnabled = !busy;
+        UpdateLaunchControls();
+    }
+
+    private async void PlaySelectedContentInstance_Click(object sender, RoutedEventArgs e)
+    {
+        if (ContentInstanceBox.SelectedItem is not ContentInstanceChoice choice) return;
+        var instance = await instanceManager.GetAsync(choice.Id, lifetime.Token);
+        if (instance is not null) await LaunchAsync(instance.MinecraftVersion, instance);
+    }
+
+    private void OpenSelectedContentPath_Click(object sender, RoutedEventArgs e)
+    {
+        if (ContentInstanceBox.SelectedItem is not ContentInstanceChoice choice || sender is not Button button) return;
+        try
+        {
+            var gameDirectory = Path.Combine(instanceRepository.GetInstanceDirectory(choice.Id), "game");
+            contentManager.EnsureLayout(gameDirectory);
+            var path = (button.Tag as string) switch
+            {
+                "saves" => Path.Combine(gameDirectory, "saves"),
+                "logs" => Path.Combine(gameDirectory, "logs"),
+                _ => gameDirectory
+            };
+            Directory.CreateDirectory(path);
+            Process.Start(new ProcessStartInfo { FileName = "explorer.exe", ArgumentList = { path }, UseShellExecute = true });
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, "Abrir ubicación", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+    private async void SearchContent_Click(object sender, RoutedEventArgs e) => await SearchCatalogAsync();
+    private async void ContentSearchBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter) await SearchCatalogAsync();
+    }
+
+    private async Task SearchCatalogAsync()
+    {
+        if (busy || ContentInstanceBox.SelectedItem is not ContentInstanceChoice instance || ContentTypeBox.SelectedItem is not ContentTypeChoice type) return;
+        if (type.Id == "mod" && instance.Loader == LoaderType.Vanilla)
+        {
+            ContentStatusText.Text = "Los mods requieren una instancia Fabric, Forge o NeoForge.";
+            return;
+        }
+        try
+        {
+            busy = true;
+            ContentStatusText.Text = "Buscando contenido compatible…";
+            ContentResultsList.ItemsSource = null;
+            var loader = type.Id == "mod" ? LoaderId(instance.Loader) : "minecraft";
+            var results = await contentCatalog.SearchAsync(ContentSearchBox.Text.Trim(), instance.MinecraftVersion, loader, type.Id, lifetime.Token);
+            ContentResultsList.ItemsSource = results;
+            ContentStatusText.Text = results.Count == 0 ? "No se encontraron resultados compatibles." : $"{results.Count} resultados para Minecraft {instance.MinecraftVersion} · {loader}.";
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            ContentStatusText.Text = "No se pudo consultar el catálogo.";
+            MessageBox.Show(this, exception.Message, "Catálogo de contenido", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally { busy = false; }
+    }
+
+    private async void InstallCatalogContent_Click(object sender, RoutedEventArgs e)
+    {
+        if (busy || sender is not Button { Tag: ContentCatalogProject project } || ContentInstanceBox.SelectedItem is not ContentInstanceChoice choice) return;
+        var instance = await instanceManager.GetAsync(choice.Id, lifetime.Token);
+        if (instance is null) return;
+        try
+        {
+            busy = true;
+            ContentStatusText.Text = $"Instalando {project.Title} y sus dependencias…";
+            var gameDirectory = Path.Combine(instanceRepository.GetInstanceDirectory(instance.Id), "game");
+            contentManager.EnsureLayout(gameDirectory);
+            var result = await contentCatalog.InstallAsync(project, instance.MinecraftVersion, LoaderId(instance.Loader), gameDirectory, lifetime.Token);
+            ContentStatusText.Text = $"{project.Title} instalado · {result.FilesInstalled} archivo(s).";
+            MessageBox.Show(this, $"Se instaló {project.Title} y {Math.Max(0, result.FilesInstalled - 1)} dependencia(s) en {instance.Name}.", "Contenido instalado", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            ContentStatusText.Text = $"No se pudo instalar {project.Title}.";
+            MessageBox.Show(this, exception.Message, "Instalar contenido", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally { busy = false; }
+    }
     private void ShowInstall()
     {
         ShowOnly(InstallPanel);
@@ -435,6 +587,7 @@ public partial class MainWindow : Window
     {
         LibraryPanel.Visibility = ReferenceEquals(panel, LibraryPanel) ? Visibility.Visible : Visibility.Collapsed;
         InstallPanel.Visibility = ReferenceEquals(panel, InstallPanel) ? Visibility.Visible : Visibility.Collapsed;
+        ContentPanel.Visibility = ReferenceEquals(panel, ContentPanel) ? Visibility.Visible : Visibility.Collapsed;
         SettingsPanel.Visibility = ReferenceEquals(panel, SettingsPanel) ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -442,10 +595,12 @@ public partial class MainWindow : Window
     {
         var inactiveForeground = new SolidColorBrush(Color.FromRgb(143, 154, 175));
         var activeBackground = new SolidColorBrush(Color.FromRgb(24, 35, 52));
-        foreach (var button in new[] { LibraryNavButton, InstallNavButton, SettingsNavButton })
+        foreach (var button in new[] { LibraryNavButton, InstallNavButton, ContentNavButton, SettingsNavButton })
         {
-            button.Background = ReferenceEquals(button, active) ? activeBackground : Brushes.Transparent;
-            button.Foreground = ReferenceEquals(button, active) ? Brushes.White : inactiveForeground;
+            var isActive = ReferenceEquals(button, active);
+            button.Background = isActive ? activeBackground : Brushes.Transparent;
+            button.Foreground = isActive ? Brushes.White : inactiveForeground;
+            button.BorderBrush = isActive ? new SolidColorBrush(Color.FromRgb(25, 169, 116)) : Brushes.Transparent;
         }
     }
 
@@ -484,7 +639,8 @@ public partial class MainWindow : Window
                 await minecraft.InstallAsync(new LoaderInstallRequest(version, loaderVersion, selectedJavaRuntime?.JavaExecutable), loaderId, reporter, operation.Token);
             }
 
-            await instanceManager.CreateAsync(instanceName, version.Id, loader.Type, loaderVersion, operation.Token);
+            var created = await instanceManager.CreateAsync(instanceName, version.Id, loader.Type, loaderVersion, operation.Token);
+            contentManager.EnsureLayout(Path.Combine(instanceRepository.GetInstanceDirectory(created.Id), "game"));
 
             await ShowLibraryAsync();
         }
@@ -521,7 +677,28 @@ public partial class MainWindow : Window
 
     private async Task LaunchAsync(string versionId, GameInstance? instance = null)
     {
-        if (busy) return;
+        if (busy || launchStarting || activeLaunch is not null)
+        {
+            ShowActiveLaunchNotice();
+            return;
+        }
+        launchStarting = true;
+        UpdateLaunchControls();
+        try
+        {
+            await LaunchCoreAsync(versionId, instance);
+        }
+        finally
+        {
+            launchStarting = false;
+            SetBusy(false);
+            RefreshButton();
+            UpdateLaunchControls();
+        }
+    }
+
+    private async Task LaunchCoreAsync(string versionId, GameInstance? instance)
+    {
         await SaveInstallDefaultsAsync();
 
         var effective = LauncherSettingsResolver.Resolve(launcherSettings, instance?.Settings ?? new InstanceSettings());
@@ -605,6 +782,7 @@ public partial class MainWindow : Window
             var gameDirectory = instance is null
                 ? Path.Combine(paths.Instances, versionId, "game")
                 : Path.Combine(instanceRepository.GetInstanceDirectory(instance.Id), "game");
+            if (instance is not null) await contentManager.ApplyPendingDatapacksAsync(gameDirectory, lifetime.Token);
             var plan = minecraft.CreateLaunchPlan(versionId, loaderId, instance?.LoaderVersion, gameDirectory);
             var session = minecraft.Launch(new LaunchOptions(
                 versionId,
@@ -619,6 +797,7 @@ public partial class MainWindow : Window
             await Task.Delay(1200, lifetime.Token);
             if (!session.Process.HasExited)
             {
+                BeginLaunchMonitor(session, instance, versionId);
                 if (launcherSettings.CloseLauncherOnGameStart)
                     System.Windows.Application.Current.Shutdown();
                 return;
@@ -642,11 +821,93 @@ public partial class MainWindow : Window
                     : $"{exception.Message}\n\n{logNotice}",
                 exception));
         }
-        finally
+    }
+
+    private void BeginLaunchMonitor(MinecraftLaunchSession session, GameInstance? instance, string versionId)
+    {
+        activeLaunch = session;
+        activeLaunchInstanceId = instance?.Id;
+        activeLaunchStartedAt = DateTimeOffset.Now;
+        LaunchProfileText.Text = instance?.Name ?? $"Minecraft {versionId}";
+        LaunchProcessText.Text = $"PID {session.Process.Id} · Minecraft {versionId}";
+        LaunchMonitor.Visibility = Visibility.Visible;
+        launchTimer.Start();
+        UpdateLaunchElapsed();
+        UpdateLaunchControls();
+        _ = MonitorLaunchExitAsync(session);
+    }
+
+    private async Task MonitorLaunchExitAsync(MinecraftLaunchSession session)
+    {
+        try { await session.Process.WaitForExitAsync(lifetime.Token); }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { return; }
+        catch (InvalidOperationException) { }
+
+        if (!ReferenceEquals(activeLaunch, session)) return;
+        var exitCode = session.Process.HasExited ? session.Process.ExitCode : 0;
+        activeLaunch = null;
+        activeLaunchInstanceId = null;
+        launchTimer.Stop();
+        LaunchMonitor.Visibility = Visibility.Collapsed;
+        DetailSubtitle.Text = exitCode == 0 ? "Sesión finalizada" : $"Minecraft terminó con código {exitCode}";
+        SidebarStatusText.Text = "NEXO CORE LISTO";
+        UpdateLaunchControls();
+    }
+
+    private void UpdateLaunchElapsed()
+    {
+        if (activeLaunch is null) return;
+        var elapsed = DateTimeOffset.Now - activeLaunchStartedAt;
+        LaunchElapsedText.Text = elapsed.TotalHours >= 1
+            ? $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}"
+            : $"{elapsed.Minutes:00}:{elapsed.Seconds:00}";
+    }
+
+    private void UpdateLaunchControls()
+    {
+        var launchBlocked = launchStarting || activeLaunch is not null;
+        var canModifyInstance = !busy && activeLaunch is null && InstancesList.SelectedItem is not null;
+        EditInstanceButton.IsEnabled = canModifyInstance;
+        ContentInstanceButton.IsEnabled = canModifyInstance;
+        OpenContentFolderButton.IsEnabled = canModifyInstance;
+        DeleteInstanceButton.IsEnabled = canModifyInstance;
+        LibraryPlayButton.IsEnabled = !busy && !launchBlocked && InstancesList.SelectedItem is not null;
+        LibraryPlayButton.Content = activeLaunch is not null ? "●  EJECUTANDO" : launchStarting ? "INICIANDO…" : "▶  INICIAR";
+        ContentPlayButton.IsEnabled = !busy && !launchBlocked && ContentInstanceBox.SelectedItem is not null;
+        ContentPlayButton.Content = activeLaunch is not null ? "●  EJECUTANDO" : launchStarting ? "INICIANDO…" : "▶  INICIAR";
+        if (activeLaunch is not null) SidebarStatusText.Text = "MINECRAFT EN EJECUCIÓN";
+    }
+
+    private void ShowActiveLaunchNotice()
+    {
+        if (activeLaunch is null) return;
+        LaunchMonitor.Visibility = Visibility.Visible;
+        MessageBox.Show(this,
+            $"{LaunchProfileText.Text} ya está en ejecución (PID {activeLaunch.Process.Id}).\n\nDetén esa sesión o espera a que termine antes de iniciar otra.",
+            "Minecraft ya está abierto",
+            MessageBoxButton.OK,
+            MessageBoxImage.Information);
+    }
+
+    private void OpenLaunchLog_Click(object sender, RoutedEventArgs e)
+    {
+        if (activeLaunch is null) return;
+        Process.Start(new ProcessStartInfo { FileName = "explorer.exe", ArgumentList = { "/select,", activeLaunch.LogPath }, UseShellExecute = true });
+    }
+
+    private void StopLaunch_Click(object sender, RoutedEventArgs e)
+    {
+        if (activeLaunch is null || activeLaunch.Process.HasExited) return;
+        if (MessageBox.Show(this,
+                $"¿Detener {LaunchProfileText.Text}? El juego se cerrará inmediatamente.",
+                "Detener Minecraft",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning,
+                MessageBoxResult.No) != MessageBoxResult.Yes) return;
+        try { activeLaunch.Process.Kill(entireProcessTree: true); }
+        catch (Exception exception) when (exception is InvalidOperationException or System.ComponentModel.Win32Exception)
         {
-            SetBusy(false);
-            RefreshButton();
-            LibraryPlayButton.IsEnabled = InstancesList.SelectedItem is not null;
+            MessageBox.Show(this, exception.Message, "No se pudo detener Minecraft", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -711,7 +972,7 @@ public partial class MainWindow : Window
         DetailName.Text = item.Name;
         DetailSubtitle.Text = "Resolviendo configuración…";
         DetailVersion.Text = item.VersionId;
-        LibraryPlayButton.IsEnabled = !busy;
+        LibraryPlayButton.IsEnabled = !busy && !launchStarting && activeLaunch is null;
 
         var instance = await instanceManager.GetAsync(item.Id, lifetime.Token);
         if (instance is null)
@@ -722,6 +983,7 @@ public partial class MainWindow : Window
 
         var effective = LauncherSettingsResolver.Resolve(launcherSettings, instance.Settings);
         DetailLoader.Text = instance.Loader.ToString();
+        DetailLocation.Text = Path.GetRelativePath(paths.Instances, instanceRepository.GetInstanceDirectory(instance.Id));
         DetailMemory.Text = $"{FormatMemory(effective.MemoryMiB)} · {(instance.Settings.MemoryMiB is null ? "Global" : "Override")}";
 
         if (!string.IsNullOrWhiteSpace(instance.Settings.JavaPath))
@@ -741,8 +1003,11 @@ public partial class MainWindow : Window
         }
 
         DetailSubtitle.Text = "Lista para iniciar";
-        EditInstanceButton.IsEnabled = !busy;
-        DeleteInstanceButton.IsEnabled = !busy;
+        var canModifyInstance = !busy && activeLaunch is null;
+        EditInstanceButton.IsEnabled = canModifyInstance;
+        ContentInstanceButton.IsEnabled = canModifyInstance;
+        OpenContentFolderButton.IsEnabled = canModifyInstance;
+        DeleteInstanceButton.IsEnabled = canModifyInstance;
     }
 
     private string FormatJavaOverride(string javaPath)
@@ -761,10 +1026,13 @@ public partial class MainWindow : Window
         DetailSubtitle.Text = "Los detalles aparecerán aquí.";
         DetailVersion.Text = "—";
         DetailLoader.Text = "—";
+        DetailLocation.Text = "—";
         DetailMemory.Text = "—";
         DetailJava.Text = "—";
         LibraryPlayButton.IsEnabled = false;
         EditInstanceButton.IsEnabled = false;
+        ContentInstanceButton.IsEnabled = false;
+        OpenContentFolderButton.IsEnabled = false;
         DeleteInstanceButton.IsEnabled = false;
     }
 
@@ -965,6 +1233,121 @@ public partial class MainWindow : Window
         }
     }
 
+    private async void OpenInstanceContent_Click(object sender, RoutedEventArgs e)
+    {
+        if (InstancesList.SelectedItem is not InstanceItem selected) return;
+        await ShowContentAsync();
+        if (ContentInstanceBox.ItemsSource is IEnumerable<ContentInstanceChoice> choices)
+            ContentInstanceBox.SelectedItem = choices.FirstOrDefault(value => value.Id == selected.Id);
+        ContentSearchBox.Focus();
+    }
+    private void OpenContentFolder_Click(object sender, RoutedEventArgs e)
+    {
+        if (InstancesList.SelectedItem is not InstanceItem item) return;
+        try
+        {
+            var gameDirectory = Path.Combine(instanceRepository.GetInstanceDirectory(item.Id), "game");
+            contentManager.EnsureLayout(gameDirectory);
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = "explorer.exe",
+                ArgumentList = { gameDirectory },
+                UseShellExecute = true
+            });
+            DetailSubtitle.Text = "Carpeta de contenido abierta";
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, "Abrir carpeta", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+    private async void AddContentFiles_Click(object sender, RoutedEventArgs e) =>
+        await ImportContentAsync(importingModpack: false);
+
+    private async void ImportModpack_Click(object sender, RoutedEventArgs e) =>
+        await ImportContentAsync(importingModpack: true);
+
+    private async Task ImportContentAsync(bool importingModpack)
+    {
+        if (busy)
+        {
+            MessageBox.Show(this, "NEXO está terminando otra operación. Espera un momento y vuelve a intentarlo.", "Importar contenido", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        if (ContentInstanceBox.SelectedItem is not ContentInstanceChoice contentChoice)
+        {
+            MessageBox.Show(this, "Selecciona primero la instancia que recibirá el modpack.", "Selecciona una instancia", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+        var instanceId = contentChoice.Id;
+        var item = new InstanceItem(instanceId, string.Empty, string.Empty, string.Empty, default);
+        var dialog = new OpenFileDialog
+        {
+            Title = importingModpack ? "Importar modpack a la instancia" : "Añadir archivos a la instancia",
+            Filter = importingModpack
+                ? "Modpacks compatibles|*.mrpack;*.lcpack;*.zip|Modrinth|*.mrpack|CurseForge|*.zip|Lunar pack|*.lcpack"
+                : "Contenido de Minecraft|*.jar;*.zip|Mods|*.jar|Texturas y packs|*.zip|Todos los archivos|*.*",
+            Multiselect = !importingModpack
+        };
+        ContentStatusText.Text = importingModpack ? "Selecciona un archivo de modpack…" : "Selecciona los archivos que deseas añadir…";
+        var dialogResult = dialog.ShowDialog(this);
+        if (dialogResult != true)
+        {
+            ContentStatusText.Text = "Importación cancelada.";
+            return;
+        }
+
+        try
+        {
+            SetBusy(true, "Importando contenido…");
+            var instance = await instanceManager.GetAsync(item.Id, lifetime.Token)
+                ?? throw new InvalidOperationException("La instancia seleccionada ya no existe.");
+            var gameDirectory = Path.Combine(instanceRepository.GetInstanceDirectory(item.Id), "game");
+            var curseForgePacks = dialog.FileNames.Where(CurseForgePackInstaller.IsPack).ToArray();
+            if (curseForgePacks.Length > 0)
+            {
+                if (dialog.FileNames.Length != 1)
+                    throw new InvalidOperationException("Importa un modpack de CurseForge por operación para mostrar progreso y errores correctamente.");
+                ContentStatusText.Text = "Preparando modpack de CurseForge…";
+                var progress = new Progress<(int Completed, int Total)>(value =>
+                    ContentStatusText.Text = $"Descargando archivos de CurseForge · {value.Completed}/{value.Total}");
+                var installed = await curseForgeInstaller.InstallAsync(
+                    curseForgePacks[0], gameDirectory, instance.MinecraftVersion, LoaderId(instance.Loader), progress, lifetime.Token);
+                ContentStatusText.Text = $"{installed.Name} instalado · {installed.FilesDownloaded} descargas y {installed.OverridesInstalled} overrides.";
+                MessageBox.Show(this,
+                    $"Se instaló {installed.Name}.\n\nArchivos descargados: {installed.FilesDownloaded}\nOverrides: {installed.OverridesInstalled}",
+                    "Modpack de CurseForge",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                return;
+            }
+            var result = await contentManager.ImportAsync(
+                gameDirectory,
+                dialog.FileNames,
+                instance.MinecraftVersion,
+                LoaderId(instance.Loader),
+                lifetime.Token);
+            var folders = result.Destinations.Count == 0 ? "sin archivos incluidos" : string.Join(", ", result.Destinations);
+            var remoteNotice = result.ReferencedFilesMissing > 0
+                ? $"\n\n{result.ReferencedFilesMissing} complemento(s) aparecen solo como referencias remotas y no estaban incluidos físicamente en el pack."
+                : string.Empty;
+            MessageBox.Show(this,
+                $"Se instalaron {result.FilesInstalled} archivo(s) en: {folders}.{remoteNotice}",
+                "Contenido de la instancia",
+                MessageBoxButton.OK,
+                result.ReferencedFilesMissing > 0 ? MessageBoxImage.Information : MessageBoxImage.None);
+            DetailSubtitle.Text = $"Contenido actualizado · {result.FilesInstalled} archivo(s)";
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this, exception.Message, "Importar contenido", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+        finally
+        {
+            SetBusy(false);
+        }
+    }
     private async void EditInstance_Click(object sender, RoutedEventArgs e)
     {
         if (InstancesList.SelectedItem is not InstanceItem item) return;
@@ -1076,6 +1459,8 @@ public partial class MainWindow : Window
         PrimaryButton.IsEnabled = !value;
         RedetectJavaButton.IsEnabled = !value && !javaRefreshRunning;
         EditInstanceButton.IsEnabled = !value && InstancesList.SelectedItem is not null;
+        ContentInstanceButton.IsEnabled = !value && InstancesList.SelectedItem is not null;
+        OpenContentFolderButton.IsEnabled = !value && InstancesList.SelectedItem is not null;
         DeleteInstanceButton.IsEnabled = !value && InstancesList.SelectedItem is not null;
 
         if (value)
@@ -1109,7 +1494,11 @@ public partial class MainWindow : Window
         base.OnClosing(e);
     }
 
-    private sealed record InstanceItem(InstanceId Id, string VersionId, string Name, string Subtitle, DateTimeOffset Modified);
+    private sealed record ContentInstanceChoice(InstanceId Id, string Name, string MinecraftVersion, LoaderType Loader);
+    private sealed record ContentTypeChoice(string Id, string Name)
+    {
+        public override string ToString() => Name;
+    }    private sealed record InstanceItem(InstanceId Id, string VersionId, string Name, string Subtitle, DateTimeOffset Modified);
     private sealed record LoaderChoice(LoaderType Type, string Name)
     {
         public override string ToString() => Name;

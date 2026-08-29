@@ -47,6 +47,26 @@ public sealed record GameInstance
         if (loader != LoaderType.Vanilla && string.IsNullOrWhiteSpace(loaderVersion)) throw new ArgumentException("La versión del loader es obligatoria.", nameof(loaderVersion));
         var id = InstanceId.New();
         var now = DateTimeOffset.UtcNow;
-        return new GameInstance { Id = id, Name = name, MinecraftVersion = minecraftVersion, Loader = loader, LoaderVersion = loaderVersion, DirectoryName = id.ToString(), CreatedAt = now, UpdatedAt = now };
+        return new GameInstance { Id = id, Name = name, MinecraftVersion = minecraftVersion, Loader = loader, LoaderVersion = loaderVersion, DirectoryName = InstanceDirectoryName.Create(loader, name), CreatedAt = now, UpdatedAt = now };
+    }
+}
+
+public static class InstanceDirectoryName
+{
+    public static string Create(LoaderType loader, string profileName) =>
+        Path.Combine(loader.ToString(), Sanitize(profileName));
+
+    public static string Sanitize(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars().ToHashSet();
+        var characters = value.Trim()
+            .Select(character => invalid.Contains(character) || char.IsControl(character) ? '-' : character)
+            .ToArray();
+        var name = new string(characters).Trim().TrimEnd('.');
+        while (name.Contains("  ", StringComparison.Ordinal)) name = name.Replace("  ", " ", StringComparison.Ordinal);
+        if (string.IsNullOrWhiteSpace(name)) name = "Perfil";
+        var reserved = new[] { "CON", "PRN", "AUX", "NUL", "COM1", "COM2", "COM3", "COM4", "COM5", "COM6", "COM7", "COM8", "COM9", "LPT1", "LPT2", "LPT3", "LPT4", "LPT5", "LPT6", "LPT7", "LPT8", "LPT9" };
+        if (reserved.Contains(name, StringComparer.OrdinalIgnoreCase)) name += " - Perfil";
+        return name.Length <= 64 ? name : name[..64].TrimEnd();
     }
 }
