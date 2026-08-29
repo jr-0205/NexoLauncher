@@ -39,7 +39,7 @@ La experiencia visual toma como referencia el nivel de pulido de clientes como L
 - catálogo de versiones Forge y NeoForge desde sus repositorios Maven oficiales;
 - ejecución aislada de los instaladores oficiales para conservar sus procesadores y parches;
 - perfiles Forge/NeoForge importados a la arquitectura común de `LaunchPlan`;
-- diagnóstico de arranque con código de salida, últimas líneas de Java y registro completo en `logs`;
+- diagnóstico de arranque con código de salida, últimas líneas de Java y registro fijo en `logs/latest-minecraft.log`, incluso si el fallo ocurre antes de iniciar Java;
 
 ## Selección automática de Java
 
