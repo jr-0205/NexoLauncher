@@ -1,7 +1,6 @@
 using System.Text.Json;
 using NexoLauncher.Minecraft.Downloads;
 using NexoLauncher.Minecraft.Rules;
-using NexoLauncher.Minecraft.Security;
 
 namespace NexoLauncher.Minecraft.Installation;
 
@@ -57,11 +56,8 @@ public sealed class VanillaInstaller(VerifiedDownloader downloader, MinecraftPat
             progress?.Report(new("Descargando archivos", Interlocked.Increment(ref completed), uniqueJobs.Count));
         });
 
-        var nativeDirectory = paths.Natives(version.Id);
-        if (Directory.Exists(nativeDirectory)) Directory.Delete(nativeDirectory, true);
-        Directory.CreateDirectory(nativeDirectory);
-        foreach (var native in uniqueJobs.Where(job => job.IsNative))
-            SafeArchiveExtractor.ExtractZip(native.Path, nativeDirectory, entry => !entry.FullName.StartsWith("META-INF/", StringComparison.OrdinalIgnoreCase));
+        // Los JAR nativos son recursos compartidos; su extracción es temporal y ocurre por
+        // lanzamiento dentro de instances/<GUID>/runtime/natives/<launch-id>.
         progress?.Report(new("Instalación lista", uniqueJobs.Count, uniqueJobs.Count));
     }
 
@@ -72,5 +68,3 @@ public sealed class VanillaInstaller(VerifiedDownloader downloader, MinecraftPat
     private static DownloadJob CreateJob(JsonElement source, string target) => new(source.GetProperty("url").GetString()!, target, Optional(source, "sha1"));
     private static string? Optional(JsonElement element, string property) => element.TryGetProperty(property, out var value) ? value.GetString() : null;
 }
-
-

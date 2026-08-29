@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NexoLauncher.Application\NexoLauncher.Application.csproj" />
+    <ProjectReference Include="..\NexoLauncher.Core\NexoLauncher.Core.csproj" />
     <ProjectReference Include="..\NexoLauncher.Domain\NexoLauncher.Domain.csproj" />
     <ProjectReference Include="..\NexoLauncher.Java\NexoLauncher.Java.csproj" />
   </ItemGroup>
