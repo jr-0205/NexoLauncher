@@ -46,8 +46,7 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
     {
         var logs = Path.Combine(paths.Root, "logs");
         Directory.CreateDirectory(logs);
-        var safeVersion = string.Concat(versionId.Select(character => Path.GetInvalidFileNameChars().Contains(character) ? '_' : character));
-        var logPath = Path.Combine(logs, $"minecraft-{safeVersion}-{DateTimeOffset.Now:yyyyMMdd-HHmmss}.log");
+        var logPath = Path.Combine(logs, "latest-minecraft.log");
         var recent = new ConcurrentQueue<string>();
         var writer = new StreamWriter(new FileStream(logPath, FileMode.Create, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
         writer.WriteLine($"NEXO Client 0.5 · Minecraft {versionId}");
