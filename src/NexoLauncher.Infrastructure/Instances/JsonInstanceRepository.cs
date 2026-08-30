@@ -194,16 +194,8 @@ public sealed class JsonInstanceRepository : IInstanceRepository
             var relative = Path.GetRelativePath(root, manifest);
             var segments = relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
             if (segments.Length == 0 || segments[0].StartsWith(".", StringComparison.Ordinal)) continue;
-
-            // Layout actual: <GUID>/instance.json. Layout inmediatamente anterior:
-            // <Loader>/<Nombre visible>/instance.json. Nada dentro de game/, backups/ o
-            // contenido importado puede convertirse accidentalmente en una instancia.
-            var canonical = segments.Length == 2 &&
-                            Guid.TryParseExact(segments[0], "N", out _) &&
-                            string.Equals(segments[1], ManifestName, StringComparison.OrdinalIgnoreCase);
-            var legacyReadable = segments.Length == 3 &&
-                                 Enum.TryParse<LoaderType>(segments[0], true, out _) &&
-                                 string.Equals(segments[2], ManifestName, StringComparison.OrdinalIgnoreCase);
+            var canonical = segments.Length == 2 && Guid.TryParseExact(segments[0], "N", out _) && string.Equals(segments[1], ManifestName, StringComparison.OrdinalIgnoreCase);
+            var legacyReadable = segments.Length == 3 && Enum.TryParse<LoaderType>(segments[0], true, out _) && string.Equals(segments[2], ManifestName, StringComparison.OrdinalIgnoreCase);
             if (canonical || legacyReadable) yield return manifest;
         }
     }
@@ -240,8 +232,6 @@ public sealed class JsonInstanceRepository : IInstanceRepository
             return manifest.ToDomain();
         }
 
-        // Schema histórico (0.5.1 y anteriores). Se lee sin modificar el archivo; la
-        // normalización de arranque lo migrará posteriormente mediante SaveAsync.
         var legacy = JsonSerializer.Deserialize<GameInstance>(bytes, jsonOptions);
         return legacy is null ? null : legacy with { DirectoryName = legacy.Id.ToString() };
     }
@@ -251,8 +241,7 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         var manifest = Path.Combine(directory, ManifestName);
         var temporary = manifest + ".tmp";
         var dto = InstanceManifest.From(instance);
-        await using (var stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 4096,
-                         FileOptions.WriteThrough | FileOptions.Asynchronous))
+        await using (var stream = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough | FileOptions.Asynchronous))
         {
             await JsonSerializer.SerializeAsync(stream, dto, jsonOptions, token);
             await stream.FlushAsync(token);
@@ -288,7 +277,7 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         foreach (var relative in new[]
                  {
                      "game", "game/mods", "game/config", "game/saves", "game/resourcepacks", "game/shaderpacks",
-                     "game/screenshots", "game/logs", "game/crash-reports", "runtime", "runtime/natives", "backups"
+                     "game/screenshots", "game/logs", "game/crash-reports", "runtime", "runtime/natives", "backups", "profile"
                  })
             Directory.CreateDirectory(Path.Combine(directory, relative.Replace('/', Path.DirectorySeparatorChar)));
     }
@@ -353,8 +342,7 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         {
             try
             {
-                if (Directory.GetLastWriteTimeUtc(directory) < DateTime.UtcNow.Subtract(TimeSpan.FromDays(1)))
-                    Directory.Delete(directory, recursive: true);
+                if (Directory.GetLastWriteTimeUtc(directory) < DateTime.UtcNow.Subtract(TimeSpan.FromDays(1))) Directory.Delete(directory, recursive: true);
             }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
@@ -364,9 +352,7 @@ public sealed class JsonInstanceRepository : IInstanceRepository
 
     private void DeleteEmptyParents(string? directory)
     {
-        while (!string.IsNullOrWhiteSpace(directory) &&
-               !PathsEqual(directory, root) &&
-               Path.GetFullPath(directory).StartsWith(WithSeparator(root), StringComparison.OrdinalIgnoreCase))
+        while (!string.IsNullOrWhiteSpace(directory) && !PathsEqual(directory, root) && Path.GetFullPath(directory).StartsWith(WithSeparator(root), StringComparison.OrdinalIgnoreCase))
         {
             if (!Directory.Exists(directory) || Directory.EnumerateFileSystemEntries(directory).Any()) break;
             try { Directory.Delete(directory); }
@@ -390,12 +376,10 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         catch (UnauthorizedAccessException) { }
     }
 
-    private static string WithSeparator(string path) =>
-        path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+    private static string WithSeparator(string path) => path.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
 
     private static bool PathsEqual(string? left, string? right) => left is not null && right is not null &&
-        string.Equals(Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
-            Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
+        string.Equals(Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
 
     private sealed record LoaderManifest(string Type, string? Version);
     private sealed record JavaManifest(string Mode, string? Override);
@@ -405,13 +389,14 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         int SchemaVersion,
         string Id,
         string Name,
-        string Description,
+        string? Description,
         string? IconPath,
+        string? BackgroundPath,
         string MinecraftVersion,
-        LoaderManifest Loader,
-        JavaManifest Java,
-        MemoryManifest Memory,
-        string GameDirectory,
+        LoaderManifest? Loader,
+        JavaManifest? Java,
+        MemoryManifest? Memory,
+        string? GameDirectory,
         IReadOnlyList<string>? JvmArguments,
         int? WindowWidth,
         int? WindowHeight,
@@ -426,6 +411,7 @@ public sealed class JsonInstanceRepository : IInstanceRepository
             instance.Name,
             instance.Description,
             instance.IconPath,
+            instance.BackgroundPath,
             instance.MinecraftVersion,
             new LoaderManifest(instance.Loader.ToString().ToLowerInvariant(), instance.LoaderVersion),
             new JavaManifest(string.IsNullOrWhiteSpace(instance.Settings.JavaPath) ? "automatic" : "override", instance.Settings.JavaPath),
@@ -442,13 +428,23 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         public GameInstance ToDomain()
         {
             if (SchemaVersion is < 1 or > CurrentSchemaVersion) throw new InvalidDataException("Schema de instancia no compatible.");
-            if (!string.Equals(GameDirectory, "game", StringComparison.Ordinal))
-                throw new InvalidDataException("gameDirectory debe ser relativo y apuntar a 'game'.");
+            if (string.IsNullOrWhiteSpace(Id)) throw new InvalidDataException("El manifiesto no contiene un GUID de instancia.");
+            if (string.IsNullOrWhiteSpace(Name)) throw new InvalidDataException("El manifiesto no contiene un nombre de instancia.");
+            if (string.IsNullOrWhiteSpace(MinecraftVersion)) throw new InvalidDataException("El manifiesto no contiene una versión de Minecraft.");
+            if (!string.Equals(GameDirectory, "game", StringComparison.Ordinal)) throw new InvalidDataException("gameDirectory debe ser relativo y apuntar a 'game'.");
+            if (Loader is null || string.IsNullOrWhiteSpace(Loader.Type)) throw new InvalidDataException("El manifiesto no contiene información válida del loader.");
+            if (Java is null || string.IsNullOrWhiteSpace(Java.Mode)) throw new InvalidDataException("El manifiesto no contiene configuración Java válida.");
+            if (Memory is null) throw new InvalidDataException("El manifiesto no contiene configuración de memoria válida.");
+
             var id = InstanceId.Parse(Id);
-            if (!Enum.TryParse<LoaderType>(Loader.Type, ignoreCase: true, out var loader))
-                throw new InvalidDataException($"Loader no reconocido: {Loader.Type}.");
-            if (loader != LoaderType.Vanilla && string.IsNullOrWhiteSpace(Loader.Version))
-                throw new InvalidDataException("El loader de la instancia no tiene versión.");
+            if (!Enum.TryParse<LoaderType>(Loader.Type, ignoreCase: true, out var loader)) throw new InvalidDataException($"Loader no reconocido: {Loader.Type}.");
+            if (loader != LoaderType.Vanilla && string.IsNullOrWhiteSpace(Loader.Version)) throw new InvalidDataException("El loader de la instancia no tiene versión.");
+            if (!string.Equals(Java.Mode, "automatic", StringComparison.OrdinalIgnoreCase) && !string.Equals(Java.Mode, "override", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException($"Modo Java no reconocido: {Java.Mode}.");
+            if (string.Equals(Java.Mode, "override", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(Java.Override))
+                throw new InvalidDataException("El manifiesto declara un override de Java pero no contiene una ruta.");
+            if (Memory.MinMb < 0 || Memory.MaxMb is < 0) throw new InvalidDataException("La configuración de memoria del manifiesto no es válida.");
+
             var javaPath = string.Equals(Java.Mode, "override", StringComparison.OrdinalIgnoreCase) ? Java.Override : null;
             return new GameInstance
             {
@@ -456,6 +452,7 @@ public sealed class JsonInstanceRepository : IInstanceRepository
                 Name = Name,
                 Description = Description ?? string.Empty,
                 IconPath = IconPath,
+                BackgroundPath = BackgroundPath,
                 MinecraftVersion = MinecraftVersion,
                 Loader = loader,
                 LoaderVersion = loader == LoaderType.Vanilla ? null : Loader.Version,
