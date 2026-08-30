@@ -3,7 +3,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using NexoLauncher.Domain.Instances;
+using NexoLauncher.Infrastructure.System;
 using NexoLauncher.Minecraft;
+using NexoLauncher.Minecraft.Java;
 
 namespace NexoLauncher.App;
 
