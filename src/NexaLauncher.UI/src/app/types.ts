@@ -2,18 +2,22 @@ export type ProfileArtworkPlacement = {
   iconPositionX: number;
   iconPositionY: number;
   iconFit: "cover" | "contain";
+  iconZoom: number;
   backgroundPositionX: number;
   backgroundPositionY: number;
   backgroundFit: "cover" | "contain";
+  backgroundZoom: number;
 };
 
 export const defaultArtworkPlacement: ProfileArtworkPlacement = {
   iconPositionX: 50,
   iconPositionY: 50,
   iconFit: "contain",
+  iconZoom: 100,
   backgroundPositionX: 50,
   backgroundPositionY: 50,
   backgroundFit: "cover",
+  backgroundZoom: 100,
 };
 
 export type NexaProfile = {
