@@ -1,6 +1,7 @@
 package com.nexoclient.ingame;
 
 import com.nexoclient.ingame.modules.NexoModuleRegistry;
+import com.nexoclient.ingame.performance.NexoPerformanceController;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -12,6 +13,7 @@ import org.lwjgl.glfw.GLFW;
 
 public final class NexoClientMod implements ClientModInitializer {
     public static final NexoModuleRegistry MODULES = new NexoModuleRegistry();
+    public static final NexoPerformanceController PERFORMANCE = new NexoPerformanceController();
     private static KeyBinding openMenu;
 
     @Override
@@ -24,8 +26,9 @@ public final class NexoClientMod implements ClientModInitializer {
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            PERFORMANCE.applyIfPending(client);
             while (openMenu.wasPressed()) {
-                client.setScreen(new NexoMenuScreen(client.currentScreen, MODULES));
+                client.setScreen(new NexoMenuScreen(client.currentScreen, MODULES, PERFORMANCE));
             }
         });
 
