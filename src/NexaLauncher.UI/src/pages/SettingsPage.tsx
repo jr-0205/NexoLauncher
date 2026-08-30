@@ -2,7 +2,6 @@ import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { Archive, Check, ExternalLink, FolderOpen, Hammer, Layers3, Loader2, RefreshCw, Save, ShieldCheck } from "lucide-react";
 import {
   generateNexaInGameBuild,
-  generateNexaInGameBuilds,
   getMinecraftVersions,
   getNexaInGameBuildLibrary,
   isNativeHost,
@@ -90,18 +89,37 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
   async function generateBuilds() {
     setConfirmBuild(false);
     setBuilding(true);
+    const compatible = buildRows.filter((build) => hasBuildTarget(build, buildLibrary));
+    let publishedCount = 0;
+    const failures: string[] = [];
+
     try {
-      const result = await generateNexaInGameBuilds();
-      setBuildLibrary(result.library);
-      if (result.failureCount === 0) {
-        onNotice(`${result.publishedCount} build(s) NEXA In-Game generadas y verificadas.`, "success");
+      if (compatible.length === 0) throw new Error("No hay adaptadores NEXA compatibles para compilar.");
+
+      for (const build of compatible) {
+        setBuildingTarget(buildKey(build));
+        try {
+          const result = await generateNexaInGameBuild(build.minecraftVersion, build.loader);
+          if (result.published) {
+            publishedCount++;
+          } else {
+            failures.push(`${build.loader} ${build.minecraftVersion}: ${result.failures[0]?.message ?? "la build no fue publicada"}`);
+          }
+        } catch (error) {
+          failures.push(`${build.loader} ${build.minecraftVersion}: ${error instanceof Error ? error.message : "error de compilación"}`);
+        }
+      }
+
+      setBuildLibrary(await getNexaInGameBuildLibrary());
+      if (failures.length === 0) {
+        onNotice(`${publishedCount} build(s) generadas con NEXA Compiler v2.`, "success");
       } else {
-        const first = result.failures[0];
-        onNotice(`${result.publishedCount} listas; ${result.failureCount} fallaron.${first ? ` ${first.loader} ${first.minecraftVersion}: ${first.message}` : ""}`, "error");
+        onNotice(`${publishedCount} listas; ${failures.length} fallaron. ${failures[0]}`, "error");
       }
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "No se pudieron generar las builds NEXA In-Game.", "error");
     } finally {
+      setBuildingTarget(null);
       setBuilding(false);
     }
   }
@@ -114,7 +132,7 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
       const result = await generateNexaInGameBuild(build.minecraftVersion, build.loader);
       setBuildLibrary(await getNexaInGameBuildLibrary());
       if (result.published) {
-        onNotice(`NEXA In-Game ${build.loader} ${build.minecraftVersion} compilada y publicada localmente.`, "success");
+        onNotice(`NEXA In-Game ${build.loader} ${build.minecraftVersion} compilada con Compiler v2 y publicada localmente.`, "success");
       } else {
         const detail = result.failures[0]?.message;
         onNotice(`Falló ${build.loader} ${build.minecraftVersion}.${detail ? ` ${detail}` : ""}`, "error");
@@ -171,9 +189,9 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
         <article className="settings-card glass-panel settings-wide ingame-build-manager">
           <div className="build-manager-heading">
             <div>
-              <span className="eyebrow">NEXA IN-GAME · BUILDS</span>
-              <h2>Generador y biblioteca de builds</h2>
-              <p>La matriz se alimenta de las releases oficiales de Minecraft y muestra automáticamente todas las versiones estables desde 1.19 hasta la actual. Sólo se habilita COMPILAR cuando existe un adaptador NEXA real para esa versión.</p>
+              <span className="eyebrow">NEXA IN-GAME · COMPILER V2</span>
+              <h2>Core común + adaptadores por versión</h2>
+              <p>La matriz se alimenta de las releases oficiales de Minecraft. Cada build compatible se arma en un workspace temporal con el core común de NEXA y el adaptador declarado en targets.json; los fuentes originales no se modifican durante la compilación.</p>
             </div>
             <div className="build-manager-actions">
               <button className="ghost-button" type="button" disabled={loadingBuilds || anyBuildRunning || !isNativeHost()} onClick={refreshBuilds}><RefreshCw className={loadingBuilds ? "spin" : ""} size={15} /> ACTUALIZAR</button>
@@ -243,8 +261,8 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
       <NexaDialog
         open={confirmBuild}
         tone="warning"
-        title="Generar todas las builds compatibles"
-        description={`Se compilarán ${buildLibrary?.targetCount ?? 0} adaptadores que ya tienen fuentes NEXA In-Game. Las releases sin adaptador no se intentarán compilar.`}
+        title="Generar todas las builds compatibles con Compiler v2"
+        description={`Se compilarán ${buildLibrary?.targetCount ?? 0} adaptadores uno por uno usando el mismo pipeline aislado que COMPILAR ESTA. Las releases sin adaptador no se intentarán compilar.`}
         confirmLabel="GENERAR COMPATIBLES"
         busy={building}
         onConfirm={generateBuilds}
@@ -255,7 +273,7 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
         open={selectedBuild !== null}
         tone="info"
         title={selectedBuild ? `Compilar ${selectedBuild.loader} ${selectedBuild.minecraftVersion}` : "Compilar build"}
-        description={selectedBuild ? `Sólo se compilará NEXA In-Game ${selectedBuild.nexaInGameVersion} para Minecraft ${selectedBuild.minecraftVersion} + ${selectedBuild.loader}. Las demás builds de la biblioteca no se tocarán.` : ""}
+        description={selectedBuild ? `Compiler v2 combinará el core común de NEXA con el adaptador de Minecraft ${selectedBuild.minecraftVersion} + ${selectedBuild.loader} en un workspace temporal. Las demás builds no se tocarán.` : ""}
         confirmLabel="COMPILAR ESTA"
         busy={buildingTarget !== null}
         onConfirm={() => selectedBuild && generateOne(selectedBuild)}
