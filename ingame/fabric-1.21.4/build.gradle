@@ -4,7 +4,15 @@ group = project.maven_group
 base { archivesName = project.archives_base_name }
 repositories { maven { url = 'https://maven.fabricmc.net/' }; mavenCentral() }
 loom { splitEnvironmentSourceSets(); mods { "nexo-ingame" { sourceSet sourceSets.main; sourceSet sourceSets.client } } }
-sourceSets { client { java.srcDir '../fabric-1.21.1/src/client/java' } }
+sourceSets {
+    main {
+        java.srcDir '../core/src/main/java'
+        resources.srcDir '../core/src/main/resources'
+    }
+    client {
+        java.srcDir '../fabric-1.21.1/src/client/java'
+    }
+}
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
