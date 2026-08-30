@@ -12,6 +12,9 @@
     <FileVersion>1.0.0.0</FileVersion>
     <InformationalVersion>1.0.0</InformationalVersion>
     <NexaUiDist>$(MSBuildProjectDirectory)\..\NexaLauncher.UI\dist</NexaUiDist>
+    <NexaIconBase64>$(MSBuildProjectDirectory)\Assets\nexa-client.ico.b64</NexaIconBase64>
+    <NexaGeneratedIcon>$(IntermediateOutputPath)nexa-client.ico</NexaGeneratedIcon>
+    <ApplicationIcon>$(NexaGeneratedIcon)</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,6 +26,11 @@
     <ProjectReference Include="..\NexoLauncher.Minecraft\NexoLauncher.Minecraft.csproj" />
     <ProjectReference Include="..\NexoLauncher.Java\NexoLauncher.Java.csproj" />
   </ItemGroup>
+
+  <Target Name="GenerateNexaApplicationIcon" BeforeTargets="PrepareForBuild" Condition="Exists('$(NexaIconBase64)')">
+    <MakeDir Directories="$(IntermediateOutputPath)" />
+    <Exec Command="powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command &quot;[IO.File]::WriteAllBytes([IO.Path]::GetFullPath('$(NexaGeneratedIcon)'), [Convert]::FromBase64String([IO.File]::ReadAllText([IO.Path]::GetFullPath('$(NexaIconBase64)')).Trim()))&quot;" />
+  </Target>
 
   <Target Name="CopyNexaUiToOutput" AfterTargets="Build" Condition="Exists('$(NexaUiDist)\index.html')">
     <ItemGroup>
