@@ -135,6 +135,11 @@ export const getNexaInGameStatus = (id: string) => invoke<NexaInGameStatus>("ing
 export const installNexaInGame = (id: string) => invoke<NexaInGameInstallResult>("ingame.install", { id });
 export const getNexaInGameBuildLibrary = () => invoke<NexaInGameBuildLibrary>("ingame.builds.status");
 export const generateNexaInGameBuilds = () => invoke<NexaInGameBuildGenerateResult>("ingame.builds.generate");
+export const generateNexaInGameBuild = (minecraftVersion: string, loader: string) =>
+  invoke<{ published: boolean; minecraftVersion: string; loader: string; failureCount: number; failures: { minecraftVersion: string; loader: string; message: string }[] }>(
+    "ingame.builds.generateOne",
+    { minecraftVersion, loader },
+  );
 export const openNexaInGameBuildFolder = () => invoke<{ opened: boolean; path: string }>("ingame.builds.openFolder");
 
 export const listArtworkPlacements = () => invoke<ArtworkPlacementEntry[]>("artwork.list");
