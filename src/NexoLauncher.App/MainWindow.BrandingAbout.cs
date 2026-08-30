@@ -73,6 +73,10 @@ public partial class MainWindow
         root.ColumnDefinitions.Add(new ColumnDefinition());
         card.Child = root;
 
+        var mark = System.Windows.Application.Current.TryFindResource("Nexo.BrandMark") as ImageSource;
+        var full = System.Windows.Application.Current.TryFindResource("Nexo.BrandFull") as ImageSource ?? mark;
+        var wordmark = System.Windows.Application.Current.TryFindResource("Nexo.BrandWordmark") as ImageSource ?? mark;
+
         var logoTile = new Border
         {
             Width = 140,
@@ -85,7 +89,7 @@ public partial class MainWindow
         };
         logoTile.Child = new Image
         {
-            Source = Application.Current.Resources["Nexo.BrandFull"] as ImageSource,
+            Source = full,
             Stretch = Stretch.Uniform,
             Margin = new Thickness(8),
             SnapsToDevicePixels = true
@@ -96,16 +100,15 @@ public partial class MainWindow
         Grid.SetColumn(content, 1);
         root.Children.Add(content);
 
-        var wordmark = new Image
+        content.Children.Add(new Image
         {
-            Source = Application.Current.Resources["Nexo.BrandWordmark"] as ImageSource,
+            Source = wordmark,
             Width = 260,
             Height = 78,
             Stretch = Stretch.Uniform,
             HorizontalAlignment = HorizontalAlignment.Left,
             SnapsToDevicePixels = true
-        };
-        content.Children.Add(wordmark);
+        });
 
         var eyebrow = new TextBlock
         {
