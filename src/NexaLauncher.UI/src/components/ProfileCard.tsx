@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { Loader2, Play, Settings2 } from "lucide-react";
 import { motion } from "motion/react";
 import { defaultArtworkPlacement, type NexaProfile } from "../app/types";
@@ -12,7 +13,7 @@ type ProfileCardProps = {
 export function ProfileCard({ profile, launching = false, onOpen, onPlay }: ProfileCardProps) {
   const meta = `${profile.loader}${profile.loaderVersion ? ` ${profile.loaderVersion}` : ""} · Minecraft ${profile.minecraftVersion}`;
   const artwork = profile.artwork ?? defaultArtworkPlacement;
-  const style = profile.backgroundDataUrl
+  const style: CSSProperties | undefined = profile.backgroundDataUrl
     ? {
         backgroundImage: `linear-gradient(180deg, rgba(7,10,16,.03), rgba(7,10,16,.95)), url(${profile.backgroundDataUrl})`,
         backgroundPosition: `center, ${artwork.backgroundPositionX}% ${artwork.backgroundPositionY}%`,
