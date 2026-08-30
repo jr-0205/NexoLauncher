@@ -15,8 +15,40 @@ public partial class MainWindow
         if (brandingInitialized) return;
         brandingInitialized = true;
 
+        ApplyProductLanguage();
         ApplyBrandMarkToSidebar();
         AddAboutCard();
+    }
+
+    private void ApplyProductLanguage()
+    {
+        var replacements = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["Mis instancias"] = "Biblioteca",
+            ["INSTANCIA"] = "PERFIL",
+            ["Aún no hay instancias"] = "Aún no hay perfiles",
+            ["Crea una instalación para comenzar."] = "Crea un perfil para comenzar.",
+            ["Nueva instalación"] = "Nuevo perfil",
+            ["Instancia"] = "Perfil",
+            ["Selecciona una instancia"] = "Selecciona un perfil"
+        };
+
+        foreach (var text in EnumerateVisualChildren<TextBlock>(this))
+        {
+            if (replacements.TryGetValue(text.Text, out var replacement)) text.Text = replacement;
+            else if (text.Text.Contains("Cada instancia puede sobrescribirlos", StringComparison.Ordinal))
+                text.Text = text.Text.Replace("Cada instancia", "Cada perfil", StringComparison.Ordinal);
+        }
+
+        foreach (var button in EnumerateVisualChildren<Button>(this))
+        {
+            if (button.Content is not string label) continue;
+            if (string.Equals(label, "ELEGIR RUNTIME", StringComparison.Ordinal))
+            {
+                button.Content = "ADMINISTRAR JAVA";
+                button.ToolTip = "Ver los runtimes Java detectados. NEXO seguirá seleccionándolos automáticamente por versión.";
+            }
+        }
     }
 
     private void ApplyBrandMarkToSidebar()
