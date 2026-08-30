@@ -2,7 +2,7 @@ namespace NexoLauncher.Minecraft.Launching;
 
 /// <summary>
 /// Ephemeral, process-only handoff for an authenticated Minecraft identity.
-/// The bearer token is never persisted here and is only copied into LaunchOptions immediately before process creation.
+/// The bearer token is never persisted here and is consumed exactly once, immediately before process creation.
 /// </summary>
 public static class MinecraftAuthenticatedSession
 {
@@ -28,11 +28,13 @@ public static class MinecraftAuthenticatedSession
         lock (Gate)
         {
             if (current is null) return options;
+            var identity = current;
+            current = null;
             return options with
             {
-                Username = current.Username,
-                AccountId = current.AccountId,
-                AccessToken = current.AccessToken
+                Username = identity.Username,
+                AccountId = identity.AccountId,
+                AccessToken = identity.AccessToken
             };
         }
     }
