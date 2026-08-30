@@ -1,6 +1,6 @@
 import { Loader2, Play, Settings2 } from "lucide-react";
 import { motion } from "motion/react";
-import type { NexaProfile } from "../app/types";
+import { defaultArtworkPlacement, type NexaProfile } from "../app/types";
 
 type ProfileCardProps = {
   profile: NexaProfile;
@@ -11,8 +11,14 @@ type ProfileCardProps = {
 
 export function ProfileCard({ profile, launching = false, onOpen, onPlay }: ProfileCardProps) {
   const meta = `${profile.loader}${profile.loaderVersion ? ` ${profile.loaderVersion}` : ""} · Minecraft ${profile.minecraftVersion}`;
+  const artwork = profile.artwork ?? defaultArtworkPlacement;
   const style = profile.backgroundDataUrl
-    ? { backgroundImage: `linear-gradient(180deg, rgba(7,10,16,.03), rgba(7,10,16,.95)), url(${profile.backgroundDataUrl})` }
+    ? {
+        backgroundImage: `linear-gradient(180deg, rgba(7,10,16,.03), rgba(7,10,16,.95)), url(${profile.backgroundDataUrl})`,
+        backgroundPosition: `center, ${artwork.backgroundPositionX}% ${artwork.backgroundPositionY}%`,
+        backgroundSize: `auto, ${artwork.backgroundFit}`,
+        backgroundRepeat: "no-repeat, no-repeat",
+      }
     : undefined;
 
   return (
@@ -27,7 +33,7 @@ export function ProfileCard({ profile, launching = false, onOpen, onPlay }: Prof
       onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && onOpen(profile)}
     >
       <div className="profile-card-top">
-        <div className="profile-icon"><img src={profile.iconDataUrl ?? "./brand/nexa-mark.png"} alt="" /></div>
+        <div className="profile-icon"><img src={profile.iconDataUrl ?? "./brand/nexa-mark.png"} alt="" style={{ objectFit: artwork.iconFit, objectPosition: `${artwork.iconPositionX}% ${artwork.iconPositionY}%` }} /></div>
         <button className="icon-button" type="button" aria-label={`Abrir ${profile.name}`} onClick={(event) => { event.stopPropagation(); onOpen(profile); }}><Settings2 size={17} /></button>
       </div>
       <div className="profile-card-copy">
