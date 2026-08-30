@@ -12,9 +12,9 @@ internal sealed class InstalledContentView : Grid
     private IReadOnlyList<InstalledContentEntry> items = [];
 
     public event EventHandler? AddContentRequested;
-    public event EventHandler<InstalledContentEntry>? ToggleRequested;
-    public event EventHandler<InstalledContentEntry>? DeleteRequested;
-    public event EventHandler<InstalledContentEntry>? OpenRequested;
+    public event Action<InstalledContentEntry>? ToggleRequested;
+    public event Action<InstalledContentEntry>? DeleteRequested;
+    public event Action<InstalledContentEntry>? OpenRequested;
 
     public InstalledContentView()
     {
@@ -184,17 +184,17 @@ internal sealed class InstalledContentView : Grid
         {
             var toggle = SmallButton(item.Enabled ? "ACTIVO" : "DESACTIVADO", item.Enabled ? "Nexo.SecondaryButton" : "Nexo.GhostButton");
             toggle.ToolTip = item.Enabled ? "Desactivar este mod sin borrarlo" : "Volver a activar este mod";
-            toggle.Click += (_, _) => ToggleRequested?.Invoke(this, item);
+            toggle.Click += (_, _) => ToggleRequested?.Invoke(item);
             actions.Children.Add(toggle);
         }
         var open = SmallButton("ABRIR", "Nexo.GhostButton");
         open.Margin = new Thickness(actions.Children.Count == 0 ? 0 : 7, 0, 0, 0);
-        open.Click += (_, _) => OpenRequested?.Invoke(this, item);
+        open.Click += (_, _) => OpenRequested?.Invoke(item);
         actions.Children.Add(open);
         var delete = SmallButton("ELIMINAR", "Nexo.GhostButton");
         delete.Foreground = new SolidColorBrush(Color.FromRgb(255, 142, 142));
         delete.Margin = new Thickness(7, 0, 0, 0);
-        delete.Click += (_, _) => DeleteRequested?.Invoke(this, item);
+        delete.Click += (_, _) => DeleteRequested?.Invoke(item);
         actions.Children.Add(delete);
         Grid.SetColumn(actions, 1);
         grid.Children.Add(actions);
