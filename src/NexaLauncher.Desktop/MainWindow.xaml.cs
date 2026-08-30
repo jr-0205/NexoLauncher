@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
@@ -39,7 +40,17 @@ public partial class MainWindow : Window
 #endif
             bridge = new NexaBridge(paths, core);
             core.WebMessageReceived += bridge.OnWebMessageReceived;
-            core.NavigationStarting += (_, args) => { if (!IsAllowedNavigation(args.Uri)) args.Cancel = true; };
+            core.NavigationStarting += (_, args) =>
+            {
+                if (IsAllowedNavigation(args.Uri)) return;
+                args.Cancel = true;
+                if (IsApprovedExternalLink(args.Uri)) OpenExternal(args.Uri);
+            };
+            core.NewWindowRequested += (_, args) =>
+            {
+                args.Handled = true;
+                if (IsApprovedExternalLink(args.Uri)) OpenExternal(args.Uri);
+            };
 
             var devUrl = Environment.GetEnvironmentVariable("NEXA_UI_DEV_URL");
             if (!string.IsNullOrWhiteSpace(devUrl)) { core.Navigate(devUrl); return; }
@@ -64,6 +75,21 @@ public partial class MainWindow : Window
         if (uri.StartsWith("http://127.0.0.1:", StringComparison.OrdinalIgnoreCase)) return true;
         if (uri.StartsWith("http://localhost:", StringComparison.OrdinalIgnoreCase)) return true;
         return uri.Equals("about:blank", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsApprovedExternalLink(string? value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps) return false;
+        if (string.Equals(uri.Host, "github.com", StringComparison.OrdinalIgnoreCase))
+            return uri.AbsolutePath.Equals("/jr-0205", StringComparison.OrdinalIgnoreCase) || uri.AbsolutePath.StartsWith("/jr-0205/", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(uri.Host, "chatgpt.com", StringComparison.OrdinalIgnoreCase) &&
+               (uri.AbsolutePath.Equals("/download", StringComparison.OrdinalIgnoreCase) || uri.AbsolutePath.StartsWith("/download/", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void OpenExternal(string uri)
+    {
+        try { Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true }); }
+        catch (System.ComponentModel.Win32Exception) { }
     }
 
     private static string MissingUiHtml() => """
