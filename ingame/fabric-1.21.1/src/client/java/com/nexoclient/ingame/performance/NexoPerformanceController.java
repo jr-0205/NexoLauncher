@@ -48,6 +48,7 @@ public final class NexoPerformanceController {
         client.options.getViewDistance().setValue(preset.renderDistance());
         client.options.getSimulationDistance().setValue(preset.simulationDistance());
         client.options.getParticles().setValue(preset.particles());
+        NexoParticleTuner.apply(preset);
     }
 
     private NexoPerformancePreset load() {
