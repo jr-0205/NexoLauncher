@@ -30,6 +30,48 @@ internal static class ProfileArtworkStore
         return new ProfileArtwork(icon.RelativePath, background.RelativePath, icon.Sha256, background.Sha256);
     }
 
+    public static async Task<ProfileArtwork> UpdateAsync(
+        string instanceRoot,
+        string? iconSource,
+        string? backgroundSource,
+        bool clearIcon,
+        bool clearBackground,
+        CancellationToken token)
+    {
+        var root = Path.GetFullPath(instanceRoot);
+        var profileDirectory = Path.Combine(root, ProfileDirectoryName);
+        Directory.CreateDirectory(profileDirectory);
+        var current = Load(root) ?? new ProfileArtwork(null, null, null, null);
+
+        var icon = (current.IconRelativePath, current.IconSha256);
+        if (clearIcon)
+        {
+            DeleteManagedArtwork(profileDirectory, "icon");
+            icon = (null, null);
+        }
+        else if (!string.IsNullOrWhiteSpace(iconSource))
+        {
+            DeleteManagedArtwork(profileDirectory, "icon");
+            icon = await ImportOneAsync(root, profileDirectory, iconSource, "icon", token);
+        }
+
+        var background = (current.BackgroundRelativePath, current.BackgroundSha256);
+        if (clearBackground)
+        {
+            DeleteManagedArtwork(profileDirectory, "background");
+            background = (null, null);
+        }
+        else if (!string.IsNullOrWhiteSpace(backgroundSource))
+        {
+            DeleteManagedArtwork(profileDirectory, "background");
+            background = await ImportOneAsync(root, profileDirectory, backgroundSource, "background", token);
+        }
+
+        var updated = new ProfileArtwork(icon.Item1, background.Item1, icon.Item2, background.Item2);
+        await SaveMetadataAsync(root, updated, token);
+        return updated;
+    }
+
     public static async Task SaveMetadataAsync(string instanceRoot, ProfileArtwork artwork, CancellationToken token)
     {
         var root = Path.GetFullPath(instanceRoot);
@@ -100,6 +142,21 @@ internal static class ProfileArtworkStore
         finally
         {
             try { if (File.Exists(temporary)) File.Delete(temporary); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
+    }
+
+    private static void DeleteManagedArtwork(string profileDirectory, string baseName)
+    {
+        if (!Directory.Exists(profileDirectory)) return;
+        foreach (var extension in new[] { ".png", ".jpg", ".jpeg", ".bmp" })
+        {
+            var path = Path.Combine(profileDirectory, baseName + extension);
+            try
+            {
+                if (File.Exists(path)) File.Delete(path);
+            }
             catch (IOException) { }
             catch (UnauthorizedAccessException) { }
         }
