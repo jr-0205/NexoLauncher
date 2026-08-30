@@ -16,6 +16,7 @@ public final class NexoPerformanceController {
     private final Path configPath;
     private NexoPerformancePreset selected;
     private boolean applyPending = true;
+    private boolean sodiumExtraPending = true;
 
     public NexoPerformanceController() {
         configPath = FabricLoader.getInstance().getConfigDir().resolve("nexo-ingame.properties");
@@ -30,13 +31,17 @@ public final class NexoPerformanceController {
         if (preset == null) return;
         selected = preset;
         applyPending = true;
+        sodiumExtraPending = true;
         save();
     }
 
     public void applyIfPending(MinecraftClient client) {
-        if (!applyPending || client == null || client.options == null) return;
-        apply(client, selected);
-        applyPending = false;
+        if (client == null || client.options == null) return;
+        if (applyPending) {
+            applyMinecraft(client, selected);
+            applyPending = false;
+        }
+        if (sodiumExtraPending) sodiumExtraPending = !NexaSodiumExtraTuner.apply(selected);
     }
 
     public void applyNow(MinecraftClient client, NexoPerformancePreset preset) {
@@ -44,13 +49,12 @@ public final class NexoPerformanceController {
         applyIfPending(client);
     }
 
-    private static void apply(MinecraftClient client, NexoPerformancePreset preset) {
+    private static void applyMinecraft(MinecraftClient client, NexoPerformancePreset preset) {
         client.options.getViewDistance().setValue(preset.renderDistance());
         client.options.getSimulationDistance().setValue(preset.simulationDistance());
         client.options.getEntityDistanceScaling().setValue(preset.entityDistanceScaling());
         client.options.getParticles().setValue(preset.particles());
         NexoParticleTuner.apply(preset);
-        NexaSodiumExtraTuner.apply(preset);
     }
 
     private NexoPerformancePreset load() {
