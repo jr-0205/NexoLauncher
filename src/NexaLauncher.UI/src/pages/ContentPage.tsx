@@ -155,7 +155,10 @@ export function ContentPage({ profiles, initialProfileId, onSelectProfile, onNot
               <div className="installed-list">
                 {group.entries.map((entry) => (
                   <article className="installed-row glass-panel" key={entry.relativePath}>
-                    <div className="installed-icon"><Boxes size={18} /></div>
+                    <div className={`installed-icon ${entry.iconDataUrl ? "has-image" : ""}`}>
+                      <Boxes size={18} />
+                      {entry.iconDataUrl && <img src={entry.iconDataUrl} alt="" loading="lazy" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
+                    </div>
                     <div className="installed-copy"><strong>{entry.name}</strong><span>{entry.isDirectory ? "Carpeta" : `${formatSize(entry.sizeBytes)} · ${entry.relativePath}`}</span></div>
                     <div className="installed-actions">
                       {entry.canToggle && <button className={`state-button ${entry.enabled ? "enabled" : ""}`} type="button" onClick={() => toggle(entry)}>{entry.enabled ? <ToggleRight size={18} /> : <ToggleLeft size={18} />}{entry.enabled ? "ACTIVO" : "DESACTIVADO"}</button>}
