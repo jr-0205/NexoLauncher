@@ -1,0 +1,66 @@
+name: Release NEXA Client installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "src/**"
+      - "installer/**"
+      - "tools/build-installer.ps1"
+      - "Directory.Build.props"
+      - "global.json"
+      - ".github/workflows/release-installer.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  release-win-x64:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: src/NexaLauncher.UI/package-lock.json
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Install Inno Setup
+        shell: powershell
+        run: choco install innosetup --no-progress -y
+
+      - name: Build installer
+        shell: powershell
+        run: ./tools/build-installer.ps1 -Configuration Release -Runtime win-x64
+
+      - name: Publish GitHub Release v1.0.0
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $installer = "artifacts\installer\NEXA-Client-Setup-1.0.0-win-x64.exe"
+          if (!(Test-Path -LiteralPath $installer)) {
+            throw "No se generó $installer"
+          }
+
+          gh release view v1.0.0 *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload v1.0.0 "$installer#NEXA-Client-Setup-1.0.0-win-x64.exe" --clobber
+          }
+          else {
+            gh release create v1.0.0 "$installer#NEXA-Client-Setup-1.0.0-win-x64.exe" `
+              --target main `
+              --title "NEXA Client 1.0.0" `
+              --notes "Primer instalador público de NEXA Client para Windows x64."
+          }
