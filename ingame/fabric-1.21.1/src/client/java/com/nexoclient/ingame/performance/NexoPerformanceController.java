@@ -47,6 +47,7 @@ public final class NexoPerformanceController {
     private static void apply(MinecraftClient client, NexoPerformancePreset preset) {
         client.options.getViewDistance().setValue(preset.renderDistance());
         client.options.getSimulationDistance().setValue(preset.simulationDistance());
+        client.options.getEntityDistanceScaling().setValue(preset.entityDistanceScaling());
         client.options.getParticles().setValue(preset.particles());
         NexoParticleTuner.apply(preset);
     }
