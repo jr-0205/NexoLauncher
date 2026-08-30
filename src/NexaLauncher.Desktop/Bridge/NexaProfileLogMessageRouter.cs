@@ -3,6 +3,7 @@ using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using NexoLauncher.Application.Instances;
 using NexoLauncher.Core.Installation;
+using NexoLauncher.Domain.Instances;
 using NexoLauncher.Infrastructure.Instances;
 
 namespace NexaLauncher.Desktop;
@@ -146,7 +147,7 @@ internal sealed class NexaProfileLogMessageRouter
             var start = Math.Max(0, stream.Length - MaximumReadBytes);
             stream.Seek(start, SeekOrigin.Begin);
             using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, bufferSize: 16 * 1024, leaveOpen: false);
-            if (start > 0) _ = reader.ReadLine(); // descarta una primera línea posiblemente truncada
+            if (start > 0) _ = reader.ReadLine();
             return reader.ReadToEnd();
         }
         catch (IOException) { return string.Empty; }
