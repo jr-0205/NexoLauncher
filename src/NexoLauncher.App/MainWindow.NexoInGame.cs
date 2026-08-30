@@ -17,8 +17,10 @@ public partial class MainWindow
         _ = Dispatcher.InvokeAsync(() =>
         {
             InitializeBrandingAndAbout();
+            ApplyProductionShell();
             InitializeProductionLibraryExperience();
             InitializeProfileWizardEntryPoints();
+            InitializeInstalledContentExperience();
             InitializeNexoInGameButton();
             if (NexoFeatureFlags.DeveloperTools) InitializeNexoInGameBuildTools();
         }, DispatcherPriority.Loaded);
@@ -38,7 +40,7 @@ public partial class MainWindow
             Padding = new Thickness(12, 4, 12, 4),
             Margin = new Thickness(0, 8, 9, 0),
             FontSize = 10,
-            ToolTip = "Instalar el NEXO In-Game precompilado compatible con esta instancia",
+            ToolTip = "Instalar el NEXO In-Game precompilado compatible con este perfil",
             IsEnabled = false
         };
         rightShiftButton.SetResourceReference(Control.StyleProperty, "GhostButton");
@@ -60,7 +62,7 @@ public partial class MainWindow
         if (InstancesList.SelectedItem is not InstanceItem item)
         {
             rightShiftButton.Content = "＋ RIGHT SHIFT";
-            rightShiftButton.ToolTip = "Selecciona una instancia para comprobar NEXO In-Game.";
+            rightShiftButton.ToolTip = "Selecciona un perfil para comprobar NEXO In-Game.";
             rightShiftButton.IsEnabled = false;
             return;
         }
@@ -123,11 +125,9 @@ public partial class MainWindow
         if (busy || InstancesList.SelectedItem is not InstanceItem item) return;
         if (activeLaunch is not null)
         {
-            MessageBox.Show(this,
-                "Cierra Minecraft antes de añadir o actualizar NEXO In-Game.",
+            NexoDialog.Info(this,
                 "Minecraft está en ejecución",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                "Cierra Minecraft antes de añadir o actualizar NEXO In-Game.");
             return;
         }
 
@@ -136,11 +136,9 @@ public partial class MainWindow
 
         if (IsNexoInGameInstalled(instance.Id))
         {
-            MessageBox.Show(this,
-                "NEXO In-Game ya está instalado. Inicia esta instancia y pulsa Shift derecho dentro de Minecraft.",
+            NexoDialog.Info(this,
                 "Right Shift listo",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                "NEXO In-Game ya está instalado. Inicia este perfil y pulsa Shift derecho dentro de Minecraft.");
             return;
         }
 
@@ -156,11 +154,10 @@ public partial class MainWindow
         }
         catch (Exception exception)
         {
-            MessageBox.Show(this,
-                "NEXO no pudo comprobar el catálogo de NEXO In-Game.\n\n" + exception.Message,
+            NexoDialog.Warning(this,
                 "Catálogo NEXO In-Game",
-                MessageBoxButton.OK,
-                MessageBoxImage.Warning);
+                "NEXO no pudo comprobar el catálogo de NEXO In-Game.",
+                details: exception.ToString());
             return;
         }
 
@@ -168,24 +165,21 @@ public partial class MainWindow
         {
             rightShiftButton!.Content = "RIGHT SHIFT · BUILD PENDIENTE";
             rightShiftButton.IsEnabled = false;
-            MessageBox.Show(this,
-                $"Todavía no existe un JAR disponible de NEXO In-Game para Minecraft {instance.MinecraftVersion} + {instance.Loader}.\n\n" +
-                "Ve a Configuración > NEXO In-Game Builds y usa GENERAR JARS NEXO IN-GAME. El botón de esta instancia nunca descargará Gradle ni compilará código.",
+            NexoDialog.Info(this,
                 "Build de NEXO In-Game pendiente",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                $"Todavía no existe un JAR disponible para Minecraft {instance.MinecraftVersion} + {instance.Loader}.\n\n" +
+                "Genera los JAR desde Configuración > NEXO In-Game Builds. El botón del perfil nunca descargará Gradle ni compilará código.");
             return;
         }
 
-        var confirmation = MessageBox.Show(this,
-            $"¿Añadir NEXO In-Game {artifact.NexoInGameVersion} a '{instance.Name}'?\n\n" +
-            "NEXO usará una build precompilada compatible, verificará SHA-256, la guardará en caché compartida y la copiará a mods/.\n\n" +
-            "No se descargará Gradle y no se compilará código en este equipo.",
+        var confirmation = NexoDialog.Confirm(this,
             "Añadir Right Shift",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Question,
-            MessageBoxResult.Yes);
-        if (confirmation != MessageBoxResult.Yes) return;
+            $"Instalar NEXO In-Game {artifact.NexoInGameVersion} en '{instance.Name}'.\n\n" +
+            "NEXO usará una build precompilada compatible, verificará SHA-256, reutilizará la caché compartida cuando sea posible y copiará únicamente el JAR necesario a mods/.\n\n" +
+            "No se descargará Gradle ni se compilará código en este equipo.",
+            "INSTALAR",
+            "CANCELAR");
+        if (!confirmation) return;
 
         try
         {
@@ -214,19 +208,21 @@ public partial class MainWindow
                 throw new InvalidOperationException("NEXO In-Game terminó sin dejar un JAR válido dentro de mods/.");
 
             DetailSubtitle.Text = $"NEXO In-Game {result.Version} instalado · Right Shift listo";
-            MessageBox.Show(this,
-                $"NEXO In-Game {result.Version} quedó instalado.\n\n" +
-                (result.UsedCache ? "Se reutilizó la caché verificada de NEXO.\n\n" : string.Empty) +
-                "Inicia Minecraft y pulsa Shift derecho para abrir el menú. Ahí podrás cambiar entre Máximo FPS, Medio, Medio Alto y Alto.",
+            NexoDialog.Info(this,
                 "Right Shift añadido",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                $"NEXO In-Game {result.Version} quedó instalado correctamente.\n\n" +
+                (result.UsedCache ? "Se reutilizó la caché verificada de NEXO.\n\n" : string.Empty) +
+                "Inicia Minecraft y pulsa Shift derecho. Desde el menú podrás cambiar entre Máximo FPS, Medio, Medio Alto y Alto.",
+                "LISTO");
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            DetailSubtitle.Text = "NEXO In-Game no está disponible para esta instancia";
-            MessageBox.Show(this, exception.Message, "NEXO In-Game", MessageBoxButton.OK, MessageBoxImage.Warning);
+            DetailSubtitle.Text = "NEXO In-Game no está disponible para este perfil";
+            NexoDialog.Warning(this,
+                "NEXO In-Game no pudo instalarse",
+                "La instalación se detuvo y NEXO no marcará Right Shift como listo.",
+                details: exception.ToString());
         }
         finally
         {
