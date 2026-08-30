@@ -76,10 +76,10 @@
     {
       "minecraftVersion": "1.21.8",
       "loader": "Fabric",
-      "nexoInGameVersion": "0.1.0",
+      "nexoInGameVersion": "0.1.1",
       "status": "planned",
-      "fileName": "nexo-ingame-fabric-1.21.8-0.1.0.jar",
-      "relativePath": "0.1.0/fabric/1.21.8/nexo-ingame-fabric-1.21.8-0.1.0.jar",
+      "fileName": "nexo-ingame-fabric-1.21.8-0.1.1.jar",
+      "relativePath": "0.1.1/fabric/1.21.8/nexo-ingame-fabric-1.21.8-0.1.1.jar",
       "downloadUrl": null,
       "sha256": "",
       "publishedAt": null,
