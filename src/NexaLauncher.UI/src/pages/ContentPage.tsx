@@ -179,7 +179,10 @@ export function ContentPage({ profiles, initialProfileId, onSelectProfile, onNot
           <div className="catalog-results">
             {results.map((project) => (
               <article className="catalog-row glass-panel" key={project.id}>
-                <div className="catalog-icon">{project.iconUrl ? <img src={project.iconUrl} alt="" /> : <Boxes size={22} />}</div>
+                <div className="catalog-icon">
+                  <Boxes size={22} />
+                  {project.iconUrl && <img src={project.iconUrl} alt="" loading="lazy" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.style.display = "none"; }} />}
+                </div>
                 <div className="catalog-copy"><div><strong>{project.title}</strong><span>por {project.author}</span></div><p>{project.description}</p><small>{project.downloads.toLocaleString()} descargas · {typeLabels[project.projectType]}</small></div>
                 <button className="secondary-button" type="button" disabled={installingId === project.id} onClick={() => install(project)}>{installingId === project.id ? <Loader2 className="spin" size={16} /> : <Download size={16} />} INSTALAR</button>
               </article>
