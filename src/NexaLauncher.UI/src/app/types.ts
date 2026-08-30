@@ -140,6 +140,26 @@ export type BoostRemoveResult = {
   preserved: string[];
 };
 
+export type NexaInGameStatus = {
+  installed: boolean;
+  available: boolean;
+  profileId: string;
+  minecraftVersion: string;
+  loader: string;
+  version?: string | null;
+  fileName?: string | null;
+  catalogStatus: "installed" | "published" | "planned" | "unavailable";
+  message: string;
+};
+
+export type NexaInGameInstallResult = {
+  installed: boolean;
+  version: string;
+  fileName: string;
+  usedCache: boolean;
+  dependenciesInstalled: string[];
+};
+
 export type OperationProgress = {
   stage: string;
   completed?: number;
