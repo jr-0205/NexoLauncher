@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Boxes, Download, ExternalLink, Loader2, PackagePlus, Search, ToggleLeft, ToggleRight, Trash2, X } from "lucide-react";
+import { Boxes, Download, ExternalLink, Loader2, PackagePlus, Search as SearchIcon, ToggleLeft, ToggleRight, Trash2, X } from "lucide-react";
 import {
   deleteInstalledContent,
   installContent,
@@ -99,7 +99,7 @@ export function ContentPage({ profiles, initialProfileId, onSelectProfile, onNot
     }
   }
 
-  async function search() {
+  async function runSearch() {
     if (!profileId) return;
     setSearching(true);
     try {
@@ -146,7 +146,7 @@ export function ContentPage({ profiles, initialProfileId, onSelectProfile, onNot
 
       {mode === "installed" ? (
         <div className="installed-layout">
-          <div className="installed-toolbar"><div className="search-field"><Search size={16} /><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filtrar contenido instalado..." /></div><span>{filtered.length} elementos</span></div>
+          <div className="installed-toolbar"><div className="search-field"><SearchIcon size={16} /><input value={filter} onChange={(event) => setFilter(event.target.value)} placeholder="Filtrar contenido instalado..." /></div><span>{filtered.length} elementos</span></div>
           {loading ? <div className="loading-panel glass-panel"><Loader2 className="spin" /> Leyendo contenido del perfil…</div> : groups.length === 0 ? (
             <div className="empty-state glass-panel"><Boxes size={28} /><h2>Este perfil todavía está limpio</h2><p>Los mods, texturas, shaders y datapacks que instales aparecerán aquí primero.</p><button className="primary-button" type="button" onClick={() => setMode("catalog")}><PackagePlus size={16} /> AGREGAR CONTENIDO</button></div>
           ) : groups.map((group) => (
@@ -171,9 +171,9 @@ export function ContentPage({ profiles, initialProfileId, onSelectProfile, onNot
       ) : (
         <div className="catalog-layout">
           <div className="catalog-controls glass-panel">
-            <div className="search-field catalog-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && search()} placeholder="Buscar en Modrinth..." /></div>
+            <div className="search-field catalog-search"><SearchIcon size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => event.key === "Enter" && runSearch()} placeholder="Buscar en Modrinth..." /></div>
             <select className="nexa-input nexa-select" value={projectType} onChange={(event) => setProjectType(event.target.value as ProjectType)}>{Object.entries(typeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-            <button className="primary-button" type="button" disabled={searching} onClick={search}>{searching ? <Loader2 className="spin" size={16} /> : <Search size={16} />} BUSCAR</button>
+            <button className="primary-button" type="button" disabled={searching} onClick={runSearch}>{searching ? <Loader2 className="spin" size={16} /> : <SearchIcon size={16} />} BUSCAR</button>
           </div>
           <p className="catalog-note">NEXA sólo muestra resultados compatibles con Minecraft {selected.minecraftVersion}{projectType === "mod" ? ` y ${selected.loader}` : ""}.</p>
           <div className="catalog-results">
