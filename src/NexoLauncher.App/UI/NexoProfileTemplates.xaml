@@ -8,7 +8,7 @@
 
     <DataTemplate x:Key="Nexo.ProfileCardTemplate">
         <Border Width="248" Height="184" CornerRadius="12" ClipToBounds="True"
-                Background="{StaticResource Nexo.Surface}" BorderBrush="{StaticResource Nexo.Border}" BorderThickness="1">
+                Background="{DynamicResource Nexo.Surface}" BorderBrush="{DynamicResource Nexo.Border}" BorderThickness="1">
             <Grid>
                 <Border>
                     <Border.Background>
@@ -44,10 +44,10 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <Border Width="54" Height="54" CornerRadius="10" Background="#E6172131"
-                                BorderBrush="{StaticResource Nexo.BorderStrong}" BorderThickness="1"
+                                BorderBrush="{DynamicResource Nexo.BorderStrong}" BorderThickness="1"
                                 HorizontalAlignment="Left" ClipToBounds="True">
                             <Grid>
-                                <Image Source="{StaticResource Nexo.BrandMark}" Stretch="Uniform" Margin="9"/>
+                                <Image Source="{DynamicResource Nexo.BrandMark}" Stretch="Uniform" Margin="9"/>
                                 <Image Source="{Binding Id, Converter={StaticResource Nexo.ProfileIconConverter}}" Stretch="UniformToFill"/>
                             </Grid>
                         </Border>
@@ -57,12 +57,12 @@
                     </Grid>
 
                     <StackPanel Grid.Row="2">
-                        <TextBlock Text="{Binding Name}" Foreground="{StaticResource Nexo.Text}" FontSize="15"
+                        <TextBlock Text="{Binding Name}" Foreground="{DynamicResource Nexo.Text}" FontSize="15"
                                    FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Text="{Binding Subtitle}" Foreground="{StaticResource Nexo.TextSecondary}" FontSize="10"
+                        <TextBlock Text="{Binding Subtitle}" Foreground="{DynamicResource Nexo.TextSecondary}" FontSize="10"
                                    Margin="0,4,0,0" TextTrimming="CharacterEllipsis"/>
                         <StackPanel Orientation="Horizontal" Margin="0,9,0,0">
-                            <Ellipse Width="6" Height="6" Fill="{StaticResource Nexo.Success}" VerticalAlignment="Center"/>
+                            <Ellipse Width="6" Height="6" Fill="{DynamicResource Nexo.Success}" VerticalAlignment="Center"/>
                             <TextBlock Text="  LISTO" Foreground="#80D9B9" FontSize="8" FontWeight="Bold" VerticalAlignment="Center"/>
                         </StackPanel>
                     </StackPanel>
