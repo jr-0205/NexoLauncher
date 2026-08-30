@@ -50,7 +50,7 @@ public partial class MainWindow : Window
             core.Settings.AreDevToolsEnabled = false;
 #endif
             accountService = new NexaPremiumAccountService(paths);
-            bridge = new NexaBridge(paths, core, accountService);
+            bridge = new NexaBridge(paths, core);
             accountRouter = new NexaAccountMessageRouter(core, accountService);
             desktopRouter = new NexaDesktopMessageRouter(paths, core);
             inGameBuildRouter = new NexaInGameBuildMessageRouter(paths, core);
