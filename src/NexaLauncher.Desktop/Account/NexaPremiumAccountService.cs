@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -281,8 +282,8 @@ internal sealed class NexaPremiumAccountService
         {
             foreach (var skin in skinArray.EnumerateArray())
             {
-                var url = OptionalString(skin, "url");
-                if (string.IsNullOrWhiteSpace(url)) continue;
+                var url = SanitizeTextureUrl(OptionalString(skin, "url"));
+                if (url is null) continue;
                 skins.Add(new NexaSkinSnapshot(
                     OptionalString(skin, "id") ?? string.Empty,
                     url,
@@ -296,8 +297,8 @@ internal sealed class NexaPremiumAccountService
         {
             foreach (var cape in capeArray.EnumerateArray())
             {
-                var url = OptionalString(cape, "url");
-                if (string.IsNullOrWhiteSpace(url)) continue;
+                var url = SanitizeTextureUrl(OptionalString(cape, "url"));
+                if (url is null) continue;
                 capes.Add(new NexaCapeSnapshot(
                     OptionalString(cape, "id") ?? string.Empty,
                     url,
@@ -441,6 +442,13 @@ internal sealed class NexaPremiumAccountService
         var height = BinaryPrimitives.ReadInt32BigEndian(header.Slice(20, 4));
         if (width != 64 || (height != 64 && height != 32))
             throw new InvalidDataException("Minecraft Java requiere una skin de 64×64 (o 64×32 legacy).");
+    }
+
+    private static string? SanitizeTextureUrl(string? value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps) return null;
+        if (!string.Equals(uri.Host, "textures.minecraft.net", StringComparison.OrdinalIgnoreCase)) return null;
+        return uri.AbsoluteUri;
     }
 
     private static string? MaskAccount(string? value)
