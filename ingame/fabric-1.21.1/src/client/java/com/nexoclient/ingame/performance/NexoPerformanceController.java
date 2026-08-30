@@ -50,6 +50,7 @@ public final class NexoPerformanceController {
         client.options.getEntityDistanceScaling().setValue(preset.entityDistanceScaling());
         client.options.getParticles().setValue(preset.particles());
         NexoParticleTuner.apply(preset);
+        NexaSodiumExtraTuner.apply(preset);
     }
 
     private NexoPerformancePreset load() {
@@ -73,7 +74,7 @@ public final class NexoPerformanceController {
             Files.createDirectories(configPath.getParent());
             var temporary = configPath.resolveSibling(configPath.getFileName() + ".tmp");
             try (Writer writer = Files.newBufferedWriter(temporary, StandardCharsets.UTF_8)) {
-                properties.store(writer, "NEXO In-Game settings");
+                properties.store(writer, "NEXA In-Game settings");
             }
             try {
                 Files.move(temporary, configPath,
