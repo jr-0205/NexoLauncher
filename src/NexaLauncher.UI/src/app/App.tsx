@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, X } from "lucide-react";
-import { bootstrap, launchProfile, onBridgeEvent, updateSettings } from "./nexa-bridge";
+import { bootstrap, launchProfile, listArtworkPlacements, onBridgeEvent, updateSettings } from "./nexa-bridge";
 import type { BootstrapData, NexaProfile, OperationProgress } from "./types";
+import { defaultArtworkPlacement } from "./types";
 import { Sidebar } from "../components/Sidebar";
 import { Topbar } from "../components/Topbar";
 import { LibraryPage } from "../pages/LibraryPage";
@@ -37,6 +38,16 @@ export default function App() {
 
   const refresh = useCallback(async () => {
     const next = await bootstrap();
+    try {
+      const placements = await listArtworkPlacements();
+      const map = new Map(placements.map((entry) => [entry.id, entry.artwork]));
+      next.profiles = next.profiles.map((profile) => ({
+        ...profile,
+        artwork: map.get(profile.id) ?? profile.artwork ?? defaultArtworkPlacement,
+      }));
+    } catch {
+      next.profiles = next.profiles.map((profile) => ({ ...profile, artwork: profile.artwork ?? defaultArtworkPlacement }));
+    }
     setData(next);
     setFatalError(null);
     return next;
@@ -100,7 +111,9 @@ export default function App() {
       const result = await launchProfile(profile.id);
       setData((current) => current ? {
         ...current,
-        profiles: current.profiles.map((item) => item.id === result.profile.id ? result.profile : item),
+        profiles: current.profiles.map((item) => item.id === result.profile.id
+          ? { ...result.profile, artwork: result.profile.artwork ?? item.artwork ?? defaultArtworkPlacement }
+          : item),
         activeLaunch: { profileId: profile.id, pid: result.pid, logPath: result.logPath },
       } : current);
       if (data?.closeLauncherOnGameStart) window.close();
@@ -120,7 +133,9 @@ export default function App() {
   const replaceProfile = useCallback((profile: NexaProfile) => {
     setData((current) => current ? {
       ...current,
-      profiles: current.profiles.map((item) => item.id === profile.id ? profile : item),
+      profiles: current.profiles.map((item) => item.id === profile.id
+        ? { ...profile, artwork: profile.artwork ?? item.artwork ?? defaultArtworkPlacement }
+        : item),
     } : current);
     setSelectedProfileId(profile.id);
   }, []);
@@ -139,7 +154,7 @@ export default function App() {
           {fatalError && <div className="inline-error"><strong>NEXA no pudo cargar el launcher.</strong><span>{fatalError}</span><button type="button" onClick={() => refresh().catch((reason: Error) => setFatalError(reason.message))}>REINTENTAR</button></div>}
 
           {section === "library" && <LibraryPage profiles={profiles} launchingProfileId={launchingProfileId} onCreate={() => navigate("create")} onOpen={openProfile} onPlay={play} />}
-          {section === "create" && <CreateProfilePage onCancel={() => navigate("library")} onNotice={showNotice} onCreated={(profile) => { setData((current) => current ? { ...current, profiles: [profile, ...current.profiles.filter((item) => item.id !== profile.id)] } : current); openProfile(profile); }} />}
+          {section === "create" && <CreateProfilePage onCancel={() => navigate("library")} onNotice={showNotice} onCreated={(profile) => { const hydrated = { ...profile, artwork: profile.artwork ?? defaultArtworkPlacement }; setData((current) => current ? { ...current, profiles: [hydrated, ...current.profiles.filter((item) => item.id !== profile.id)] } : current); openProfile(hydrated); }} />}
           {section === "profile" && selectedProfile && <ProfileDetailPage key={selectedProfile.id} profile={selectedProfile} launching={launchingProfileId === selectedProfile.id} onLaunch={play} onContent={openContent} onUpdated={replaceProfile} onDeleted={() => { setData((current) => current ? { ...current, profiles: current.profiles.filter((item) => item.id !== selectedProfile.id) } : current); navigate("library"); }} onBack={() => navigate("library")} onNotice={showNotice} />}
           {section === "profile" && !selectedProfile && <div className="page"><div className="empty-state glass-panel"><h2>Perfil no disponible</h2><p>Vuelve a Biblioteca y selecciona un perfil.</p></div></div>}
           {section === "content" && <ContentPage profiles={profiles} initialProfileId={selectedProfileId} onSelectProfile={setSelectedProfileId} onNotice={showNotice} />}
