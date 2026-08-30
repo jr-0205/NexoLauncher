@@ -21,9 +21,11 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        // Replace the early vector placeholder with the exact mark supplied by the creator.
-        // DynamicResource consumers update automatically and Window.Icon can reuse the same source.
+        // Product-facing brand is NEXA. Resource keys stay stable while the internal
+        // namespace/data-layout rename is handled as a separate compatibility migration.
         Resources["Nexo.BrandMark"] = NexoBrandImage.Create();
+        Resources["Nexo.BrandWordmark"] = NexaBrandAssets.CreateWordmark();
+        Resources["Nexo.BrandFull"] = NexaBrandAssets.CreateFull();
         base.OnStartup(e);
     }
 
@@ -34,9 +36,9 @@ public partial class App : System.Windows.Application
         try
         {
             MessageBox.Show(
-                "NEXO encontró un error inesperado y se cerrará para proteger el estado de tus perfiles.\n\n" +
+                "NEXA encontró un error inesperado y se cerrará para proteger el estado de tus perfiles.\n\n" +
                 "Se creó un informe local de diagnóstico:\n" + report,
-                "NEXO se cerró inesperadamente",
+                "NEXA se cerró inesperadamente",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
@@ -67,7 +69,7 @@ public partial class App : System.Windows.Application
             var now = DateTimeOffset.Now;
             var file = Path.Combine(paths.LauncherLogs, $"crash-{now:yyyyMMdd-HHmmssfff}-{source}.log");
             var builder = new StringBuilder();
-            builder.AppendLine("NEXO Client crash report");
+            builder.AppendLine("NEXA Client crash report");
             builder.AppendLine($"Timestamp: {now:O}");
             builder.AppendLine($"Source: {source}");
             builder.AppendLine($"OS: {Environment.OSVersion}");
