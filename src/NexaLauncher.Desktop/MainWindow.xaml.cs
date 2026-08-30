@@ -17,6 +17,7 @@ public partial class MainWindow : Window
     private NexaBridge? bridge;
     private NexaDesktopMessageRouter? desktopRouter;
     private NexaInGameBuildMessageRouter? inGameBuildRouter;
+    private NexaProfileLogMessageRouter? profileLogRouter;
 
     public MainWindow()
     {
@@ -48,6 +49,7 @@ public partial class MainWindow : Window
             bridge = new NexaBridge(paths, core);
             desktopRouter = new NexaDesktopMessageRouter(paths, core);
             inGameBuildRouter = new NexaInGameBuildMessageRouter(paths, core);
+            profileLogRouter = new NexaProfileLogMessageRouter(paths, core);
             core.WebMessageReceived += OnWebMessageReceived;
             core.WindowCloseRequested += (_, _) => Close();
             core.NavigationStarting += (_, args) =>
@@ -91,6 +93,7 @@ public partial class MainWindow : Window
 
     private async void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs eventArgs)
     {
+        if (profileLogRouter is not null && await profileLogRouter.TryHandleAsync(eventArgs)) return;
         if (inGameBuildRouter is not null && await inGameBuildRouter.TryHandleAsync(eventArgs)) return;
         if (desktopRouter is not null && await desktopRouter.TryHandleAsync(eventArgs)) return;
         bridge?.OnWebMessageReceived(sender, eventArgs);
