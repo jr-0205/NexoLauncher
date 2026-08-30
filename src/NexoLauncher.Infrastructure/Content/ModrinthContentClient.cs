@@ -65,8 +65,9 @@ public sealed class ModrinthContentClient(HttpClient http)
         var file = version.Files.FirstOrDefault(item => item.Primary) ?? version.Files.FirstOrDefault()
             ?? throw new InvalidDataException("La versión compatible no contiene archivos descargables.");
         var folder = projectType switch { "resourcepack" => "resourcepacks", "shader" => "shaderpacks", "datapack" => "datapacks", _ => "mods" };
-        var destination = Path.Combine(Path.GetFullPath(gameDirectory), folder, Path.GetFileName(file.Filename));
-        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        var folderPath = Path.Combine(Path.GetFullPath(gameDirectory), folder);
+        var destination = Path.Combine(folderPath, Path.GetFileName(file.Filename));
+        Directory.CreateDirectory(folderPath);
         var temporary = destination + ".download";
         try
         {
@@ -82,10 +83,35 @@ public sealed class ModrinthContentClient(HttpClient http)
                 var actual = Convert.ToHexString(await SHA512.HashDataAsync(check, token)).ToLowerInvariant();
                 if (!string.Equals(actual, expected, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("La descarga no superó la verificación SHA-512.");
             }
+
+            // Sólo después de descargar y verificar reemplazamos la versión activa.
             File.Move(temporary, destination, true);
+            if (string.Equals(projectId, "fabric-api", StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(folder, "mods", StringComparison.OrdinalIgnoreCase))
+            {
+                RemoveStaleFabricApiJars(folderPath, destination);
+            }
             installed.Add(file.Filename);
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
+    }
+
+    private static void RemoveStaleFabricApiJars(string modsDirectory, string keepPath)
+    {
+        var normalizedKeep = Path.GetFullPath(keepPath);
+        foreach (var candidate in Directory.EnumerateFiles(modsDirectory, "fabric-api*.jar", SearchOption.TopDirectoryOnly))
+        {
+            var normalizedCandidate = Path.GetFullPath(candidate);
+            if (string.Equals(normalizedCandidate, normalizedKeep, StringComparison.OrdinalIgnoreCase)) continue;
+            try
+            {
+                var info = new FileInfo(normalizedCandidate);
+                if (info.Attributes.HasFlag(FileAttributes.ReparsePoint)) continue;
+                File.Delete(normalizedCandidate);
+            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
+        }
     }
 
     private static HttpRequestMessage CreateRequest(string url)
