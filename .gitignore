@@ -14,3 +14,6 @@ obj/
 appsettings.Local.json
 auth.local.json
 
+node_modules/
+dist/
+.npm/

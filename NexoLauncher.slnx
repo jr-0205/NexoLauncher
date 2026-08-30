@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/NexaLauncher.Desktop/NexaLauncher.Desktop.csproj" />
     <Project Path="src/NexoLauncher.App/NexoLauncher.App.csproj" />
     <Project Path="src/NexoLauncher.Application/NexoLauncher.Application.csproj" />
     <Project Path="src/NexoLauncher.Cli/NexoLauncher.Cli.csproj" />
