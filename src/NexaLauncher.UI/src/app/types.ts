@@ -94,6 +94,7 @@ export type InstalledContentEntry = {
   enabled: boolean;
   canToggle: boolean;
   isDirectory: boolean;
+  iconDataUrl?: string | null;
 };
 
 export type ContentCatalogProject = {
