@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text;
@@ -14,14 +15,31 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
     public MinecraftLaunchSession Launch(LaunchOptions options, LaunchPlan? plan = null)
     {
         Validate(options);
+        var preparation = Stopwatch.StartNew();
         using var metadata = JsonDocument.Parse(File.ReadAllBytes(paths.VersionJson(options.VersionId)));
         var root = metadata.RootElement;
         if (!root.TryGetProperty("arguments", out var arguments)) throw new NotSupportedException("Esta versión antigua aún no es compatible.");
         var gameDirectory = Path.GetFullPath(plan?.GameDirectory ?? paths.GameDirectory(options.VersionId));
         Directory.CreateDirectory(gameDirectory);
+
+        var nativesTimer = Stopwatch.StartNew();
         var nativesDirectory = PrepareNatives(root, gameDirectory, options.VersionId);
+        nativesTimer.Stop();
+
+        var classPathTimer = Stopwatch.StartNew();
         var classPath = BuildClassPath(root, options.VersionId, plan?.AdditionalClassPath);
+        classPathTimer.Stop();
+
         var values = Replacements(root, options, classPath, gameDirectory, nativesDirectory);
+        var declaredJvmArguments = CollectApplicableArguments(arguments.GetProperty("jvm"));
+        if (plan?.JvmArguments is not null) declaredJvmArguments.AddRange(plan.JvmArguments);
+        var performance = MinecraftPerformanceTuner.Create(
+            options.VersionId,
+            MetadataJavaMajor(root),
+            options.MemoryMiB,
+            declaredJvmArguments,
+            options.JvmArguments);
+
         var startInfo = new ProcessStartInfo
         {
             FileName = options.JavaExecutable,
@@ -31,8 +49,9 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
             RedirectStandardError = true,
             CreateNoWindow = true
         };
-        startInfo.ArgumentList.Add("-Xms512M");
+        startInfo.ArgumentList.Add($"-Xms{performance.InitialHeapMiB}M");
         startInfo.ArgumentList.Add($"-Xmx{options.MemoryMiB}M");
+        AddPlainArguments(startInfo, performance.JvmArguments, values);
         AddArguments(startInfo, arguments.GetProperty("jvm"), values);
         AddPlainArguments(startInfo, plan?.JvmArguments, values);
         AddPlainArguments(startInfo, options.JvmArguments, values);
@@ -41,26 +60,54 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
         AddArguments(startInfo, arguments.GetProperty("game"), values);
         AddPlainArguments(startInfo, plan?.GameArguments, values);
         AddWindowArguments(startInfo, options);
-        return StartCaptured(startInfo, options.VersionId, nativesDirectory);
+        preparation.Stop();
+        return StartCaptured(
+            startInfo,
+            options.VersionId,
+            nativesDirectory,
+            performance,
+            nativesTimer.Elapsed,
+            classPathTimer.Elapsed,
+            preparation.Elapsed);
     }
 
-    private MinecraftLaunchSession StartCaptured(ProcessStartInfo startInfo, string versionId, string nativesDirectory)
+    private MinecraftLaunchSession StartCaptured(
+        ProcessStartInfo startInfo,
+        string versionId,
+        string nativesDirectory,
+        MinecraftPerformancePlan performance,
+        TimeSpan nativesPreparation,
+        TimeSpan classPathPreparation,
+        TimeSpan totalPreparation)
     {
         var logs = paths.Logs;
         Directory.CreateDirectory(logs);
         var launchId = Guid.NewGuid().ToString("N");
         var logPath = Path.Combine(logs, $"minecraft-{SafeFileName(versionId)}-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}-{launchId[..8]}.log");
         var recent = new ConcurrentQueue<string>();
-        var writer = new StreamWriter(new FileStream(logPath, FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite)) { AutoFlush = true };
+        var logStream = new FileStream(
+            logPath,
+            FileMode.CreateNew,
+            FileAccess.Write,
+            FileShare.ReadWrite,
+            64 * 1024,
+            FileOptions.SequentialScan);
+        var writer = new StreamWriter(logStream, new UTF8Encoding(false), 16 * 1024) { AutoFlush = false };
         writer.WriteLine($"NEXO Client 0.5.2 · Minecraft {versionId}");
         writer.WriteLine($"Java: {startInfo.FileName}");
         writer.WriteLine($"Directorio: {startInfo.WorkingDirectory}");
         writer.WriteLine($"Natives: {nativesDirectory}");
+        writer.WriteLine($"Rendimiento: {performance.Summary}");
+        writer.WriteLine($"Preparación: natives {nativesPreparation.TotalMilliseconds:0} ms · classpath {classPathPreparation.TotalMilliseconds:0} ms · total {totalPreparation.TotalMilliseconds:0} ms");
+        writer.Flush();
 
         Process process;
         try
         {
             process = Process.Start(startInfo) ?? throw new InvalidOperationException("Windows no pudo iniciar Java.");
+            var appliedPriority = TryPromoteProcess(process, performance.Priority);
+            writer.WriteLine($"Prioridad del proceso: {(appliedPriority?.ToString() ?? "Normal (fallback)")}");
+            writer.Flush();
             File.WriteAllText(Path.Combine(nativesDirectory, ".nexo-owner.pid"), process.Id.ToString(System.Globalization.CultureInfo.InvariantCulture));
         }
         catch
@@ -70,6 +117,8 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
             throw;
         }
 
+        var flushCancellation = new CancellationTokenSource();
+        var periodicFlush = FlushPeriodicallyAsync(flushCancellation.Token);
         var completion = CompleteOutputAsync();
         return new MinecraftLaunchSession(process, logPath, nativesDirectory, completion, recent);
 
@@ -83,7 +132,15 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
             }
             finally
             {
-                lock (writer) writer.Dispose();
+                flushCancellation.Cancel();
+                try { await periodicFlush; }
+                catch (OperationCanceledException) { }
+                lock (writer)
+                {
+                    writer.Flush();
+                    writer.Dispose();
+                }
+                flushCancellation.Dispose();
                 TryDeleteDirectory(nativesDirectory);
             }
         }
@@ -97,6 +154,19 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
                 while (recent.Count > 60) recent.TryDequeue(out _);
                 lock (writer) writer.WriteLine(formatted);
             }
+        }
+
+        async Task FlushPeriodicallyAsync(CancellationToken token)
+        {
+            try
+            {
+                using var timer = new PeriodicTimer(TimeSpan.FromSeconds(1));
+                while (await timer.WaitForNextTickAsync(token))
+                {
+                    lock (writer) writer.Flush();
+                }
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         }
     }
 
@@ -220,6 +290,35 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
             info.ArgumentList.Add(Replace(argument, values));
     }
 
+    private static List<string> CollectApplicableArguments(JsonElement arguments)
+    {
+        var result = new List<string>();
+        foreach (var argument in arguments.EnumerateArray())
+        {
+            if (argument.ValueKind == JsonValueKind.String)
+            {
+                result.Add(argument.GetString()!);
+                continue;
+            }
+
+            if (argument.ValueKind != JsonValueKind.Object ||
+                !MinecraftRuleEvaluator.Allows(argument) ||
+                !argument.TryGetProperty("value", out var value)) continue;
+
+            if (value.ValueKind == JsonValueKind.String) result.Add(value.GetString()!);
+            else if (value.ValueKind == JsonValueKind.Array)
+                result.AddRange(value.EnumerateArray().Select(item => item.GetString()!).Where(item => item is not null)!);
+        }
+        return result;
+    }
+
+    private static int? MetadataJavaMajor(JsonElement root)
+    {
+        if (!root.TryGetProperty("javaVersion", out var javaVersion) ||
+            !javaVersion.TryGetProperty("majorVersion", out var major)) return null;
+        return major.TryGetInt32(out var value) ? value : null;
+    }
+
     private static void AddWindowArguments(ProcessStartInfo info, LaunchOptions options)
     {
         if (options.WindowWidth is > 0 && options.WindowHeight is > 0)
@@ -257,6 +356,19 @@ public sealed class MinecraftLauncher(MinecraftPaths paths)
     {
         foreach (var pair in replacements) value = value.Replace(pair.Key, pair.Value, StringComparison.Ordinal);
         return value;
+    }
+
+    private static ProcessPriorityClass? TryPromoteProcess(Process process, ProcessPriorityClass desired)
+    {
+        if (!OperatingSystem.IsWindows()) return null;
+        try
+        {
+            process.PriorityClass = desired;
+            return process.PriorityClass;
+        }
+        catch (Win32Exception) { return null; }
+        catch (InvalidOperationException) { return null; }
+        catch (NotSupportedException) { return null; }
     }
 
     private static void Validate(LaunchOptions options)
