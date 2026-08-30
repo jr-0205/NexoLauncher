@@ -4,9 +4,9 @@ Estado: primera fase integrada en NEXO 0.5.2.
 
 ## Objetivo
 
-Reducir trabajo que el launcher puede imponer al cliente de Minecraft sin aplicar flags experimentales, modificar mundos ni sobrescribir opciones gráficas del usuario.
+Reducir trabajo que el launcher puede imponer al cliente de Minecraft sin aplicar flags experimentales, modificar mundos ni degradar automáticamente toda la calidad visual.
 
-## Cambios automáticos
+## Cambios automáticos del launcher
 
 ### Logging desacoplado del frame loop
 
@@ -42,9 +42,48 @@ En Windows NEXO intenta ejecutar Java con prioridad `AboveNormal`. Si Windows no
 
 No se usa prioridad `High` ni `Realtime` porque pueden degradar la capacidad de respuesta del sistema.
 
+## NEXO Boost
+
+NEXO Boost instala, por instancia, optimizaciones compatibles con la versión exacta de Minecraft y el loader. Las descargas se resuelven desde Modrinth y se publican mediante staging/rollback.
+
+Los archivos administrados por Boost se registran por SHA-512. Al desactivar Boost, NEXO sólo elimina un archivo si continúa siendo exactamente el que instaló; un mod actualizado o modificado por el usuario se conserva.
+
+### Preset Equilibrado
+
+`NEXO Boost · Equilibrado (recomendado)` es el perfil visual predeterminado. Su objetivo es aumentar FPS sin convertir Minecraft en un preset de gráficos mínimos.
+
+Conserva deliberadamente:
+
+- modo gráfico actual;
+- ambient occlusion;
+- sombras de entidades;
+- nubes;
+- mipmaps;
+- partículas globales en `ALL`;
+- barrido de espada, críticos, indicador de daño, golpe encantado, tótem y corazones al 100%.
+
+Sólo limita cuando el valor actual excede el techo equilibrado:
+
+- render distance: máximo 12 chunks;
+- simulation distance: máximo 8 chunks;
+- entity distance scaling: máximo 0.85;
+- biome blend radius: máximo 2.
+
+El preset añade un módulo visual basado en Particle Core cuando existe una build compatible. Particle Core optimiza el pipeline de partículas y permite reducción por tipo. Cuando su archivo de configuración ya existe, NEXO reduce selectivamente partículas ambientales como goteos, lluvia, partículas submarinas, ceniza y esporas, sin reducir las señales de combate.
+
+La primera ejecución de Particle Core genera su configuración. Por eso, después del primer inicio con Boost, `Ctrl+B` o volver a elegir `NEXO Boost · Equilibrado` vuelve a aplicar el preset y afina automáticamente ese archivo.
+
+### Reversibilidad visual
+
+El preset registra únicamente los valores que administra. Al desactivar Boost:
+
+- un valor de `options.txt` se restaura sólo si todavía conserva el valor que NEXO aplicó;
+- una opción de Particle Core se restaura sólo si no fue modificada después;
+- cualquier cambio manual posterior del usuario se preserva.
+
 ## Diagnóstico
 
-Cada log de lanzamiento ahora registra:
+Cada log de lanzamiento registra:
 
 - Java utilizado;
 - resumen del perfil de rendimiento;
@@ -58,8 +97,4 @@ Esto permite separar dos problemas distintos:
 1. **arranque lento**: preparación, Java, loader o carga de mods;
 2. **FPS/tirones dentro del juego**: render, generación de chunks, mods, GPU/CPU o configuración del cliente.
 
-## Límites de esta fase
-
-Un launcher no puede transformar por sí solo el renderer de Minecraft. Para mejoras grandes de FPS, NEXO debe ofrecer en una fase posterior un flujo opcional de optimización por instancia que instale únicamente componentes compatibles con el loader y la versión seleccionados, con confirmación explícita y posibilidad de reversión.
-
-Ese flujo no debe modificar automáticamente perfiles existentes sin consentimiento.
+El objetivo de NEXO Performance es mejorar el segundo caso sin destruir la experiencia visual ni comprometer la integridad de la instancia.
