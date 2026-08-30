@@ -103,12 +103,13 @@ export default function App() {
         profiles: current.profiles.map((item) => item.id === result.profile.id ? result.profile : item),
         activeLaunch: { profileId: profile.id, pid: result.pid, logPath: result.logPath },
       } : current);
+      if (data?.closeLauncherOnGameStart) window.close();
     } catch (error) {
       setLaunchingProfileId(null);
       setOperation(null);
       showNotice(error instanceof Error ? error.message : "No se pudo iniciar Minecraft.", "error");
     }
-  }, [launchingProfileId, showNotice]);
+  }, [data?.closeLauncherOnGameStart, launchingProfileId, showNotice]);
 
   const replaceProfile = useCallback((profile: NexaProfile) => {
     setData((current) => current ? {
