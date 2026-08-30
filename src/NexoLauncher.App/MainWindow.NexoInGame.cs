@@ -1,19 +1,14 @@
-using System.Diagnostics;
 using System.IO;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using NexoLauncher.Domain.Instances;
-using NexoLauncher.Java.Selection;
+using NexoLauncher.Infrastructure.Content;
 
 namespace NexoLauncher.App;
 
 public partial class MainWindow
 {
-    private static readonly TimeSpan NexoInGameInstallTimeout = TimeSpan.FromMinutes(20);
-    private const string NexoInGameStagePrefix = "NEXO_STAGE|";
-
     private Button? rightShiftButton;
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -36,7 +31,7 @@ public partial class MainWindow
             Padding = new Thickness(12, 4, 12, 4),
             Margin = new Thickness(0, 8, 9, 0),
             FontSize = 10,
-            ToolTip = "Instalar NEXO In-Game para abrir el menú del cliente con Shift derecho dentro de Minecraft",
+            ToolTip = "Instalar el NEXO In-Game precompilado compatible con esta instancia",
             IsEnabled = false
         };
         rightShiftButton.SetResourceReference(Control.StyleProperty, "GhostButton");
@@ -66,7 +61,7 @@ public partial class MainWindow
         rightShiftButton.Content = installed ? "✓ RIGHT SHIFT" : "＋ RIGHT SHIFT";
         rightShiftButton.ToolTip = installed
             ? "NEXO In-Game ya está instalado. Shift derecho abre el menú dentro de Minecraft."
-            : "Añadir NEXO In-Game a esta instancia.";
+            : "Descargar/cargar una build precompilada de NEXO In-Game. No requiere Gradle ni compilar en este equipo.";
         rightShiftButton.IsEnabled = !busy && activeLaunch is null;
     }
 
@@ -98,16 +93,6 @@ public partial class MainWindow
         var instance = await instanceManager.GetAsync(item.Id, lifetime.Token);
         if (instance is null) return;
 
-        if (instance.Loader != LoaderType.Fabric || !string.Equals(instance.MinecraftVersion, "1.21.1", StringComparison.Ordinal))
-        {
-            MessageBox.Show(this,
-                "La primera build de NEXO In-Game está disponible para Fabric 1.21.1. NEXO no modificará ni convertirá automáticamente otras instancias.",
-                "NEXO In-Game",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
-        }
-
         if (IsNexoInGameInstalled(instance.Id))
         {
             MessageBox.Show(this,
@@ -118,164 +103,62 @@ public partial class MainWindow
             return;
         }
 
-        var java21 = JavaRuntimeSelector.Select(javaRuntimes.Where(IsRuntimeUsable).ToArray(), 21);
-        if (java21 is null)
-        {
-            await LoadJavaRuntimesAsync(lifetime.Token, forceRefresh: true);
-            java21 = JavaRuntimeSelector.Select(javaRuntimes.Where(IsRuntimeUsable).ToArray(), 21);
-        }
-
-        if (java21 is null)
-        {
-            MessageBox.Show(this,
-                "NEXO In-Game para Minecraft 1.21.1 necesita Java 21 para compilar. NEXO no detectó un Java 21 utilizable.",
-                "Java 21 requerido",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
-            return;
-        }
-
-        var script = FindRepositoryFile("tools", "install-nexo-ingame.ps1");
-        if (script is null)
-        {
-            MessageBox.Show(this,
-                "No se encontró el instalador de desarrollo de NEXO In-Game. Ejecuta esta build desde el repositorio NexoLauncher.",
-                "Instalador no disponible",
-                MessageBoxButton.OK,
-                MessageBoxImage.Error);
-            return;
-        }
-
         var confirmation = MessageBox.Show(this,
-            $"¿Añadir Right Shift a '{instance.Name}'?\n\n" +
-            "NEXO compilará su companion Fabric con Java 21, instalará el JAR en mods/ y añadirá Fabric API si hace falta. " +
-            "El primer build puede tardar varios minutos porque Gradle descarga dependencias.",
-            "Añadir NEXO In-Game",
+            $"¿Añadir NEXO In-Game a '{instance.Name}'?\n\n" +
+            "NEXO resolverá una build precompilada compatible con la versión de Minecraft y el loader, " +
+            "verificará SHA-256, la guardará en caché compartida y la copiará a mods/.\n\n" +
+            "No se descargará Gradle y no se compilará código en este equipo.",
+            "Añadir Right Shift",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question,
             MessageBoxResult.Yes);
         if (confirmation != MessageBoxResult.Yes) return;
 
-        Process? process = null;
-        var installLog = new StringBuilder();
-        var installLogLock = new object();
-
-        void CaptureInstallerLine(string? line)
-        {
-            if (string.IsNullOrWhiteSpace(line)) return;
-
-            lock (installLogLock)
-                installLog.AppendLine(line);
-
-            if (!line.StartsWith(NexoInGameStagePrefix, StringComparison.Ordinal)) return;
-            var stage = line[NexoInGameStagePrefix.Length..].Trim();
-            if (stage.Length == 0) return;
-
-            _ = Dispatcher.BeginInvoke(new Action(() =>
-            {
-                DetailSubtitle.Text = stage;
-                if (rightShiftButton is not null)
-                {
-                    rightShiftButton.Content = NexoInGameButtonText(stage);
-                    rightShiftButton.ToolTip = stage;
-                }
-            }), DispatcherPriority.Background);
-        }
-
-        string CurrentLog()
-        {
-            lock (installLogLock)
-                return installLog.ToString();
-        }
-
         try
         {
             SetBusy(true, $"Añadiendo Right Shift a {instance.Name}…");
-            rightShiftButton!.Content = "PREPARANDO…";
+            rightShiftButton!.Content = "RESOLVIENDO…";
             rightShiftButton.IsEnabled = false;
-            DetailSubtitle.Text = "Preparando NEXO In-Game…";
+            DetailSubtitle.Text = "Resolviendo build precompilada de NEXO In-Game…";
 
-            var startInfo = new ProcessStartInfo
+            var localArtifactRoot = FindRepositoryDirectory("artifacts", "nexo-ingame");
+            var service = new NexoInGameArtifactService(httpClient, contentCatalog, paths, localArtifactRoot);
+            var progress = new Progress<string>(message =>
             {
-                FileName = "powershell.exe",
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true
-            };
-            startInfo.ArgumentList.Add("-NoProfile");
-            startInfo.ArgumentList.Add("-ExecutionPolicy");
-            startInfo.ArgumentList.Add("Bypass");
-            startInfo.ArgumentList.Add("-File");
-            startInfo.ArgumentList.Add(script);
-            startInfo.ArgumentList.Add("-InstanceId");
-            startInfo.ArgumentList.Add(instance.Id.ToString());
-            startInfo.ArgumentList.Add("-JavaPath");
-            startInfo.ArgumentList.Add(java21.JavaExecutable);
-
-            process = new Process { StartInfo = startInfo };
-            process.OutputDataReceived += (_, args) => CaptureInstallerLine(args.Data);
-            process.ErrorDataReceived += (_, args) => CaptureInstallerLine(args.Data);
-
-            if (!process.Start())
-                throw new InvalidOperationException("Windows no pudo iniciar el instalador de NEXO In-Game.");
-
-            process.BeginOutputReadLine();
-            process.BeginErrorReadLine();
-
-            using var installTimeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
-            installTimeout.CancelAfter(NexoInGameInstallTimeout);
-
-            try
-            {
-                await process.WaitForExitAsync(installTimeout.Token);
-                // Garantiza que OutputDataReceived/ErrorDataReceived terminen de drenar.
-                process.WaitForExit();
-            }
-            catch (OperationCanceledException) when (!lifetime.IsCancellationRequested)
-            {
-                if (!process.HasExited)
+                DetailSubtitle.Text = message;
+                if (rightShiftButton is not null)
                 {
-                    try { process.Kill(entireProcessTree: true); } catch { }
+                    rightShiftButton.Content = NexoInGameButtonText(message);
+                    rightShiftButton.ToolTip = message;
                 }
+            });
 
-                var details = TailInstallerLog(CurrentLog());
-                throw new TimeoutException(
-                    $"La instalación de NEXO In-Game superó {NexoInGameInstallTimeout.TotalMinutes:0} minutos y NEXO la detuvo para evitar un bloqueo indefinido." +
-                    (details.Length == 0 ? string.Empty : "\n\nÚltimo registro:\n" + details));
-            }
+            var result = await service.InstallAsync(
+                instance,
+                instanceRepository.GetPaths(instance.Id).Game,
+                progress,
+                lifetime.Token);
 
-            var output = CurrentLog();
-            if (process.ExitCode != 0 || !IsNexoInGameInstalled(instance.Id))
-            {
-                var details = TailInstallerLog(output);
-                throw new InvalidOperationException(
-                    "NEXO In-Game no pudo instalarse correctamente." +
-                    (details.Length == 0 ? string.Empty : "\n\n" + details));
-            }
+            if (!IsNexoInGameInstalled(instance.Id))
+                throw new InvalidOperationException("NEXO In-Game terminó sin dejar un JAR válido dentro de mods/.");
 
-            DetailSubtitle.Text = "NEXO In-Game instalado · Right Shift listo";
+            DetailSubtitle.Text = $"NEXO In-Game {result.Version} instalado · Right Shift listo";
             MessageBox.Show(this,
-                "NEXO In-Game quedó instalado. Inicia Minecraft desde NEXO y pulsa Shift derecho dentro del juego para abrir el menú.",
+                $"NEXO In-Game {result.Version} quedó instalado.\n\n" +
+                (result.UsedCache ? "Se reutilizó la caché verificada de NEXO.\n\n" : string.Empty) +
+                "Inicia Minecraft y pulsa Shift derecho para abrir el menú. Ahí podrás cambiar entre Máximo FPS, Medio, Medio Alto y Alto.",
                 "Right Shift añadido",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
         }
-        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
-        {
-            if (process is { HasExited: false })
-            {
-                try { process.Kill(entireProcessTree: true); } catch { }
-            }
-        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            DetailSubtitle.Text = "No se pudo instalar NEXO In-Game";
-            MessageBox.Show(this, exception.Message, "NEXO In-Game", MessageBoxButton.OK, MessageBoxImage.Error);
+            DetailSubtitle.Text = "NEXO In-Game no está disponible para esta instancia";
+            MessageBox.Show(this, exception.Message, "NEXO In-Game", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
         finally
         {
-            process?.Dispose();
             SetBusy(false);
             RefreshButton();
             RefreshRightShiftButtonState();
@@ -284,22 +167,16 @@ public partial class MainWindow
 
     private static string NexoInGameButtonText(string stage)
     {
-        if (stage.Contains("Java", StringComparison.OrdinalIgnoreCase)) return "JAVA…";
-        if (stage.Contains("Gradle", StringComparison.OrdinalIgnoreCase)) return "GRADLE…";
-        if (stage.Contains("Compilando", StringComparison.OrdinalIgnoreCase)) return "COMPILANDO…";
-        if (stage.Contains("Fabric API", StringComparison.OrdinalIgnoreCase)) return "FABRIC API…";
-        if (stage.Contains("JAR", StringComparison.OrdinalIgnoreCase)) return "INSTALANDO…";
-        if (stage.Contains("Finalizando", StringComparison.OrdinalIgnoreCase)) return "FINALIZANDO…";
-        return "PREPARANDO…";
+        if (stage.Contains("cach", StringComparison.OrdinalIgnoreCase)) return "CACHÉ…";
+        if (stage.Contains("Descarg", StringComparison.OrdinalIgnoreCase)) return "DESCARGANDO…";
+        if (stage.Contains("SHA", StringComparison.OrdinalIgnoreCase)) return "VERIFICANDO…";
+        if (stage.Contains("dependencia", StringComparison.OrdinalIgnoreCase)) return "DEPENDENCIAS…";
+        if (stage.Contains("Instal", StringComparison.OrdinalIgnoreCase)) return "INSTALANDO…";
+        if (stage.Contains("listo", StringComparison.OrdinalIgnoreCase)) return "✓ RIGHT SHIFT";
+        return "RESOLVIENDO…";
     }
 
-    private static string TailInstallerLog(string value, int maximumLength = 6000)
-    {
-        value = value.Trim();
-        return value.Length <= maximumLength ? value : value[^maximumLength..];
-    }
-
-    private static string? FindRepositoryFile(params string[] relativeParts)
+    private static string? FindRepositoryDirectory(params string[] relativeParts)
     {
         foreach (var root in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
         {
@@ -310,7 +187,7 @@ public partial class MainWindow
             for (var depth = 0; directory is not null && depth < 12; depth++, directory = directory.Parent)
             {
                 var candidate = relativeParts.Aggregate(directory.FullName, Path.Combine);
-                if (File.Exists(candidate)) return candidate;
+                if (Directory.Exists(candidate)) return candidate;
             }
         }
 
