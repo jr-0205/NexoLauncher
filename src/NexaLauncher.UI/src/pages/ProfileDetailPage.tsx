@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Boxes, Check, FolderOpen, Gauge, ImagePlus, Loader2, Play, RotateCcw, Save, Sparkles, Trash2, X } from "lucide-react";
 import { applyBoost, deleteProfile, getBoostStatus, openProfileFolder, removeBoost, updateArtworkPlacement, updateProfile } from "../app/nexa-bridge";
@@ -54,13 +55,13 @@ export function ProfileDetailPage({ profile, launching, onLaunch, onContent, onU
 
   const shownIcon = removeIcon ? "./brand/nexa-mark.png" : iconDataUrl ?? profile.iconDataUrl ?? "./brand/nexa-mark.png";
   const shownBackground = removeBackground ? null : backgroundDataUrl ?? profile.backgroundDataUrl ?? null;
-  const heroStyle = shownBackground ? {
+  const heroStyle: CSSProperties | undefined = shownBackground ? {
     backgroundImage: `linear-gradient(90deg,rgba(6,10,17,.97) 0%,rgba(6,10,17,.72) 48%,rgba(6,10,17,.30) 100%),url(${shownBackground})`,
     backgroundPosition: `center, ${artwork.backgroundPositionX}% ${artwork.backgroundPositionY}%`,
     backgroundSize: `auto, ${artwork.backgroundFit}`,
     backgroundRepeat: "no-repeat, no-repeat",
   } : undefined;
-  const iconStyle = { objectFit: artwork.iconFit, objectPosition: `${artwork.iconPositionX}% ${artwork.iconPositionY}%` } as const;
+  const iconStyle: CSSProperties = { objectFit: artwork.iconFit, objectPosition: `${artwork.iconPositionX}% ${artwork.iconPositionY}%` };
 
   async function choose(kind: "icon" | "background", file?: File) {
     if (!file) return;
