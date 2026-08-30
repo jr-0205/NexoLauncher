@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useState } from "react";
 import { Archive, Check, ExternalLink, FolderOpen, Hammer, Loader2, RefreshCw, Save, ShieldCheck } from "lucide-react";
 import {
+  generateNexaInGameBuild,
   generateNexaInGameBuilds,
   getNexaInGameBuildLibrary,
   isNativeHost,
@@ -26,7 +27,9 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
   const [buildLibrary, setBuildLibrary] = useState<NexaInGameBuildLibrary | null>(null);
   const [loadingBuilds, setLoadingBuilds] = useState(false);
   const [building, setBuilding] = useState(false);
+  const [buildingTarget, setBuildingTarget] = useState<string | null>(null);
   const [confirmBuild, setConfirmBuild] = useState(false);
+  const [selectedBuild, setSelectedBuild] = useState<NexaInGameBuildEntry | null>(null);
 
   useEffect(() => setPlayerName(username), [username]);
   useEffect(() => setCloseOnLaunch(closeLauncherOnGameStart), [closeLauncherOnGameStart]);
@@ -86,6 +89,26 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
     }
   }
 
+  async function generateOne(build: NexaInGameBuildEntry) {
+    setSelectedBuild(null);
+    const key = buildKey(build);
+    setBuildingTarget(key);
+    try {
+      const result = await generateNexaInGameBuild(build.minecraftVersion, build.loader);
+      setBuildLibrary(await getNexaInGameBuildLibrary());
+      if (result.published) {
+        onNotice(`NEXA In-Game ${build.loader} ${build.minecraftVersion} compilada y publicada localmente.`, "success");
+      } else {
+        const detail = result.failures[0]?.message;
+        onNotice(`Falló ${build.loader} ${build.minecraftVersion}.${detail ? ` ${detail}` : ""}`, "error");
+      }
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : `No se pudo compilar ${build.loader} ${build.minecraftVersion}.`, "error");
+    } finally {
+      setBuildingTarget(null);
+    }
+  }
+
   async function openBuildFolder() {
     try {
       await openNexaInGameBuildFolder();
@@ -94,7 +117,8 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
     }
   }
 
-  const canBuild = Boolean(buildLibrary?.sourceAvailable && buildLibrary.targetCount > 0) && !building;
+  const anyBuildRunning = building || buildingTarget !== null;
+  const canBuild = Boolean(buildLibrary?.sourceAvailable && buildLibrary.targetCount > 0) && !anyBuildRunning;
 
   return (
     <section className="page settings-page">
@@ -131,12 +155,12 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
             <div>
               <span className="eyebrow">NEXA IN-GAME · BUILDS</span>
               <h2>Generador y biblioteca de builds</h2>
-              <p>Compila los JAR de NEXA In-Game desde <code>ingame/</code>, verifica cada artefacto y publica el resultado en el catálogo local que usa el launcher.</p>
+              <p>Compila sólo la versión que necesites desde su fila. “Generar todas” queda disponible para regenerar la matriz completa cuando realmente haga falta.</p>
             </div>
             <div className="build-manager-actions">
-              <button className="ghost-button" type="button" disabled={loadingBuilds || building || !isNativeHost()} onClick={refreshBuilds}><RefreshCw className={loadingBuilds ? "spin" : ""} size={15} /> ACTUALIZAR</button>
-              <button className="ghost-button" type="button" disabled={building || !isNativeHost()} onClick={openBuildFolder}><FolderOpen size={15} /> ABRIR CARPETA</button>
-              <button className="secondary-button" type="button" disabled={!canBuild} onClick={() => setConfirmBuild(true)}>{building ? <Loader2 className="spin" size={15} /> : <Hammer size={15} />} {building ? "COMPILANDO…" : "GENERAR BUILDS"}</button>
+              <button className="ghost-button" type="button" disabled={loadingBuilds || anyBuildRunning || !isNativeHost()} onClick={refreshBuilds}><RefreshCw className={loadingBuilds ? "spin" : ""} size={15} /> ACTUALIZAR</button>
+              <button className="ghost-button" type="button" disabled={anyBuildRunning || !isNativeHost()} onClick={openBuildFolder}><FolderOpen size={15} /> ABRIR CARPETA</button>
+              <button className="secondary-button" type="button" disabled={!canBuild} onClick={() => setConfirmBuild(true)}>{building ? <Loader2 className="spin" size={15} /> : <Hammer size={15} />} {building ? "COMPILANDO…" : "GENERAR TODAS"}</button>
             </div>
           </div>
 
@@ -160,11 +184,19 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
 
           <div className="build-library-shell">
             <div className="build-library-head">
-              <span>VERSIÓN</span><span>LOADER</span><span>NEXA IN-GAME</span><span>JAR</span><span>ESTADO</span>
+              <span>VERSIÓN</span><span>LOADER</span><span>NEXA IN-GAME</span><span>JAR</span><span>ESTADO</span><span>ACCIÓN</span>
             </div>
             {loadingBuilds && <div className="build-library-empty"><Loader2 className="spin" size={18} /> Leyendo catálogo local…</div>}
             {!loadingBuilds && (buildLibrary?.builds.length ?? 0) === 0 && <div className="build-library-empty">Todavía no hay objetivos ni builds registradas.</div>}
-            {!loadingBuilds && buildLibrary?.builds.map((build) => <BuildRow key={`${build.loader}-${build.minecraftVersion}-${build.nexaInGameVersion}`} build={build} />)}
+            {!loadingBuilds && buildLibrary?.builds.map((build) => (
+              <BuildRow
+                key={`${build.loader}-${build.minecraftVersion}-${build.nexaInGameVersion}`}
+                build={build}
+                busy={buildingTarget === buildKey(build)}
+                disabled={anyBuildRunning || !buildLibrary.sourceAvailable}
+                onBuild={() => setSelectedBuild(build)}
+              />
+            ))}
           </div>
           {buildLibrary?.lastPublishedAt && <div className="build-library-foot">Última publicación local: {formatDate(buildLibrary.lastPublishedAt)}</div>}
         </article>
@@ -188,12 +220,23 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
       <NexaDialog
         open={confirmBuild}
         tone="warning"
-        title="Generar builds NEXA In-Game"
-        description={`Se compilarán ${buildLibrary?.targetCount ?? 0} objetivo(s) desde ingame/. La primera ejecución puede descargar Gradle; después los perfiles reutilizan los JAR verificados y nunca ejecutan Gradle por su cuenta.`}
-        confirmLabel="GENERAR BUILDS"
+        title="Generar todas las builds NEXA In-Game"
+        description={`Se compilarán ${buildLibrary?.targetCount ?? 0} objetivo(s) desde ingame/. Usa esta opción sólo cuando necesites regenerar toda la matriz.`}
+        confirmLabel="GENERAR TODAS"
         busy={building}
         onConfirm={generateBuilds}
         onCancel={() => setConfirmBuild(false)}
+      />
+
+      <NexaDialog
+        open={selectedBuild !== null}
+        tone="info"
+        title={selectedBuild ? `Compilar ${selectedBuild.loader} ${selectedBuild.minecraftVersion}` : "Compilar build"}
+        description={selectedBuild ? `Sólo se compilará NEXA In-Game ${selectedBuild.nexaInGameVersion} para Minecraft ${selectedBuild.minecraftVersion} + ${selectedBuild.loader}. Las demás builds de la biblioteca no se tocarán.` : ""}
+        confirmLabel="COMPILAR ESTA"
+        busy={buildingTarget !== null}
+        onConfirm={() => selectedBuild && generateOne(selectedBuild)}
+        onCancel={() => setSelectedBuild(null)}
       />
     </section>
   );
@@ -203,7 +246,7 @@ function BuildMetric({ icon, label, value }: { icon: ReactNode; label: string; v
   return <div className="build-metric"><span>{icon}</span><div><small>{label}</small><strong>{value}</strong></div></div>;
 }
 
-function BuildRow({ build }: { build: NexaInGameBuildEntry }) {
+function BuildRow({ build, busy, disabled, onBuild }: { build: NexaInGameBuildEntry; busy: boolean; disabled: boolean; onBuild(): void }) {
   const published = build.status === "published" && build.exists;
   const planned = build.status === "planned";
   const state = published ? "PUBLICADA" : planned ? "PENDIENTE" : "SIN JAR";
@@ -215,8 +258,13 @@ function BuildRow({ build }: { build: NexaInGameBuildEntry }) {
       <span>{build.nexaInGameVersion}</span>
       <span className="build-file" title={build.fileName ?? undefined}>{build.fileName ?? "—"}{size}</span>
       <span className={`build-state ${published ? "published" : planned ? "planned" : "missing"}`}>{state}</span>
+      <button className="build-row-action" type="button" disabled={disabled} onClick={onBuild}>{busy ? <Loader2 className="spin" size={12} /> : <Hammer size={12} />}{busy ? "COMPILANDO" : published ? "RECOMPILAR" : "COMPILAR"}</button>
     </div>
   );
+}
+
+function buildKey(build: NexaInGameBuildEntry) {
+  return `${build.loader.toLowerCase()}::${build.minecraftVersion}`;
 }
 
 function formatBytes(value: number) {
