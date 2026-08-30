@@ -34,6 +34,10 @@ public partial class MainWindow
         foreach (var button in new[] { LibraryNavButton, InstallNavButton, ContentNavButton, SettingsNavButton })
             button.Click += (_, _) => _ = Dispatcher.BeginInvoke(UpdateProductionNavigation, DispatcherPriority.ContextIdle);
 
+        foreach (var panel in new FrameworkElement[] { LibraryPanel, InstallPanel, ContentPanel, SettingsPanel })
+            panel.IsVisibleChanged += (_, _) => _ = Dispatcher.BeginInvoke(UpdateProductionNavigation, DispatcherPriority.ContextIdle);
+
+        ContentInstanceBox.SelectionChanged += (_, _) => _ = Dispatcher.BeginInvoke(NormalizeContentLanguage, DispatcherPriority.ContextIdle);
         _ = Dispatcher.BeginInvoke(UpdateProductionNavigation, DispatcherPriority.ContextIdle);
     }
 
@@ -57,7 +61,8 @@ public partial class MainWindow
                 Source = System.Windows.Application.Current.TryFindResource("Nexo.BrandMark") as ImageSource,
                 Stretch = Stretch.Uniform,
                 ToolTip = "NEXO Client",
-                SnapsToDevicePixels = true
+                SnapsToDevicePixels = true,
+                RenderTransformOrigin = new Point(0.5, 0.5)
             });
         }
 
@@ -193,16 +198,32 @@ public partial class MainWindow
 
         ContentProfileNameText.FontSize = 27;
         ContentProfileMetaText.SetResourceReference(TextBlock.ForegroundProperty, "Nexo.TextMuted");
-        ContentProfileMetaText.Text = ContentProfileMetaText.Text.Replace("instancia", "perfil", StringComparison.OrdinalIgnoreCase);
 
         ContentPlayButton.SetResourceReference(Control.StyleProperty, "Nexo.PrimaryButton");
         AddContentFilesButton.SetResourceReference(Control.StyleProperty, "Nexo.SecondaryButton");
         AddContentFilesButton.Content = "＋  AÑADIR";
         ImportModpackButton.SetResourceReference(Control.StyleProperty, "Nexo.PrimaryButton");
-        ImportModpackButton.Content = "IMPORTAR MODPACK";
         ContentInstanceBox.SetResourceReference(Control.StyleProperty, "Nexo.ComboBox");
         ContentTypeBox.SetResourceReference(Control.StyleProperty, "Nexo.ComboBox");
         ContentSearchBox.SetResourceReference(Control.StyleProperty, "Nexo.Field");
+
+        foreach (var text in EnumerateVisualChildren<TextBlock>(root))
+        {
+            if (string.Equals(text.Text, "Instancia", StringComparison.Ordinal)) text.Text = "Perfil";
+            else if (text.Text.Contains("instancia", StringComparison.OrdinalIgnoreCase))
+                text.Text = text.Text.Replace("instancia", "perfil", StringComparison.OrdinalIgnoreCase);
+        }
+
+        foreach (var button in EnumerateVisualChildren<Button>(root))
+        {
+            if (button.Content is not string label) continue;
+            if (label is "CATÁLOGO" or "ARCHIVOS" or "MUNDOS" or "LOGS")
+            {
+                button.SetResourceReference(Control.StyleProperty, label == "CATÁLOGO" ? "Nexo.SecondaryButton" : "Nexo.GhostButton");
+                button.Height = 38;
+                button.Padding = new Thickness(14, 7, 14, 7);
+            }
+        }
 
         var filters = root.Children.OfType<Border>().FirstOrDefault(value => Grid.GetRow(value) == 1);
         if (filters is not null)
@@ -216,6 +237,13 @@ public partial class MainWindow
         }
 
         ContentResultsList.Margin = new Thickness(0, 2, 0, 0);
+        NormalizeContentLanguage();
+    }
+
+    private void NormalizeContentLanguage()
+    {
+        if (ContentProfileMetaText is null) return;
+        ContentProfileMetaText.Text = ContentProfileMetaText.Text.Replace("instancia", "perfil", StringComparison.OrdinalIgnoreCase);
     }
 
     private void ConfigureLibraryExperience()
@@ -234,7 +262,7 @@ public partial class MainWindow
         else if (InstallPanel.Visibility == Visibility.Visible) { active = InstallNavButton; title = "Crear perfil"; }
         else { active = LibraryNavButton; title = "Biblioteca"; }
 
-        productionPageTitle!.Text = title;
+        if (productionPageTitle is not null) productionPageTitle.Text = title;
         foreach (var button in new[] { LibraryNavButton, InstallNavButton, ContentNavButton, SettingsNavButton })
         {
             var isActive = ReferenceEquals(button, active);
