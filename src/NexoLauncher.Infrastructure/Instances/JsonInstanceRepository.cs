@@ -193,7 +193,7 @@ public sealed class JsonInstanceRepository : IInstanceRepository
         {
             var relative = Path.GetRelativePath(root, manifest);
             var segments = relative.Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
-            if (segments.Length == 0 || segments[0].StartsWith('.', StringComparison.Ordinal)) continue;
+            if (segments.Length == 0 || segments[0].StartsWith(".", StringComparison.Ordinal)) continue;
 
             // Layout actual: <GUID>/instance.json. Layout inmediatamente anterior:
             // <Loader>/<Nombre visible>/instance.json. Nada dentro de game/, backups/ o
