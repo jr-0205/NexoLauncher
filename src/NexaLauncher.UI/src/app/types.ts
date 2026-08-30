@@ -49,6 +49,34 @@ export type BootstrapData = {
   activeLaunch?: ActiveLaunch | null;
 };
 
+export type NexaAccountSkin = {
+  id: string;
+  url: string;
+  variant: string;
+  active: boolean;
+};
+
+export type NexaAccountCape = {
+  id: string;
+  url: string;
+  alias: string;
+  active: boolean;
+};
+
+export type NexaAccountState = {
+  configured: boolean;
+  signedIn: boolean;
+  premium: boolean;
+  minecraftId?: string | null;
+  minecraftName?: string | null;
+  microsoftAccount?: string | null;
+  skins: NexaAccountSkin[];
+  capes: NexaAccountCape[];
+  activeSkinUrl?: string | null;
+  activeSkinVariant?: string | null;
+  message?: string | null;
+};
+
 export type MinecraftVersionItem = {
   id: string;
   releaseTime: string;
