@@ -93,6 +93,7 @@
                         <Popup x:Name="PART_Popup"
                                IsOpen="{TemplateBinding IsDropDownOpen}"
                                Placement="Bottom"
+                               PlacementTarget="{Binding ElementName=DropDownToggle}"
                                AllowsTransparency="True"
                                PopupAnimation="Fade"
                                Focusable="False">
@@ -102,6 +103,7 @@
                                     CornerRadius="10"
                                     Padding="3"
                                     Margin="0,5,0,0"
+                                    Width="{Binding ActualWidth, ElementName=DropDownToggle}"
                                     MinWidth="180"
                                     MaxHeight="320">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -127,20 +129,25 @@
 
     <Style TargetType="ScrollBar">
         <Setter Property="Width" Value="9"/>
+        <Setter Property="Height" Value="9"/>
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ScrollBar">
                     <Grid Background="Transparent" Margin="2">
-                        <Track x:Name="PART_Track" IsDirectionReversed="True" Focusable="False">
+                        <Track x:Name="PART_Track"
+                               Orientation="{TemplateBinding Orientation}"
+                               IsDirectionReversed="True"
+                               ViewportSize="{TemplateBinding ViewportSize}"
+                               Focusable="False">
                             <Track.DecreaseRepeatButton>
-                                <RepeatButton Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False" IsTabStop="False"/>
+                                <RepeatButton x:Name="DecreaseButton" Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False" IsTabStop="False"/>
                             </Track.DecreaseRepeatButton>
                             <Track.Thumb>
                                 <Thumb>
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
-                                            <Border x:Name="ThumbChrome" Background="#38506F" CornerRadius="4"/>
+                                            <Border x:Name="ThumbChrome" Background="#38506F" CornerRadius="4" MinWidth="5" MinHeight="20"/>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
                                                     <Setter TargetName="ThumbChrome" Property="Background" Value="#5B8CFF"/>
@@ -151,10 +158,17 @@
                                 </Thumb>
                             </Track.Thumb>
                             <Track.IncreaseRepeatButton>
-                                <RepeatButton Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False" IsTabStop="False"/>
+                                <RepeatButton x:Name="IncreaseButton" Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False" IsTabStop="False"/>
                             </Track.IncreaseRepeatButton>
                         </Track>
                     </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="Orientation" Value="Horizontal">
+                            <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/>
+                            <Setter TargetName="DecreaseButton" Property="Command" Value="ScrollBar.PageLeftCommand"/>
+                            <Setter TargetName="IncreaseButton" Property="Command" Value="ScrollBar.PageRightCommand"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
