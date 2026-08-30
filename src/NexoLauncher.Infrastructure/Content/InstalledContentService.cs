@@ -104,10 +104,7 @@ public sealed class InstalledContentService
         if (entry.IsDirectory)
         {
             if (!Directory.Exists(path)) return;
-            var info = new DirectoryInfo(path);
-            if (info.Attributes.HasFlag(FileAttributes.ReparsePoint))
-                throw new InvalidDataException("NEXO no elimina directorios enlazados o junctions.");
-            EnsureTreeContainsNoReparsePoints(path);
+            EnsureDirectoryTreeIsPhysical(path);
             Directory.Delete(path, recursive: true);
         }
         else
@@ -172,13 +169,19 @@ public sealed class InstalledContentService
         return candidate;
     }
 
-    private static void EnsureTreeContainsNoReparsePoints(string root)
+    private static void EnsureDirectoryTreeIsPhysical(string root)
     {
-        foreach (var directory in Directory.EnumerateDirectories(root, "*", SearchOption.AllDirectories))
-            if (new DirectoryInfo(directory).Attributes.HasFlag(FileAttributes.ReparsePoint))
-                throw new InvalidDataException("NEXO no elimina contenido que contiene enlaces o junctions.");
-        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+        var info = new DirectoryInfo(root);
+        if (info.Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new InvalidDataException("NEXO no elimina directorios enlazados o junctions.");
+
+        foreach (var file in Directory.EnumerateFiles(root, "*", SearchOption.TopDirectoryOnly))
+        {
             if (new FileInfo(file).Attributes.HasFlag(FileAttributes.ReparsePoint))
                 throw new InvalidDataException("NEXO no elimina contenido que contiene archivos enlazados.");
+        }
+
+        foreach (var directory in Directory.EnumerateDirectories(root, "*", SearchOption.TopDirectoryOnly))
+            EnsureDirectoryTreeIsPhysical(directory);
     }
 }
