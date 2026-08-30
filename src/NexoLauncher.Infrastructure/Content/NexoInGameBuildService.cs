@@ -28,10 +28,9 @@ public sealed record NexoInGameBuildResult(
     IReadOnlyList<NexoInGameBuildFailure> Failures);
 
 /// <summary>
-/// Herramienta de desarrollo local para producir los JAR de NEXO In-Game una sola vez.
-/// Las builds terminadas se guardan bajo launcher/nexo-ingame y se publican en un
-/// catalogo local verificado. Las instalaciones de usuario consumen esos artefactos;
-/// nunca compilan Gradle por instancia.
+/// Herramienta de desarrollo local para producir JAR de NEXA In-Game.
+/// Las builds verificadas se guardan en launcher/nexo-ingame y los perfiles
+/// consumen esos artefactos sin ejecutar Gradle por instancia.
 /// </summary>
 public sealed class NexoInGameBuildService
 {
@@ -70,12 +69,9 @@ public sealed class NexoInGameBuildService
             if (!File.Exists(buildFile) || !File.Exists(propertiesFile)) continue;
 
             var properties = ReadProperties(propertiesFile);
-            if (!properties.TryGetValue("minecraft_version", out var minecraftVersion) || string.IsNullOrWhiteSpace(minecraftVersion))
-                continue;
-            if (!properties.TryGetValue("mod_version", out var modVersion) || string.IsNullOrWhiteSpace(modVersion))
-                continue;
-            if (!properties.TryGetValue("archives_base_name", out var archiveBaseName) || string.IsNullOrWhiteSpace(archiveBaseName))
-                continue;
+            if (!properties.TryGetValue("minecraft_version", out var minecraftVersion) || string.IsNullOrWhiteSpace(minecraftVersion)) continue;
+            if (!properties.TryGetValue("mod_version", out var modVersion) || string.IsNullOrWhiteSpace(modVersion)) continue;
+            if (!properties.TryGetValue("archives_base_name", out var archiveBaseName) || string.IsNullOrWhiteSpace(archiveBaseName)) continue;
 
             var loader = properties.TryGetValue("nexo_loader", out var configuredLoader) && !string.IsNullOrWhiteSpace(configuredLoader)
                 ? NormalizeLoader(configuredLoader)
@@ -122,8 +118,40 @@ public sealed class NexoInGameBuildService
         if (targets.Count == 0)
             throw new InvalidOperationException("No se encontraron proyectos compilables de NEXO In-Game.");
 
+        return await BuildTargetsAsync(targets, javaResolver, replaceCatalog: true, progress, token);
+    }
+
+    public async Task<NexoInGameBuildResult> BuildOneAsync(
+        string repositoryRoot,
+        string minecraftVersion,
+        string loader,
+        Func<int, string?> javaResolver,
+        IProgress<string>? progress = null,
+        CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(javaResolver);
+        repositoryRoot = Path.GetFullPath(repositoryRoot);
+        minecraftVersion = minecraftVersion?.Trim() ?? string.Empty;
+        loader = NormalizeLoader(loader);
+
+        var target = DiscoverTargets(repositoryRoot).FirstOrDefault(candidate =>
+            string.Equals(candidate.MinecraftVersion, minecraftVersion, StringComparison.Ordinal) &&
+            string.Equals(candidate.Loader, loader, StringComparison.OrdinalIgnoreCase));
+        if (target is null)
+            throw new NotSupportedException($"No existe un proyecto NEXA In-Game compilable para Minecraft {minecraftVersion} + {loader}.");
+
+        return await BuildTargetsAsync([target], javaResolver, replaceCatalog: false, progress, token);
+    }
+
+    private async Task<NexoInGameBuildResult> BuildTargetsAsync(
+        IReadOnlyList<NexoInGameBuildTarget> targets,
+        Func<int, string?> javaResolver,
+        bool replaceCatalog,
+        IProgress<string>? progress,
+        CancellationToken token)
+    {
         Directory.CreateDirectory(OutputRoot);
-        var catalogArtifacts = new List<NexoInGameArtifact>();
+        var artifacts = new List<NexoInGameArtifact>(targets.Count);
         var failures = new List<NexoInGameBuildFailure>();
 
         foreach (var target in targets)
@@ -131,47 +159,7 @@ public sealed class NexoInGameBuildService
             token.ThrowIfCancellationRequested();
             try
             {
-                progress?.Report($"Preparando {target.Loader} {target.MinecraftVersion}...");
-                var javaExecutable = javaResolver(target.JavaMajor);
-                if (string.IsNullOrWhiteSpace(javaExecutable) || !File.Exists(javaExecutable))
-                    throw new InvalidOperationException($"No hay un Java {target.JavaMajor} utilizable para compilar esta build.");
-
-                var gradle = await EnsureGradleAsync(target.GradleVersion, progress, token);
-                await RunGradleBuildAsync(gradle, target, javaExecutable, progress, token);
-
-                var builtJar = FindBuiltJar(target.ProjectDirectory);
-                progress?.Report($"Empaquetando {target.Loader} {target.MinecraftVersion}...");
-                var relativePath = Path.Combine(
-                    target.NexoInGameVersion,
-                    target.Loader.ToLowerInvariant(),
-                    target.MinecraftVersion,
-                    target.FileName);
-                var destination = SafeChild(OutputRoot, relativePath);
-                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                var temporary = destination + ".tmp";
-                try
-                {
-                    File.Copy(builtJar, temporary, true);
-                    var sha256 = await ComputeSha256Async(temporary, token);
-                    File.Move(temporary, destination, true);
-
-                    catalogArtifacts.Add(new NexoInGameArtifact(
-                        target.MinecraftVersion,
-                        target.Loader,
-                        target.NexoInGameVersion,
-                        "published",
-                        target.FileName,
-                        Path.GetRelativePath(OutputRoot, destination).Replace('\\', '/'),
-                        null,
-                        sha256,
-                        DateTimeOffset.UtcNow,
-                        target.Dependencies));
-                    progress?.Report($"OK {target.Loader} {target.MinecraftVersion}: {target.FileName}");
-                }
-                finally
-                {
-                    if (File.Exists(temporary)) File.Delete(temporary);
-                }
+                artifacts.Add(await BuildTargetAsync(target, javaResolver, progress, token));
             }
             catch (OperationCanceledException)
             {
@@ -180,29 +168,95 @@ public sealed class NexoInGameBuildService
             catch (Exception exception)
             {
                 failures.Add(new NexoInGameBuildFailure(target.MinecraftVersion, target.Loader, exception.Message));
-                catalogArtifacts.Add(new NexoInGameArtifact(
-                    target.MinecraftVersion,
-                    target.Loader,
-                    target.NexoInGameVersion,
-                    "planned",
-                    target.FileName,
-                    Path.Combine(
-                        target.NexoInGameVersion,
-                        target.Loader.ToLowerInvariant(),
-                        target.MinecraftVersion,
-                        target.FileName).Replace('\\', '/'),
-                    null,
-                    string.Empty,
-                    null,
-                    target.Dependencies));
+                artifacts.Add(PlannedArtifact(target));
                 progress?.Report($"Fallo {target.Loader} {target.MinecraftVersion}: {FirstLine(exception.Message)}");
             }
         }
 
-        var catalog = new NexoInGameArtifactCatalog(NexoInGameArtifactService.CatalogSchema, catalogArtifacts);
-        await WriteCatalogAsync(catalog, token);
-        return new NexoInGameBuildResult(OutputRoot, catalogArtifacts, failures);
+        IReadOnlyList<NexoInGameArtifact> catalogArtifacts;
+        if (replaceCatalog)
+        {
+            catalogArtifacts = artifacts;
+        }
+        else
+        {
+            var selectedKeys = targets.Select(target => BuildKey(target.MinecraftVersion, target.Loader)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var existing = LoadOutputCatalog()?.Artifacts ?? [];
+            catalogArtifacts = existing
+                .Where(artifact => !selectedKeys.Contains(BuildKey(artifact.MinecraftVersion, artifact.Loader)))
+                .Concat(artifacts)
+                .OrderBy(artifact => artifact.Loader, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(artifact => artifact.MinecraftVersion, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+
+        await WriteCatalogAsync(new NexoInGameArtifactCatalog(NexoInGameArtifactService.CatalogSchema, catalogArtifacts), token);
+        return new NexoInGameBuildResult(OutputRoot, artifacts, failures);
     }
+
+    private async Task<NexoInGameArtifact> BuildTargetAsync(
+        NexoInGameBuildTarget target,
+        Func<int, string?> javaResolver,
+        IProgress<string>? progress,
+        CancellationToken token)
+    {
+        progress?.Report($"Preparando {target.Loader} {target.MinecraftVersion}...");
+        var javaExecutable = javaResolver(target.JavaMajor);
+        if (string.IsNullOrWhiteSpace(javaExecutable) || !File.Exists(javaExecutable))
+            throw new InvalidOperationException($"No hay un Java {target.JavaMajor} utilizable para compilar esta build.");
+
+        var gradle = await EnsureGradleAsync(target.GradleVersion, progress, token);
+        await RunGradleBuildAsync(gradle, target, javaExecutable, progress, token);
+
+        var builtJar = FindBuiltJar(target.ProjectDirectory);
+        progress?.Report($"Empaquetando {target.Loader} {target.MinecraftVersion}...");
+        var relativePath = Path.Combine(
+            target.NexoInGameVersion,
+            target.Loader.ToLowerInvariant(),
+            target.MinecraftVersion,
+            target.FileName);
+        var destination = SafeChild(OutputRoot, relativePath);
+        Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+        var temporary = destination + ".tmp";
+        try
+        {
+            File.Copy(builtJar, temporary, true);
+            var sha256 = await ComputeSha256Async(temporary, token);
+            File.Move(temporary, destination, true);
+            progress?.Report($"OK {target.Loader} {target.MinecraftVersion}: {target.FileName}");
+            return new NexoInGameArtifact(
+                target.MinecraftVersion,
+                target.Loader,
+                target.NexoInGameVersion,
+                "published",
+                target.FileName,
+                Path.GetRelativePath(OutputRoot, destination).Replace('\\', '/'),
+                null,
+                sha256,
+                DateTimeOffset.UtcNow,
+                target.Dependencies);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
+    }
+
+    private static NexoInGameArtifact PlannedArtifact(NexoInGameBuildTarget target) => new(
+        target.MinecraftVersion,
+        target.Loader,
+        target.NexoInGameVersion,
+        "planned",
+        target.FileName,
+        Path.Combine(
+            target.NexoInGameVersion,
+            target.Loader.ToLowerInvariant(),
+            target.MinecraftVersion,
+            target.FileName).Replace('\\', '/'),
+        null,
+        string.Empty,
+        null,
+        target.Dependencies);
 
     private async Task<string> EnsureGradleAsync(string version, IProgress<string>? progress, CancellationToken token)
     {
@@ -391,6 +445,21 @@ public sealed class NexoInGameBuildService
         }
     }
 
+    private NexoInGameArtifactCatalog? LoadOutputCatalog()
+    {
+        var path = Path.Combine(OutputRoot, "catalog.json");
+        if (!File.Exists(path)) return null;
+        try
+        {
+            var catalog = JsonSerializer.Deserialize<NexoInGameArtifactCatalog>(File.ReadAllText(path), Json);
+            return catalog?.SchemaVersion == NexoInGameArtifactService.CatalogSchema ? catalog : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
     private async Task WriteCatalogAsync(NexoInGameArtifactCatalog catalog, CancellationToken token)
     {
         Directory.CreateDirectory(OutputRoot);
@@ -435,6 +504,9 @@ public sealed class NexoInGameBuildService
                      ?? throw new InvalidDataException("No se pudo inferir el loader del proyecto NEXO In-Game.");
         return NormalizeLoader(prefix);
     }
+
+    private static string BuildKey(string minecraftVersion, string loader) =>
+        $"{loader.Trim().ToLowerInvariant()}::{minecraftVersion.Trim()}";
 
     private static HttpRequestMessage CreateRequest(Uri uri)
     {
