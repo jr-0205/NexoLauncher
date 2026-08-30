@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "nexo_ingame",
+  "version": "${version}",
+  "name": "NEXO In-Game",
+  "description": "Cliente companion de NEXO con menú modular, HUD y QoL propios.",
+  "authors": ["NEXO"],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.nexoclient.ingame.NexoClientMod"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.16.11",
+    "minecraft": "~1.21.1",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
