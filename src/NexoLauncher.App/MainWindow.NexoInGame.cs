@@ -16,6 +16,7 @@ public partial class MainWindow
         base.OnSourceInitialized(e);
         _ = Dispatcher.InvokeAsync(() =>
         {
+            InitializeProfileWizardEntryPoints();
             InitializeNexoInGameButton();
             InitializeNexoInGameBuildTools();
         }, DispatcherPriority.Loaded);
