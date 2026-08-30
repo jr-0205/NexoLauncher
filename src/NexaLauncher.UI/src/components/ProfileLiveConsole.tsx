@@ -120,7 +120,7 @@ export function ProfileLiveConsole({ profile, running, onNotice }: Props) {
         : `ERROR · CÓDIGO ${exitCode}`;
 
   return (
-    <section className="profile-live-console profile-live-console-inline glass-panel" aria-label={`Logs en vivo de ${profile.name}`}>
+    <section className="profile-live-console profile-live-console-inline" aria-label={`Logs en vivo de ${profile.name}`}>
       <header className="live-console-heading">
         <div className="live-console-title">
           <Terminal size={18} />
