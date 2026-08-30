@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net;
+using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Windows;
 using Microsoft.Web.WebView2.Core;
@@ -10,7 +11,9 @@ namespace NexaLauncher.Desktop;
 
 public partial class MainWindow : Window
 {
+    private const int MaxPreviewBytes = 2 * 1024 * 1024;
     private readonly NexoPaths paths = NexoPaths.ForCurrentUser();
+    private readonly HttpClient previewHttp = new() { Timeout = TimeSpan.FromSeconds(15) };
     private NexaBridge? bridge;
 
     public MainWindow()
@@ -55,6 +58,10 @@ public partial class MainWindow : Window
                 if (IsApprovedExternalLink(args.Uri)) OpenExternal(args.Uri);
             };
 
+            core.AddWebResourceRequestedFilter("https://cdn.modrinth.com/*", CoreWebView2WebResourceContext.Image);
+            core.AddWebResourceRequestedFilter("https://cdn-raw.modrinth.com/*", CoreWebView2WebResourceContext.Image);
+            core.WebResourceRequested += async (_, args) => await ProxyCatalogImageAsync(environment, args);
+
             var devUrl = Environment.GetEnvironmentVariable("NEXA_UI_DEV_URL");
             if (!string.IsNullOrWhiteSpace(devUrl)) { core.Navigate(devUrl); return; }
 
@@ -76,6 +83,53 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(this, "NEXA no pudo inicializar la nueva interfaz React.\n\n" + exception.Message, "NEXA · Error de interfaz", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private async Task ProxyCatalogImageAsync(CoreWebView2Environment environment, CoreWebView2WebResourceRequestedEventArgs args)
+    {
+        if (!IsApprovedCatalogImage(args.Request.Uri)) return;
+        var deferral = args.GetDeferral();
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, args.Request.Uri);
+            request.Headers.UserAgent.ParseAdd("NEXA-Client/0.5.2");
+            using var response = await previewHttp.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            if (!response.IsSuccessStatusCode) return;
+
+            var mediaType = response.Content.Headers.ContentType?.MediaType?.ToLowerInvariant();
+            if (mediaType is not ("image/png" or "image/jpeg" or "image/webp" or "image/gif" or "image/avif")) return;
+            if (response.Content.Headers.ContentLength is > MaxPreviewBytes) return;
+
+            await using var input = await response.Content.ReadAsStreamAsync();
+            using var output = new MemoryStream();
+            var buffer = new byte[16 * 1024];
+            while (true)
+            {
+                var read = await input.ReadAsync(buffer);
+                if (read == 0) break;
+                if (output.Length + read > MaxPreviewBytes) return;
+                await output.WriteAsync(buffer.AsMemory(0, read));
+            }
+
+            var bytes = output.ToArray();
+            var stream = new MemoryStream(bytes, writable: false);
+            var headers = $"Content-Type: {mediaType}\r\nCache-Control: public, max-age=3600\r\nAccess-Control-Allow-Origin: *\r\nCross-Origin-Resource-Policy: cross-origin\r\n";
+            args.Response = environment.CreateWebResourceResponse(stream, 200, "OK", headers);
+        }
+        catch (HttpRequestException) { }
+        catch (TaskCanceledException) { }
+        catch (IOException) { }
+        finally
+        {
+            deferral.Complete();
+        }
+    }
+
+    private static bool IsApprovedCatalogImage(string? value)
+    {
+        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps) return false;
+        return string.Equals(uri.Host, "cdn.modrinth.com", StringComparison.OrdinalIgnoreCase) ||
+               string.Equals(uri.Host, "cdn-raw.modrinth.com", StringComparison.OrdinalIgnoreCase);
     }
 
     private static IReadOnlyList<string> FindMissingBundleAssets(string uiRoot, string indexPath)
