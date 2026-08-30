@@ -39,7 +39,10 @@ internal static class MessageBox
 
         if (button == MessageBoxButton.YesNo)
         {
-            var accepted = NexoDialog.Confirm(owner, caption, messageBoxText, "SÍ", "NO");
+            var destructive = icon is MessageBoxImage.Warning or MessageBoxImage.Error;
+            var accepted = destructive
+                ? NexoDialog.ConfirmDanger(owner, caption, messageBoxText, "SÍ", "NO")
+                : NexoDialog.Confirm(owner, caption, messageBoxText, "SÍ", "NO");
             return accepted ? MessageBoxResult.Yes : MessageBoxResult.No;
         }
 
