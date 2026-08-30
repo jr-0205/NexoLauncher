@@ -8,6 +8,11 @@
   max-width: none;
   max-height: none;
 }
+.continue-panel[style] {
+  background-position: center, var(--nexa-bg-position, 50% 50%) !important;
+  background-size: auto, var(--nexa-bg-fit, cover) !important;
+  background-repeat: no-repeat, no-repeat !important;
+}
 
 .boost-meta {
   display: inline-flex !important;
