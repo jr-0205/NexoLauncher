@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using NexoLauncher.Java;
 using NexoLauncher.Java.Compatibility;
+using NexoLauncher.Java.Selection;
 
 namespace NexoLauncher.App;
 
@@ -21,16 +22,17 @@ public partial class JavaRuntimeDialog : Window
 
         RequirementText.Text = requiredMajor is > 0
             ? $"Minecraft requiere Java {requiredMajor}"
-            : "Minecraft no publicó un requisito explícito";
+            : "NEXO muestra una sola opción recomendada por versión de Java";
 
-        var choices = runtimes.Select(CreateChoice).ToArray();
+        var recommendedRuntimes = JavaRuntimeSelector.BestPerMajor(runtimes);
+        var choices = recommendedRuntimes.Select(CreateChoice).ToArray();
         RuntimeList.ItemsSource = choices;
 
         if (choices.Length == 0) return;
 
         var selected = selectedRuntime is null
             ? null
-            : choices.FirstOrDefault(item => string.Equals(item.Runtime.JavaExecutable, selectedRuntime.JavaExecutable, StringComparison.OrdinalIgnoreCase));
+            : choices.FirstOrDefault(item => item.Runtime.MajorVersion == selectedRuntime.MajorVersion);
 
         RuntimeList.SelectedItem = selected ?? choices.FirstOrDefault(item => item.IsCompatible) ?? choices[0];
     }
@@ -43,10 +45,10 @@ public partial class JavaRuntimeDialog : Window
 
         return new RuntimeChoice(
             runtime,
-            $"Java {runtime.MajorVersion} · {runtime.Architecture}",
-            $"{runtime.Vendor} · {runtime.Source}",
+            $"Java {runtime.MajorVersion} · {runtime.FullVersion} · {runtime.Architecture}",
+            $"{runtime.Vendor} · Recomendado por NEXO",
             runtime.JavaExecutable,
-            compatible ? "COMPATIBLE" : "INCOMPATIBLE",
+            compatible ? "COMPATIBLE" : "OTRA VERSIÓN",
             compatible);
     }
 
