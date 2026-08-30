@@ -6,8 +6,8 @@ using System.Windows.Media;
 namespace NexoLauncher.App.UI;
 
 /// <summary>
-/// Capa de compatibilidad visual para llevar pantallas existentes al design system de NEXO
-/// sin obligar a reescribir de una sola vez el XAML funcional del launcher.
+/// Compatibility layer that brings legacy WPF surfaces onto the NEXO design system while
+/// production views are progressively moved to dedicated templates/components.
 /// </summary>
 public static class NexoUiQualityModule
 {
@@ -28,6 +28,7 @@ public static class NexoUiQualityModule
         if (sender is not Window window) return;
 
         Apply(window);
+        if (window is MainWindow mainWindow) mainWindow.ApplyProductionShell();
         window.SizeChanged -= Window_SizeChanged;
         window.SizeChanged += Window_SizeChanged;
     }
@@ -101,22 +102,7 @@ public static class NexoUiQualityModule
         var markSource = System.Windows.Application.Current.TryFindResource("Nexo.BrandMark") as ImageSource;
         if (markSource is null) return;
 
-        var title = VisualDescendants(window)
-            .OfType<TextBlock>()
-            .FirstOrDefault(value => string.Equals(value.Text, "NEXO", StringComparison.Ordinal) && value.FontSize >= 20);
-        if (title?.Parent is StackPanel stack && !stack.Children.OfType<Image>().Any())
-        {
-            stack.Children.Insert(0, new Image
-            {
-                Source = markSource,
-                Width = 58,
-                Height = 44,
-                Stretch = Stretch.Uniform,
-                HorizontalAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 0, 0, 8)
-            });
-        }
-
+        window.Icon = markSource;
         if (window.FindName("IconPreview") is Image preview && preview.Source is null)
             preview.Source = markSource;
     }
@@ -125,18 +111,19 @@ public static class NexoUiQualityModule
     {
         if (window is not MainWindow || window.Content is not Grid shell || shell.ColumnDefinitions.Count < 2) return;
 
-        var compact = window.ActualWidth > 0 && window.ActualWidth < 1180;
-        shell.ColumnDefinitions[0].Width = new GridLength(compact ? 228 : 252);
+        // Production navigation is an icon rail. Never grow it back to the legacy 228/252px sidebar.
+        shell.ColumnDefinitions[0].Width = new GridLength(84);
 
         if (window.FindName("LibraryPanel") is not Grid library) return;
-        library.Margin = compact ? new Thickness(26, 24, 26, 24) : new Thickness(34, 28, 34, 28);
+        var compact = window.ActualWidth > 0 && window.ActualWidth < 1120;
+        library.Margin = compact ? new Thickness(22, 20, 22, 22) : new Thickness(30, 24, 30, 28);
 
         var libraryBody = library.Children
             .OfType<Grid>()
             .FirstOrDefault(grid => Grid.GetRow(grid) >= 1 && grid.ColumnDefinitions.Count >= 2);
         if (libraryBody is null) return;
 
-        libraryBody.ColumnDefinitions[1].Width = new GridLength(compact ? 315 : 350);
+        libraryBody.ColumnDefinitions[1].Width = new GridLength(compact ? 280 : 320);
     }
 
     private static IEnumerable<DependencyObject> VisualDescendants(DependencyObject root)
