@@ -18,11 +18,13 @@ public partial class JavaRuntimeDialog : Window
     {
         NativeWindowTheme.ApplyDarkTitleBar(this);
         InitializeComponent();
+        Title = "Java · NEXA";
+        Icon = System.Windows.Application.Current.TryFindResource("Nexo.BrandMark") as System.Windows.Media.ImageSource;
         this.requiredMajor = requiredMajor;
 
         RequirementText.Text = requiredMajor is > 0
             ? $"Minecraft requiere Java {requiredMajor}"
-            : "NEXO muestra una sola opción recomendada por versión de Java";
+            : "NEXA muestra una sola opción recomendada por versión de Java";
 
         var recommendedRuntimes = JavaRuntimeSelector.BestPerMajor(runtimes);
         var choices = recommendedRuntimes.Select(CreateChoice).ToArray();
@@ -46,7 +48,7 @@ public partial class JavaRuntimeDialog : Window
         return new RuntimeChoice(
             runtime,
             $"Java {runtime.MajorVersion} · {runtime.FullVersion} · {runtime.Architecture}",
-            $"{runtime.Vendor} · Recomendado por NEXO",
+            $"{runtime.Vendor} · Recomendado por NEXA",
             runtime.JavaExecutable,
             compatible ? "COMPATIBLE" : "OTRA VERSIÓN",
             compatible);
