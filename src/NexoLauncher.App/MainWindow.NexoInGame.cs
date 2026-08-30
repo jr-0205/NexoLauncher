@@ -43,26 +43,60 @@ public partial class MainWindow
         Grid.SetRowSpan(LibraryPlayButton, 3);
         actionsGrid.Children.Add(rightShiftButton);
 
-        InstancesList.SelectionChanged += (_, _) => RefreshRightShiftButtonState();
-        RefreshRightShiftButtonState();
+        InstancesList.SelectionChanged += async (_, _) => await RefreshRightShiftButtonStateAsync();
+        _ = RefreshRightShiftButtonStateAsync();
     }
 
-    private void RefreshRightShiftButtonState()
+    private async Task RefreshRightShiftButtonStateAsync()
     {
         if (rightShiftButton is null) return;
         if (InstancesList.SelectedItem is not InstanceItem item)
+        {
+            rightShiftButton.Content = "＋ RIGHT SHIFT";
+            rightShiftButton.ToolTip = "Selecciona una instancia para comprobar NEXO In-Game.";
+            rightShiftButton.IsEnabled = false;
+            return;
+        }
+
+        if (IsNexoInGameInstalled(item.Id))
+        {
+            rightShiftButton.Content = "✓ RIGHT SHIFT";
+            rightShiftButton.ToolTip = "NEXO In-Game ya está instalado. Shift derecho abre el menú dentro de Minecraft.";
+            rightShiftButton.IsEnabled = !busy && activeLaunch is null;
+            return;
+        }
+
+        var instance = await instanceManager.GetAsync(item.Id, lifetime.Token);
+        if (instance is null)
         {
             rightShiftButton.Content = "＋ RIGHT SHIFT";
             rightShiftButton.IsEnabled = false;
             return;
         }
 
-        var installed = IsNexoInGameInstalled(item.Id);
-        rightShiftButton.Content = installed ? "✓ RIGHT SHIFT" : "＋ RIGHT SHIFT";
-        rightShiftButton.ToolTip = installed
-            ? "NEXO In-Game ya está instalado. Shift derecho abre el menú dentro de Minecraft."
-            : "Descargar/cargar una build precompilada de NEXO In-Game. No requiere Gradle ni compilar en este equipo.";
-        rightShiftButton.IsEnabled = !busy && activeLaunch is null;
+        try
+        {
+            var service = CreateNexoInGameArtifactService();
+            var artifact = await service.FindPublishedArtifactAsync(instance, lifetime.Token);
+            if (artifact is null)
+            {
+                rightShiftButton.Content = "RIGHT SHIFT · BUILD PENDIENTE";
+                rightShiftButton.ToolTip = $"Todavía no hay una build publicada de NEXO In-Game para Minecraft {instance.MinecraftVersion} + {instance.Loader}.";
+                rightShiftButton.IsEnabled = false;
+                return;
+            }
+
+            rightShiftButton.Content = "＋ RIGHT SHIFT";
+            rightShiftButton.ToolTip = $"Instalar NEXO In-Game {artifact.NexoInGameVersion} precompilado y verificado.";
+            rightShiftButton.IsEnabled = !busy && activeLaunch is null;
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+        catch
+        {
+            rightShiftButton.Content = "RIGHT SHIFT · SIN CATÁLOGO";
+            rightShiftButton.ToolTip = "No se pudo comprobar el catálogo de NEXO In-Game.";
+            rightShiftButton.IsEnabled = false;
+        }
     }
 
     private bool IsNexoInGameInstalled(InstanceId id)
@@ -103,10 +137,42 @@ public partial class MainWindow
             return;
         }
 
+        var service = CreateNexoInGameArtifactService();
+        NexoInGameArtifact? artifact;
+        try
+        {
+            artifact = await service.FindPublishedArtifactAsync(instance, lifetime.Token);
+        }
+        catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception)
+        {
+            MessageBox.Show(this,
+                "NEXO no pudo comprobar el catálogo de NEXO In-Game.\n\n" + exception.Message,
+                "Catálogo NEXO In-Game",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        if (artifact is null)
+        {
+            rightShiftButton!.Content = "RIGHT SHIFT · BUILD PENDIENTE";
+            rightShiftButton.IsEnabled = false;
+            MessageBox.Show(this,
+                $"Todavía no existe un JAR publicado de NEXO In-Game para Minecraft {instance.MinecraftVersion} + {instance.Loader}.\n\n" +
+                "El launcher ya está preparado para instalar artefactos precompilados, pero no intentará descargar Gradle ni compilar código localmente.",
+                "Build de NEXO In-Game pendiente",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
         var confirmation = MessageBox.Show(this,
-            $"¿Añadir NEXO In-Game a '{instance.Name}'?\n\n" +
-            "NEXO resolverá una build precompilada compatible con la versión de Minecraft y el loader, " +
-            "verificará SHA-256, la guardará en caché compartida y la copiará a mods/.\n\n" +
+            $"¿Añadir NEXO In-Game {artifact.NexoInGameVersion} a '{instance.Name}'?\n\n" +
+            "NEXO usará una build precompilada compatible, verificará SHA-256, la guardará en caché compartida y la copiará a mods/.\n\n" +
             "No se descargará Gradle y no se compilará código en este equipo.",
             "Añadir Right Shift",
             MessageBoxButton.YesNo,
@@ -121,8 +187,6 @@ public partial class MainWindow
             rightShiftButton.IsEnabled = false;
             DetailSubtitle.Text = "Resolviendo build precompilada de NEXO In-Game…";
 
-            var localArtifactRoot = FindRepositoryDirectory("artifacts", "nexo-ingame");
-            var service = new NexoInGameArtifactService(httpClient, contentCatalog, paths, localArtifactRoot);
             var progress = new Progress<string>(message =>
             {
                 DetailSubtitle.Text = message;
@@ -161,8 +225,14 @@ public partial class MainWindow
         {
             SetBusy(false);
             RefreshButton();
-            RefreshRightShiftButtonState();
+            await RefreshRightShiftButtonStateAsync();
         }
+    }
+
+    private NexoInGameArtifactService CreateNexoInGameArtifactService()
+    {
+        var localArtifactRoot = FindRepositoryDirectory("artifacts", "nexo-ingame");
+        return new NexoInGameArtifactService(httpClient, contentCatalog, paths, localArtifactRoot);
     }
 
     private static string NexoInGameButtonText(string stage)
