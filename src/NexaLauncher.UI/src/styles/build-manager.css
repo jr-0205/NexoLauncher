@@ -1,0 +1,288 @@
+.ingame-build-manager {
+  position: relative;
+  overflow: hidden;
+}
+
+.ingame-build-manager::before {
+  content: "";
+  position: absolute;
+  width: 360px;
+  height: 220px;
+  right: -110px;
+  top: -120px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(66, 126, 255, .15), transparent 68%);
+  pointer-events: none;
+}
+
+.build-manager-heading {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.build-manager-heading > div:first-child {
+  max-width: 720px;
+}
+
+.build-manager-heading h2 {
+  margin: 7px 0 7px;
+}
+
+.build-manager-heading p {
+  margin: 0;
+  max-width: 760px;
+  color: #8292aa;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.build-manager-heading code,
+.build-output-path code {
+  color: #b8c9e4;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+}
+
+.build-manager-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.build-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.build-metric {
+  min-height: 72px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  border: 1px solid rgba(90, 127, 182, .18);
+  border-radius: 13px;
+  background: linear-gradient(145deg, rgba(18, 29, 45, .72), rgba(10, 17, 27, .55));
+}
+
+.build-metric > span {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  color: #79a7ff;
+  background: rgba(66, 113, 205, .14);
+}
+
+.build-metric div {
+  display: grid;
+  gap: 2px;
+}
+
+.build-metric small {
+  color: #71829b;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .08em;
+}
+
+.build-metric strong {
+  color: #f1f6ff;
+  font-size: 20px;
+}
+
+.build-output-path {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+  padding: 11px 14px;
+  border: 1px solid rgba(90, 127, 182, .13);
+  border-radius: 11px;
+  background: rgba(8, 14, 23, .44);
+}
+
+.build-output-path span {
+  color: #71829b;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.build-output-path code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9px;
+}
+
+.build-source-warning {
+  margin-top: 12px;
+  display: grid;
+  gap: 4px;
+  padding: 12px 14px;
+  border: 1px solid rgba(227, 170, 79, .22);
+  border-radius: 11px;
+  background: rgba(125, 78, 17, .10);
+}
+
+.build-source-warning strong {
+  color: #e9c27d;
+  font-size: 9px;
+}
+
+.build-source-warning span {
+  color: #947f60;
+  font-size: 9px;
+  line-height: 1.5;
+}
+
+.build-library-shell {
+  margin-top: 17px;
+  overflow: hidden;
+  border: 1px solid rgba(91, 126, 176, .18);
+  border-radius: 14px;
+  background: rgba(8, 13, 21, .54);
+}
+
+.build-library-head,
+.build-library-row {
+  display: grid;
+  grid-template-columns: 110px 105px 125px minmax(220px, 1fr) 105px;
+  gap: 12px;
+  align-items: center;
+}
+
+.build-library-head {
+  min-height: 37px;
+  padding: 0 14px;
+  border-bottom: 1px solid rgba(91, 126, 176, .14);
+  background: rgba(20, 31, 49, .62);
+  color: #65758d;
+  font-size: 7.5px;
+  font-weight: 850;
+  letter-spacing: .09em;
+}
+
+.build-library-row {
+  min-height: 53px;
+  padding: 8px 14px;
+  border-bottom: 1px solid rgba(91, 126, 176, .09);
+  color: #aebdd1;
+  font-size: 9px;
+}
+
+.build-library-row:last-child {
+  border-bottom: 0;
+}
+
+.build-library-row:hover {
+  background: rgba(35, 54, 83, .26);
+}
+
+.build-library-row strong {
+  color: #edf4ff;
+  font-size: 10px;
+}
+
+.build-file {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #7f91aa;
+  font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
+  font-size: 8px;
+}
+
+.build-state {
+  width: fit-content;
+  min-width: 76px;
+  padding: 5px 8px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 7px;
+  font-weight: 850;
+  letter-spacing: .06em;
+}
+
+.build-state.published {
+  color: #74ddb8;
+  border-color: rgba(83, 201, 157, .22);
+  background: rgba(38, 144, 109, .10);
+}
+
+.build-state.planned {
+  color: #e8bd73;
+  border-color: rgba(228, 170, 77, .22);
+  background: rgba(148, 92, 27, .10);
+}
+
+.build-state.missing {
+  color: #8899b0;
+  border-color: rgba(123, 144, 173, .17);
+  background: rgba(62, 78, 102, .10);
+}
+
+.build-library-empty {
+  min-height: 84px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  color: #71829b;
+  font-size: 9px;
+}
+
+.build-library-foot {
+  margin-top: 9px;
+  color: #66778f;
+  font-size: 8px;
+  text-align: right;
+}
+
+@media (max-width: 1080px) {
+  .build-manager-heading {
+    flex-direction: column;
+  }
+
+  .build-manager-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .build-library-shell {
+    overflow-x: auto;
+  }
+
+  .build-library-head,
+  .build-library-row {
+    min-width: 760px;
+  }
+}
+
+@media (max-width: 720px) {
+  .build-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .build-output-path {
+    grid-template-columns: 1fr;
+    gap: 5px;
+  }
+
+  .build-manager-actions > button {
+    flex: 1 1 160px;
+  }
+}
