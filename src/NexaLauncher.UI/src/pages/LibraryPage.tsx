@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { Search, Plus, Play, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { defaultArtworkPlacement, type NexaProfile } from "../app/types";
@@ -11,6 +12,11 @@ type LibraryPageProps = {
   onPlay(profile: NexaProfile): void;
 };
 
+type ArtworkCss = CSSProperties & {
+  "--nexa-bg-position"?: string;
+  "--nexa-bg-fit"?: string;
+};
+
 export function LibraryPage({ profiles, launchingProfileId, onCreate, onOpen, onPlay }: LibraryPageProps) {
   const [query, setQuery] = useState("");
   const visible = useMemo(() => {
@@ -20,11 +26,10 @@ export function LibraryPage({ profiles, launchingProfileId, onCreate, onOpen, on
   }, [profiles, query]);
   const recent = profiles[0];
   const recentArtwork = recent?.artwork ?? defaultArtworkPlacement;
-  const recentStyle = recent?.backgroundDataUrl ? {
+  const recentStyle: ArtworkCss | undefined = recent?.backgroundDataUrl ? {
     backgroundImage: `linear-gradient(90deg, rgba(9,13,19,.96), rgba(9,13,19,.45)), url(${recent.backgroundDataUrl})`,
-    backgroundPosition: `center, ${recentArtwork.backgroundPositionX}% ${recentArtwork.backgroundPositionY}%`,
-    backgroundSize: `auto, ${recentArtwork.backgroundFit}`,
-    backgroundRepeat: "no-repeat, no-repeat",
+    "--nexa-bg-position": `${recentArtwork.backgroundPositionX}% ${recentArtwork.backgroundPositionY}%`,
+    "--nexa-bg-fit": recentArtwork.backgroundFit,
   } : undefined;
 
   return (
