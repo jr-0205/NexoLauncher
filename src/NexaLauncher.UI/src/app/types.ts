@@ -160,6 +160,56 @@ export type NexaInGameInstallResult = {
   dependenciesInstalled: string[];
 };
 
+export type NexaInGameBuildTarget = {
+  minecraftVersion: string;
+  loader: string;
+  nexaInGameVersion: string;
+  javaMajor: number;
+  gradleVersion: string;
+  fileName: string;
+};
+
+export type NexaInGameBuildEntry = {
+  minecraftVersion: string;
+  loader: string;
+  nexaInGameVersion: string;
+  javaMajor?: number | null;
+  gradleVersion?: string | null;
+  fileName?: string | null;
+  relativePath?: string | null;
+  status: "published" | "planned" | "missing" | string;
+  exists: boolean;
+  sizeBytes: number;
+  sha256?: string | null;
+  publishedAt?: string | null;
+};
+
+export type NexaInGameBuildLibrary = {
+  sourceAvailable: boolean;
+  sourceError?: string | null;
+  repositoryRoot?: string | null;
+  outputRoot: string;
+  targetCount: number;
+  publishedCount: number;
+  pendingCount: number;
+  targets: NexaInGameBuildTarget[];
+  builds: NexaInGameBuildEntry[];
+  lastPublishedAt?: string | null;
+};
+
+export type NexaInGameBuildFailure = {
+  minecraftVersion: string;
+  loader: string;
+  message: string;
+};
+
+export type NexaInGameBuildGenerateResult = {
+  publishedCount: number;
+  failureCount: number;
+  failures: NexaInGameBuildFailure[];
+  library: NexaInGameBuildLibrary;
+};
+
 export type OperationProgress = {
   stage: string;
   completed?: number;
