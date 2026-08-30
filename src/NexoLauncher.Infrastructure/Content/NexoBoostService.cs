@@ -86,6 +86,12 @@ public sealed class NexoBoostService(ModrinthContentClient catalog)
                 skipped.Add($"{component.Name}: ya existe un renderer de rendimiento");
                 continue;
             }
+            if (component.ProjectId.Equals("sodium-extra", StringComparison.OrdinalIgnoreCase) &&
+                HasKnownRenderer(existingNames) && !HasSodiumRenderer(existingNames))
+            {
+                skipped.Add("Sodium Extra: se omitió porque el perfil ya usa otro renderer y no se forzará Sodium como dependencia");
+                continue;
+            }
             if (LooksInstalled(existingNames, component.ProjectId))
             {
                 skipped.Add($"{component.Name}: ya parece estar instalado");
@@ -196,17 +202,31 @@ public sealed class NexoBoostService(ModrinthContentClient catalog)
     private static bool LooksInstalled(IEnumerable<string> fileNames, string projectId)
     {
         var normalized = projectId.Replace("-", string.Empty, StringComparison.Ordinal).ToLowerInvariant();
-        return fileNames.Any(name => name.Replace("-", string.Empty, StringComparison.Ordinal)
-            .Replace("_", string.Empty, StringComparison.Ordinal)
-            .ToLowerInvariant()
-            .Contains(normalized, StringComparison.Ordinal));
+        return fileNames.Any(name => NormalizeFileName(name).Contains(normalized, StringComparison.Ordinal));
     }
 
     private static bool HasKnownRenderer(IEnumerable<string> fileNames)
     {
         string[] aliases = ["sodium", "embeddium", "rubidium", "optifine", "vulkanmod"];
-        return fileNames.Any(name => aliases.Any(alias => name.Contains(alias, StringComparison.OrdinalIgnoreCase)));
+        return fileNames.Any(name =>
+        {
+            var normalized = NormalizeFileName(name);
+            if (normalized.Contains("sodiumextra", StringComparison.Ordinal)) return false;
+            return aliases.Any(alias => normalized.Contains(alias, StringComparison.Ordinal));
+        });
     }
+
+    private static bool HasSodiumRenderer(IEnumerable<string> fileNames) => fileNames.Any(name =>
+    {
+        var normalized = NormalizeFileName(name);
+        return normalized.Contains("sodium", StringComparison.Ordinal) &&
+               !normalized.Contains("sodiumextra", StringComparison.Ordinal);
+    });
+
+    private static string NormalizeFileName(string name) => name
+        .Replace("-", string.Empty, StringComparison.Ordinal)
+        .Replace("_", string.Empty, StringComparison.Ordinal)
+        .ToLowerInvariant();
 
     private static string LoaderName(LoaderType loader) => loader switch
     {
