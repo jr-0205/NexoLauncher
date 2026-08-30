@@ -91,7 +91,7 @@ public sealed class ModrinthContentClient(HttpClient http)
     private static HttpRequestMessage CreateRequest(string url)
     {
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.UserAgent.ParseAdd("NexoLauncher/0.5.1 (github.com/NexoLauncher)");
+        request.Headers.UserAgent.ParseAdd("NexoLauncher/0.5.2 (github.com/jr-0205/NexoLauncher)");
         return request;
     }
 
