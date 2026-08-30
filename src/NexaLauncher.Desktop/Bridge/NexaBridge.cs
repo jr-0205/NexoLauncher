@@ -18,7 +18,7 @@ namespace NexaLauncher.Desktop;
 
 internal sealed class NexaBridge
 {
-    private const long MaxArtworkBytes = 8 * 1024 * 1024;
+    private const int MaxArtworkBytes = 8 * 1024 * 1024;
     private const int MaxDescriptionLength = 800;
 
     private readonly NexoPaths paths;
