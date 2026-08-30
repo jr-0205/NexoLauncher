@@ -16,6 +16,7 @@ type WebViewBridge = {
   postMessage(message: unknown): void;
   addEventListener(type: "message", listener: (event: WebViewMessageEvent) => void): void;
 };
+type NativeBridgeEvent = BridgeEvent & { event?: string };
 
 declare global {
   interface Window {
@@ -32,14 +33,16 @@ function ensureListener() {
   if (!webview || listening) return;
   listening = true;
   webview.addEventListener("message", (event) => {
-    const value = event.data as BridgeResponse | BridgeEvent;
-    if ((value as BridgeEvent)?.kind === "event") {
-      const bridgeEvent = value as BridgeEvent;
-      listeners.get(bridgeEvent.name)?.forEach((listener) => listener(bridgeEvent.payload));
+    const value = event.data as BridgeResponse | NativeBridgeEvent;
+    const response = value as BridgeResponse;
+    const bridgeEvent = value as NativeBridgeEvent;
+    const eventName = bridgeEvent.name ?? bridgeEvent.event;
+
+    if ((!response?.id || response.id.length === 0) && eventName) {
+      listeners.get(eventName)?.forEach((listener) => listener(bridgeEvent.payload));
       return;
     }
 
-    const response = value as BridgeResponse;
     if (!response?.id) return;
     const request = pending.get(response.id);
     if (!request) return;
