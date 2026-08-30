@@ -19,6 +19,40 @@ function Fail([string]$message) {
     throw "NEXO In-Game: $message"
 }
 
+function Invoke-NativeCapture([string]$FileName, [string[]]$Arguments) {
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $FileName
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+
+    foreach ($argument in $Arguments) {
+        [void]$startInfo.ArgumentList.Add($argument)
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) {
+            return [pscustomobject]@{ ExitCode = -1; Output = ''; Error = "No se pudo iniciar $FileName" }
+        }
+
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+
+        return [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            Output = $stdoutTask.GetAwaiter().GetResult()
+            Error = $stderrTask.GetAwaiter().GetResult()
+        }
+    }
+    finally {
+        $process.Dispose()
+    }
+}
+
 if (-not (Test-Path $projectRoot)) {
     Fail "no se encontró el proyecto Fabric 1.21.1 en $projectRoot"
 }
@@ -69,11 +103,19 @@ if (-not [string]::IsNullOrWhiteSpace($JavaPath)) {
     $env:PATH = "$javaBin;$env:PATH"
 }
 
-$javaVersion = (& $javaExecutable -version 2>&1 | Out-String)
-if ($LASTEXITCODE -ne 0) { Fail 'Java no está disponible. NEXO In-Game 1.21.1 necesita Java 21 para compilar.' }
-if ($javaVersion -notmatch 'version\s+"21\.') {
+# `java -version` escribe deliberadamente su versión por stderr. Ejecutarlo con
+# `2>&1` bajo `$ErrorActionPreference = 'Stop'` hace que Windows PowerShell lo
+# convierta en NativeCommandError aunque Java termine con código 0. Capturamos
+# stdout/stderr con Process para evaluar únicamente el código de salida real.
+$javaProbe = Invoke-NativeCapture $javaExecutable @('-version')
+$javaVersion = (($javaProbe.Output + [Environment]::NewLine + $javaProbe.Error).Trim())
+if ($javaProbe.ExitCode -ne 0) {
+    Fail "Java no está disponible. NEXO In-Game 1.21.1 necesita Java 21 para compilar.`n$javaVersion"
+}
+if ($javaVersion -notmatch 'version\s+"21(?:\.|\")') {
     Fail "se necesita Java 21 para compilar NEXO In-Game. Runtime detectado:`n$javaVersion"
 }
+Write-Host "Java 21 validado: $javaExecutable"
 
 New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
 if (-not (Test-Path $gradleExe)) {
