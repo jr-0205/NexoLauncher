@@ -10,9 +10,7 @@ namespace NexoLauncher.App;
 public partial class MainWindow
 {
     private Button? buildNexoInGameJarsButton;
-    private Button? openNexoInGameBuildFolderButton;
     private TextBlock? nexoInGameBuildStatusText;
-    private TextBlock? nexoInGameBuildPathText;
 
     private void InitializeNexoInGameBuildTools()
     {
@@ -56,15 +54,15 @@ public partial class MainWindow
         description.SetResourceReference(TextBlock.ForegroundProperty, "Muted");
         content.Children.Add(description);
 
-        nexoInGameBuildPathText = new TextBlock
+        var pathText = new TextBlock
         {
             Text = NexoInGameBuildOutputDirectory(),
             TextWrapping = TextWrapping.Wrap,
             FontSize = 10,
             Margin = new Thickness(0, 12, 0, 0)
         };
-        nexoInGameBuildPathText.SetResourceReference(TextBlock.ForegroundProperty, "Muted");
-        content.Children.Add(nexoInGameBuildPathText);
+        pathText.SetResourceReference(TextBlock.ForegroundProperty, "Muted");
+        content.Children.Add(pathText);
 
         var actions = new StackPanel
         {
@@ -82,16 +80,16 @@ public partial class MainWindow
         buildNexoInGameJarsButton.Click += GenerateNexoInGameJars_Click;
         actions.Children.Add(buildNexoInGameJarsButton);
 
-        openNexoInGameBuildFolderButton = new Button
+        var openFolderButton = new Button
         {
             Content = "ABRIR CARPETA",
             MinWidth = 130,
             Padding = new Thickness(18, 9, 18, 9),
             Margin = new Thickness(10, 0, 0, 0)
         };
-        openNexoInGameBuildFolderButton.SetResourceReference(Control.StyleProperty, "GhostButton");
-        openNexoInGameBuildFolderButton.Click += OpenNexoInGameBuildFolder_Click;
-        actions.Children.Add(openNexoInGameBuildFolderButton);
+        openFolderButton.SetResourceReference(Control.StyleProperty, "GhostButton");
+        openFolderButton.Click += OpenNexoInGameBuildFolder_Click;
+        actions.Children.Add(openFolderButton);
         content.Children.Add(actions);
 
         nexoInGameBuildStatusText = new TextBlock
