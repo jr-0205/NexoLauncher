@@ -6,6 +6,7 @@ import "./styles/workflows.css";
 import "./styles/brand.css";
 import "./styles/interaction.css";
 import "./styles/profile-tools.css";
+import "./styles/build-manager.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
