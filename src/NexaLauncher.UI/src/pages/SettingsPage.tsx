@@ -1,5 +1,5 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
-import { Archive, Check, ExternalLink, FolderOpen, Hammer, Layers3, Loader2, RefreshCw, Save, ShieldCheck } from "lucide-react";
+import { Archive, Check, ChevronDown, ChevronRight, ExternalLink, FolderOpen, Hammer, Layers3, Loader2, RefreshCw, Save, ShieldCheck } from "lucide-react";
 import {
   generateNexaInGameBuild,
   getMinecraftVersions,
@@ -20,6 +20,11 @@ type Props = {
   onNotice(message: string, kind?: "success" | "error"): void;
 };
 
+type BuildFamily = {
+  id: string;
+  rows: NexaInGameBuildEntry[];
+};
+
 export function SettingsPage({ username, closeLauncherOnGameStart, version, onUpdated, onNotice }: Props) {
   const [playerName, setPlayerName] = useState(username);
   const [closeOnLaunch, setCloseOnLaunch] = useState(closeLauncherOnGameStart);
@@ -31,6 +36,7 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
   const [buildingTarget, setBuildingTarget] = useState<string | null>(null);
   const [confirmBuild, setConfirmBuild] = useState(false);
   const [selectedBuild, setSelectedBuild] = useState<NexaInGameBuildEntry | null>(null);
+  const [collapsedFamilies, setCollapsedFamilies] = useState<Set<string>>(new Set());
 
   const modernReleases = useMemo(
     () => minecraftVersions.filter((item) => item.stable && isSupportedReleaseRange(item.id)),
@@ -40,6 +46,7 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
     () => mergeReleaseMatrix(modernReleases, buildLibrary),
     [modernReleases, buildLibrary],
   );
+  const buildFamilies = useMemo(() => groupBuildRows(buildRows), [buildRows]);
 
   useEffect(() => setPlayerName(username), [username]);
   useEffect(() => setCloseOnLaunch(closeLauncherOnGameStart), [closeLauncherOnGameStart]);
@@ -152,6 +159,15 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
     }
   }
 
+  function toggleFamily(id: string) {
+    setCollapsedFamilies((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   const anyBuildRunning = building || buildingTarget !== null;
   const canBuild = Boolean(buildLibrary?.sourceAvailable && buildLibrary.targetCount > 0) && !anyBuildRunning;
   const latestRelease = modernReleases[0]?.id ?? "—";
@@ -191,7 +207,7 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
             <div>
               <span className="eyebrow">NEXA IN-GAME · COMPILER V2</span>
               <h2>Core común + adaptadores por versión</h2>
-              <p>La matriz se alimenta de las releases oficiales de Minecraft. Cada build compatible se arma en un workspace temporal con el core común de NEXA y el adaptador declarado en targets.json; los fuentes originales no se modifican durante la compilación.</p>
+              <p>Las releases se agrupan por familia de Minecraft. Abre 1.21, 1.20 o 1.19 para ver sus versiones exactas y compilar únicamente la que necesites.</p>
             </div>
             <div className="build-manager-actions">
               <button className="ghost-button" type="button" disabled={loadingBuilds || anyBuildRunning || !isNativeHost()} onClick={refreshBuilds}><RefreshCw className={loadingBuilds ? "spin" : ""} size={15} /> ACTUALIZAR</button>
@@ -224,20 +240,19 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
               <span>VERSIÓN</span><span>LOADER</span><span>NEXA IN-GAME</span><span>JAR</span><span>ESTADO</span><span>ACCIÓN</span>
             </div>
             {loadingBuilds && <div className="build-library-empty"><Loader2 className="spin" size={18} /> Leyendo releases y catálogo local…</div>}
-            {!loadingBuilds && buildRows.length === 0 && <div className="build-library-empty">No se pudieron obtener releases oficiales desde 1.19.</div>}
-            {!loadingBuilds && buildRows.map((build) => {
-              const compilable = hasBuildTarget(build, buildLibrary);
-              return (
-                <BuildRow
-                  key={`${build.loader}-${build.minecraftVersion}-${build.nexaInGameVersion}`}
-                  build={build}
-                  busy={buildingTarget === buildKey(build)}
-                  compilable={compilable}
-                  disabled={anyBuildRunning || !buildLibrary?.sourceAvailable || !compilable}
-                  onBuild={() => setSelectedBuild(build)}
-                />
-              );
-            })}
+            {!loadingBuilds && buildFamilies.length === 0 && <div className="build-library-empty">No se pudieron obtener releases oficiales desde 1.19.</div>}
+            {!loadingBuilds && buildFamilies.map((family) => (
+              <VersionFamilyGroup
+                key={family.id}
+                family={family}
+                collapsed={collapsedFamilies.has(family.id)}
+                library={buildLibrary}
+                anyBuildRunning={anyBuildRunning}
+                buildingTarget={buildingTarget}
+                onToggle={() => toggleFamily(family.id)}
+                onBuild={setSelectedBuild}
+              />
+            ))}
           </div>
           {buildLibrary?.lastPublishedAt && <div className="build-library-foot">Última publicación local: {formatDate(buildLibrary.lastPublishedAt)}</div>}
         </article>
@@ -287,6 +302,46 @@ function BuildMetric({ icon, label, value, compact = false }: { icon: ReactNode;
   return <div className={`build-metric ${compact ? "compact" : ""}`}><span>{icon}</span><div><small>{label}</small><strong>{value}</strong></div></div>;
 }
 
+function VersionFamilyGroup({ family, collapsed, library, anyBuildRunning, buildingTarget, onToggle, onBuild }: {
+  family: BuildFamily;
+  collapsed: boolean;
+  library: NexaInGameBuildLibrary | null;
+  anyBuildRunning: boolean;
+  buildingTarget: string | null;
+  onToggle(): void;
+  onBuild(build: NexaInGameBuildEntry): void;
+}) {
+  const compatibleCount = family.rows.filter((build) => hasBuildTarget(build, library)).length;
+  const publishedCount = family.rows.filter((build) => build.status === "published" && build.exists).length;
+
+  return (
+    <div className={`build-family ${collapsed ? "collapsed" : ""}`}>
+      <button className="build-family-header" type="button" onClick={onToggle}>
+        <span className="build-family-chevron">{collapsed ? <ChevronRight size={15} /> : <ChevronDown size={15} />}</span>
+        <span className="build-family-title">Minecraft {family.id}</span>
+        <span className="build-family-summary">{family.rows.length} versiones · {compatibleCount} adaptadores · {publishedCount} publicadas</span>
+      </button>
+      {!collapsed && (
+        <div className="build-family-rows">
+          {family.rows.map((build) => {
+            const compilable = hasBuildTarget(build, library);
+            return (
+              <BuildRow
+                key={`${build.loader}-${build.minecraftVersion}-${build.nexaInGameVersion}`}
+                build={build}
+                busy={buildingTarget === buildKey(build)}
+                compilable={compilable}
+                disabled={anyBuildRunning || !library?.sourceAvailable || !compilable}
+                onBuild={() => onBuild(build)}
+              />
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function BuildRow({ build, busy, disabled, compilable, onBuild }: { build: NexaInGameBuildEntry; busy: boolean; disabled: boolean; compilable: boolean; onBuild(): void }) {
   const published = build.status === "published" && build.exists;
   const planned = build.status === "planned";
@@ -294,7 +349,7 @@ function BuildRow({ build, busy, disabled, compilable, onBuild }: { build: NexaI
   const state = published ? "PUBLICADA" : unsupported ? "SIN ADAPTADOR" : planned ? "PENDIENTE" : "SIN JAR";
   const size = build.exists && build.sizeBytes > 0 ? ` · ${formatBytes(build.sizeBytes)}` : "";
   return (
-    <div className="build-library-row">
+    <div className="build-library-row build-library-child-row">
       <strong>{build.minecraftVersion}</strong>
       <span>{build.loader}</span>
       <span>{compilable ? build.nexaInGameVersion : "—"}</span>
@@ -332,6 +387,41 @@ function mergeReleaseMatrix(releases: MinecraftVersionItem[], library: NexaInGam
   }
 
   return rows;
+}
+
+function groupBuildRows(rows: NexaInGameBuildEntry[]): BuildFamily[] {
+  const grouped = new Map<string, NexaInGameBuildEntry[]>();
+  for (const row of rows) {
+    const family = versionFamily(row.minecraftVersion);
+    const entries = grouped.get(family) ?? [];
+    entries.push(row);
+    grouped.set(family, entries);
+  }
+
+  return [...grouped.entries()]
+    .map(([id, familyRows]) => ({
+      id,
+      rows: familyRows.sort((a, b) => compareMinecraftVersions(a.minecraftVersion, b.minecraftVersion)),
+    }))
+    .sort((a, b) => compareMinecraftVersions(b.id, a.id));
+}
+
+function versionFamily(version: string) {
+  const parts = version.split(".").map((part) => Number.parseInt(part, 10));
+  if (parts[0] === 1 && Number.isFinite(parts[1])) return `1.${parts[1]}`;
+  if (Number.isFinite(parts[0])) return String(parts[0]);
+  return version;
+}
+
+function compareMinecraftVersions(a: string, b: string) {
+  const left = a.split(".").map((part) => Number.parseInt(part, 10));
+  const right = b.split(".").map((part) => Number.parseInt(part, 10));
+  const length = Math.max(left.length, right.length);
+  for (let index = 0; index < length; index++) {
+    const delta = (left[index] ?? 0) - (right[index] ?? 0);
+    if (delta !== 0) return delta;
+  }
+  return a.localeCompare(b);
 }
 
 function hasBuildTarget(build: NexaInGameBuildEntry, library: NexaInGameBuildLibrary | null) {
