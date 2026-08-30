@@ -1,14 +1,15 @@
-import { type ReactNode, useEffect, useState } from "react";
-import { Archive, Check, ExternalLink, FolderOpen, Hammer, Loader2, RefreshCw, Save, ShieldCheck } from "lucide-react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { Archive, Check, ExternalLink, FolderOpen, Hammer, Layers3, Loader2, RefreshCw, Save, ShieldCheck } from "lucide-react";
 import {
   generateNexaInGameBuild,
   generateNexaInGameBuilds,
+  getMinecraftVersions,
   getNexaInGameBuildLibrary,
   isNativeHost,
   openNexaInGameBuildFolder,
   updateSettings,
 } from "../app/nexa-bridge";
-import type { NexaInGameBuildEntry, NexaInGameBuildLibrary } from "../app/types";
+import type { MinecraftVersionItem, NexaInGameBuildEntry, NexaInGameBuildLibrary } from "../app/types";
 import { nexaWordmarkDataUrl } from "../brand/nexa-wordmark";
 import { NexaDialog } from "../components/NexaDialog";
 
@@ -25,11 +26,21 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
   const [closeOnLaunch, setCloseOnLaunch] = useState(closeLauncherOnGameStart);
   const [saving, setSaving] = useState(false);
   const [buildLibrary, setBuildLibrary] = useState<NexaInGameBuildLibrary | null>(null);
+  const [minecraftVersions, setMinecraftVersions] = useState<MinecraftVersionItem[]>([]);
   const [loadingBuilds, setLoadingBuilds] = useState(false);
   const [building, setBuilding] = useState(false);
   const [buildingTarget, setBuildingTarget] = useState<string | null>(null);
   const [confirmBuild, setConfirmBuild] = useState(false);
   const [selectedBuild, setSelectedBuild] = useState<NexaInGameBuildEntry | null>(null);
+
+  const modernReleases = useMemo(
+    () => minecraftVersions.filter((item) => item.stable && isSupportedReleaseRange(item.id)),
+    [minecraftVersions],
+  );
+  const buildRows = useMemo(
+    () => mergeReleaseMatrix(modernReleases, buildLibrary),
+    [modernReleases, buildLibrary],
+  );
 
   useEffect(() => setPlayerName(username), [username]);
   useEffect(() => setCloseOnLaunch(closeLauncherOnGameStart), [closeLauncherOnGameStart]);
@@ -37,8 +48,12 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
     if (!isNativeHost()) return;
     let cancelled = false;
     setLoadingBuilds(true);
-    getNexaInGameBuildLibrary()
-      .then((value) => { if (!cancelled) setBuildLibrary(value); })
+    Promise.all([getNexaInGameBuildLibrary(), getMinecraftVersions()])
+      .then(([library, releases]) => {
+        if (cancelled) return;
+        setBuildLibrary(library);
+        setMinecraftVersions(releases);
+      })
       .catch((error: Error) => { if (!cancelled) onNotice(error.message, "error"); })
       .finally(() => { if (!cancelled) setLoadingBuilds(false); });
     return () => { cancelled = true; };
@@ -62,7 +77,9 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
   async function refreshBuilds() {
     setLoadingBuilds(true);
     try {
-      setBuildLibrary(await getNexaInGameBuildLibrary());
+      const [library, releases] = await Promise.all([getNexaInGameBuildLibrary(), getMinecraftVersions()]);
+      setBuildLibrary(library);
+      setMinecraftVersions(releases);
     } catch (error) {
       onNotice(error instanceof Error ? error.message : "No se pudo leer la biblioteca de builds.", "error");
     } finally {
@@ -119,6 +136,7 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
 
   const anyBuildRunning = building || buildingTarget !== null;
   const canBuild = Boolean(buildLibrary?.sourceAvailable && buildLibrary.targetCount > 0) && !anyBuildRunning;
+  const latestRelease = modernReleases[0]?.id ?? "—";
 
   return (
     <section className="page settings-page">
@@ -155,19 +173,20 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
             <div>
               <span className="eyebrow">NEXA IN-GAME · BUILDS</span>
               <h2>Generador y biblioteca de builds</h2>
-              <p>Compila sólo la versión que necesites desde su fila. “Generar todas” queda disponible para regenerar la matriz completa cuando realmente haga falta.</p>
+              <p>La matriz se alimenta de las releases oficiales de Minecraft y muestra automáticamente todas las versiones estables desde 1.19 hasta la actual. Sólo se habilita COMPILAR cuando existe un adaptador NEXA real para esa versión.</p>
             </div>
             <div className="build-manager-actions">
               <button className="ghost-button" type="button" disabled={loadingBuilds || anyBuildRunning || !isNativeHost()} onClick={refreshBuilds}><RefreshCw className={loadingBuilds ? "spin" : ""} size={15} /> ACTUALIZAR</button>
               <button className="ghost-button" type="button" disabled={anyBuildRunning || !isNativeHost()} onClick={openBuildFolder}><FolderOpen size={15} /> ABRIR CARPETA</button>
-              <button className="secondary-button" type="button" disabled={!canBuild} onClick={() => setConfirmBuild(true)}>{building ? <Loader2 className="spin" size={15} /> : <Hammer size={15} />} {building ? "COMPILANDO…" : "GENERAR TODAS"}</button>
+              <button className="secondary-button" type="button" disabled={!canBuild} onClick={() => setConfirmBuild(true)}>{building ? <Loader2 className="spin" size={15} /> : <Hammer size={15} />} {building ? "COMPILANDO…" : "GENERAR TODAS COMPATIBLES"}</button>
             </div>
           </div>
 
-          <div className="build-summary-grid">
-            <BuildMetric icon={<Archive size={16} />} label="OBJETIVOS" value={buildLibrary?.targetCount ?? 0} />
+          <div className="build-summary-grid build-summary-grid-four">
+            <BuildMetric icon={<Layers3 size={16} />} label="RELEASES 1.19+" value={modernReleases.length} />
+            <BuildMetric icon={<Archive size={16} />} label="ADAPTADORES" value={buildLibrary?.targetCount ?? 0} />
             <BuildMetric icon={<Check size={16} />} label="PUBLICADAS" value={buildLibrary?.publishedCount ?? 0} />
-            <BuildMetric icon={<Hammer size={16} />} label="PENDIENTES" value={buildLibrary?.pendingCount ?? 0} />
+            <BuildMetric icon={<Hammer size={16} />} label="ÚLTIMA" value={latestRelease} compact />
           </div>
 
           <div className="build-output-path">
@@ -186,17 +205,21 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
             <div className="build-library-head">
               <span>VERSIÓN</span><span>LOADER</span><span>NEXA IN-GAME</span><span>JAR</span><span>ESTADO</span><span>ACCIÓN</span>
             </div>
-            {loadingBuilds && <div className="build-library-empty"><Loader2 className="spin" size={18} /> Leyendo catálogo local…</div>}
-            {!loadingBuilds && (buildLibrary?.builds.length ?? 0) === 0 && <div className="build-library-empty">Todavía no hay objetivos ni builds registradas.</div>}
-            {!loadingBuilds && buildLibrary?.builds.map((build) => (
-              <BuildRow
-                key={`${build.loader}-${build.minecraftVersion}-${build.nexaInGameVersion}`}
-                build={build}
-                busy={buildingTarget === buildKey(build)}
-                disabled={anyBuildRunning || !buildLibrary.sourceAvailable}
-                onBuild={() => setSelectedBuild(build)}
-              />
-            ))}
+            {loadingBuilds && <div className="build-library-empty"><Loader2 className="spin" size={18} /> Leyendo releases y catálogo local…</div>}
+            {!loadingBuilds && buildRows.length === 0 && <div className="build-library-empty">No se pudieron obtener releases oficiales desde 1.19.</div>}
+            {!loadingBuilds && buildRows.map((build) => {
+              const compilable = hasBuildTarget(build, buildLibrary);
+              return (
+                <BuildRow
+                  key={`${build.loader}-${build.minecraftVersion}-${build.nexaInGameVersion}`}
+                  build={build}
+                  busy={buildingTarget === buildKey(build)}
+                  compilable={compilable}
+                  disabled={anyBuildRunning || !buildLibrary?.sourceAvailable || !compilable}
+                  onBuild={() => setSelectedBuild(build)}
+                />
+              );
+            })}
           </div>
           {buildLibrary?.lastPublishedAt && <div className="build-library-foot">Última publicación local: {formatDate(buildLibrary.lastPublishedAt)}</div>}
         </article>
@@ -220,9 +243,9 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
       <NexaDialog
         open={confirmBuild}
         tone="warning"
-        title="Generar todas las builds NEXA In-Game"
-        description={`Se compilarán ${buildLibrary?.targetCount ?? 0} objetivo(s) desde ingame/. Usa esta opción sólo cuando necesites regenerar toda la matriz.`}
-        confirmLabel="GENERAR TODAS"
+        title="Generar todas las builds compatibles"
+        description={`Se compilarán ${buildLibrary?.targetCount ?? 0} adaptadores que ya tienen fuentes NEXA In-Game. Las releases sin adaptador no se intentarán compilar.`}
+        confirmLabel="GENERAR COMPATIBLES"
         busy={building}
         onConfirm={generateBuilds}
         onCancel={() => setConfirmBuild(false)}
@@ -242,28 +265,72 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
   );
 }
 
-function BuildMetric({ icon, label, value }: { icon: ReactNode; label: string; value: number }) {
-  return <div className="build-metric"><span>{icon}</span><div><small>{label}</small><strong>{value}</strong></div></div>;
+function BuildMetric({ icon, label, value, compact = false }: { icon: ReactNode; label: string; value: number | string; compact?: boolean }) {
+  return <div className={`build-metric ${compact ? "compact" : ""}`}><span>{icon}</span><div><small>{label}</small><strong>{value}</strong></div></div>;
 }
 
-function BuildRow({ build, busy, disabled, onBuild }: { build: NexaInGameBuildEntry; busy: boolean; disabled: boolean; onBuild(): void }) {
+function BuildRow({ build, busy, disabled, compilable, onBuild }: { build: NexaInGameBuildEntry; busy: boolean; disabled: boolean; compilable: boolean; onBuild(): void }) {
   const published = build.status === "published" && build.exists;
   const planned = build.status === "planned";
-  const state = published ? "PUBLICADA" : planned ? "PENDIENTE" : "SIN JAR";
+  const unsupported = !compilable;
+  const state = published ? "PUBLICADA" : unsupported ? "SIN ADAPTADOR" : planned ? "PENDIENTE" : "SIN JAR";
   const size = build.exists && build.sizeBytes > 0 ? ` · ${formatBytes(build.sizeBytes)}` : "";
   return (
     <div className="build-library-row">
       <strong>{build.minecraftVersion}</strong>
       <span>{build.loader}</span>
-      <span>{build.nexaInGameVersion}</span>
-      <span className="build-file" title={build.fileName ?? undefined}>{build.fileName ?? "—"}{size}</span>
-      <span className={`build-state ${published ? "published" : planned ? "planned" : "missing"}`}>{state}</span>
-      <button className="build-row-action" type="button" disabled={disabled} onClick={onBuild}>{busy ? <Loader2 className="spin" size={12} /> : <Hammer size={12} />}{busy ? "COMPILANDO" : published ? "RECOMPILAR" : "COMPILAR"}</button>
+      <span>{compilable ? build.nexaInGameVersion : "—"}</span>
+      <span className="build-file" title={build.fileName ?? undefined}>{compilable ? (build.fileName ?? "—") : "Adaptador todavía no portado"}{size}</span>
+      <span className={`build-state ${published ? "published" : unsupported ? "unsupported" : planned ? "planned" : "missing"}`}>{state}</span>
+      <button className="build-row-action" type="button" disabled={disabled} onClick={onBuild}>{busy ? <Loader2 className="spin" size={12} /> : <Hammer size={12} />}{busy ? "COMPILANDO" : unsupported ? "NO DISPONIBLE" : published ? "RECOMPILAR" : "COMPILAR"}</button>
     </div>
   );
 }
 
-function buildKey(build: NexaInGameBuildEntry) {
+function mergeReleaseMatrix(releases: MinecraftVersionItem[], library: NexaInGameBuildLibrary | null): NexaInGameBuildEntry[] {
+  const existing = library?.builds ?? [];
+  const byKey = new Map(existing.map((build) => [buildKey(build), build]));
+  const rows: NexaInGameBuildEntry[] = [];
+
+  for (const release of releases) {
+    const fabricKey = `fabric::${release.id}`;
+    rows.push(byKey.get(fabricKey) ?? {
+      minecraftVersion: release.id,
+      loader: "Fabric",
+      nexaInGameVersion: "—",
+      fileName: null,
+      relativePath: null,
+      status: "unsupported",
+      exists: false,
+      sizeBytes: 0,
+      sha256: null,
+      publishedAt: null,
+    });
+  }
+
+  for (const build of existing) {
+    const key = buildKey(build);
+    if (!rows.some((row) => buildKey(row) === key)) rows.push(build);
+  }
+
+  return rows;
+}
+
+function hasBuildTarget(build: NexaInGameBuildEntry, library: NexaInGameBuildLibrary | null) {
+  return Boolean(library?.targets.some((target) =>
+    target.minecraftVersion === build.minecraftVersion &&
+    target.loader.toLowerCase() === build.loader.toLowerCase(),
+  ));
+}
+
+function isSupportedReleaseRange(id: string) {
+  const parts = id.split(".").map((part) => Number.parseInt(part, 10));
+  if (parts.length < 2 || parts.some((part) => Number.isNaN(part))) return false;
+  if (parts[0] > 1) return true;
+  return parts[0] === 1 && parts[1] >= 19;
+}
+
+function buildKey(build: Pick<NexaInGameBuildEntry, "loader" | "minecraftVersion">) {
   return `${build.loader.toLowerCase()}::${build.minecraftVersion}`;
 }
 
