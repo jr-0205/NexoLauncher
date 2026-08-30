@@ -14,7 +14,11 @@ import org.lwjgl.glfw.GLFW;
 public final class NexoClientMod implements ClientModInitializer {
     public static final NexoModuleRegistry MODULES = new NexoModuleRegistry();
     public static final NexoPerformanceController PERFORMANCE = new NexoPerformanceController();
+
     private static KeyBinding openMenu;
+    private static boolean performanceFaulted;
+    private static boolean menuFaulted;
+    private static boolean hudFaulted;
 
     @Override
     public void onInitializeClient() {
@@ -26,12 +30,43 @@ public final class NexoClientMod implements ClientModInitializer {
         ));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            PERFORMANCE.applyIfPending(client);
-            while (openMenu.wasPressed()) {
-                client.setScreen(new NexoMenuScreen(client.currentScreen, MODULES, PERFORMANCE));
+            if (!performanceFaulted) {
+                try {
+                    PERFORMANCE.applyIfPending(client);
+                }
+                catch (RuntimeException | LinkageError error) {
+                    performanceFaulted = true;
+                    reportDisabled("rendimiento", error);
+                }
+            }
+
+            if (!menuFaulted) {
+                try {
+                    while (openMenu.wasPressed()) {
+                        client.setScreen(new NexoMenuScreen(client.currentScreen, MODULES, PERFORMANCE));
+                    }
+                }
+                catch (RuntimeException | LinkageError error) {
+                    menuFaulted = true;
+                    reportDisabled("Control Center", error);
+                }
             }
         });
 
-        HudRenderCallback.EVENT.register((context, tickCounter) -> NexoHudOverlay.render(MinecraftClient.getInstance(), context, MODULES));
+        HudRenderCallback.EVENT.register((context, tickCounter) -> {
+            if (hudFaulted) return;
+            try {
+                NexoHudOverlay.render(MinecraftClient.getInstance(), context, MODULES);
+            }
+            catch (RuntimeException | LinkageError error) {
+                hudFaulted = true;
+                reportDisabled("HUD", error);
+            }
+        });
+    }
+
+    private static void reportDisabled(String component, Throwable error) {
+        System.err.println("[NEXA In-Game] " + component + " desactivado por incompatibilidad; Minecraft seguirá ejecutándose.");
+        error.printStackTrace(System.err);
     }
 }
