@@ -35,11 +35,36 @@ internal sealed class NexaAccountMessageRouter
         if (request is null || string.IsNullOrWhiteSpace(request.Method)) return false;
 
         // Refresh the premium bearer token immediately before the existing launch bridge builds the process.
-        // Returning false intentionally lets profiles.launch continue through the normal NEXA bridge afterwards.
+        // Signed-out users continue through the regular local launcher. A signed-in session that cannot be
+        // refreshed fails closed instead of silently launching with a different/offline identity.
         if (string.Equals(request.Method, "profiles.launch", StringComparison.Ordinal))
         {
-            await SynchronizeLaunchIdentityAsync();
-            return false;
+            try
+            {
+                var snapshot = await account.GetSnapshotAsync();
+                if (!snapshot.SignedIn)
+                {
+                    MinecraftAuthenticatedSession.Clear();
+                    return false;
+                }
+
+                var identity = await account.GetLaunchIdentityAsync()
+                    ?? throw new InvalidOperationException("La sesión premium ya no está disponible. Vuelve a iniciar sesión.");
+                MinecraftAuthenticatedSession.Set(identity.Id, identity.Name, identity.AccessToken);
+                return false;
+            }
+            catch (Exception exception) when (exception is not OperationCanceledException)
+            {
+                MinecraftAuthenticatedSession.Clear();
+                Post(new AccountResponse(request.Id, false, null, exception.Message));
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                MinecraftAuthenticatedSession.Clear();
+                Post(new AccountResponse(request.Id, false, null, "No se pudo validar la sesión premium antes de iniciar Minecraft."));
+                return true;
+            }
         }
 
         if (!request.Method.StartsWith("account.", StringComparison.Ordinal)) return false;
@@ -71,6 +96,12 @@ internal sealed class NexaAccountMessageRouter
     private async Task<NexaPremiumAccountSnapshot> StatusAsync()
     {
         var snapshot = await account.GetSnapshotAsync();
+        if (!snapshot.SignedIn)
+        {
+            MinecraftAuthenticatedSession.Clear();
+            return snapshot;
+        }
+
         await SynchronizeLaunchIdentityAsync();
         return snapshot;
     }
