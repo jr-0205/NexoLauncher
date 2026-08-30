@@ -25,6 +25,10 @@ loom {
 }
 
 sourceSets {
+    main {
+        java.srcDir '../core/src/main/java'
+        resources.srcDir '../core/src/main/resources'
+    }
     client {
         java.srcDir '../fabric-1.21.1/src/client/java'
     }
