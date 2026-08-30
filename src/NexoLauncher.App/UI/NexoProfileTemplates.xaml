@@ -7,10 +7,10 @@
     <app:ProfileBackgroundConverter x:Key="Nexo.ProfileBackgroundConverter"/>
 
     <DataTemplate x:Key="Nexo.ProfileCardTemplate">
-        <Border Width="248" Height="184" CornerRadius="12" ClipToBounds="True"
+        <Border Width="248" Height="184" CornerRadius="12"
                 Background="{DynamicResource Nexo.Surface}" BorderBrush="{DynamicResource Nexo.Border}" BorderThickness="1">
-            <Grid>
-                <Border>
+            <Grid Margin="1">
+                <Border CornerRadius="11">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
                             <GradientStop Color="#203F86"/>
@@ -19,9 +19,17 @@
                         </LinearGradientBrush>
                     </Border.Background>
                 </Border>
-                <Image Source="{Binding Id, Converter={StaticResource Nexo.ProfileBackgroundConverter}}"
-                       Stretch="UniformToFill" Opacity="0.78"/>
-                <Border>
+
+                <!-- Use the rounded Border's brush renderer instead of a raw Image. WPF does not clip
+                     child images to CornerRadius when only ClipToBounds is enabled. -->
+                <Border CornerRadius="11" Opacity="0.78">
+                    <Border.Background>
+                        <ImageBrush ImageSource="{Binding Id, Converter={StaticResource Nexo.ProfileBackgroundConverter}}"
+                                    Stretch="UniformToFill"/>
+                    </Border.Background>
+                </Border>
+
+                <Border CornerRadius="11">
                     <Border.Background>
                         <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
                             <GradientStop Color="#15090D13"/>
@@ -45,14 +53,20 @@
                         </Grid.ColumnDefinitions>
                         <Border Width="54" Height="54" CornerRadius="10" Background="#E6172131"
                                 BorderBrush="{DynamicResource Nexo.BorderStrong}" BorderThickness="1"
-                                HorizontalAlignment="Left" ClipToBounds="True">
-                            <Grid>
-                                <Image Source="{DynamicResource Nexo.BrandMark}" Stretch="Uniform" Margin="9"/>
-                                <Image Source="{Binding Id, Converter={StaticResource Nexo.ProfileIconConverter}}" Stretch="UniformToFill"/>
+                                HorizontalAlignment="Left">
+                            <Grid Margin="1">
+                                <Border CornerRadius="9" Background="#0B111B"/>
+                                <Image Source="{DynamicResource Nexo.BrandMark}" Stretch="Uniform" Margin="7"/>
+                                <Border CornerRadius="9">
+                                    <Border.Background>
+                                        <ImageBrush ImageSource="{Binding Id, Converter={StaticResource Nexo.ProfileIconConverter}}"
+                                                    Stretch="UniformToFill"/>
+                                    </Border.Background>
+                                </Border>
                             </Grid>
                         </Border>
                         <Border Grid.Column="1" Background="#D0172131" CornerRadius="7" Padding="8,5" VerticalAlignment="Top">
-                            <TextBlock Text="NEXO" Foreground="#8DB3FF" FontSize="8" FontWeight="Bold"/>
+                            <TextBlock Text="NEXA" Foreground="#8DB3FF" FontSize="8" FontWeight="Bold"/>
                         </Border>
                     </Grid>
 
