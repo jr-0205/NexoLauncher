@@ -52,8 +52,10 @@ public partial class CreateProfileWizard : Window
         MemoryHintText.Text = $"Recomendado para este equipo: {FormatMemory(this.recommendedMemoryMiB)}. Déjalo desactivado para heredar la configuración global.";
         ApplyVersionFilter();
         if (VersionList.Items.Count > 0) VersionList.SelectedIndex = 0;
-        if (VersionList.SelectedItem is MinecraftVersion first)
-            ProfileNameBox.Text = $"Minecraft {first.Id}";
+
+        // El nombre del perfil pertenece al usuario. Nunca se deriva de Minecraft,
+        // el loader ni ninguna otra propiedad técnica del perfil.
+        ProfileNameBox.Text = string.Empty;
 
         RestoreDefaultBrandPreview();
         initialized = true;
@@ -209,7 +211,7 @@ public partial class CreateProfileWizard : Window
 
     private bool ValidateInfo()
     {
-        var name = ProfileNameBox.Text.Trim();
+        var name = NormalizeProfileName(ProfileNameBox.Text);
         if (name.Length is >= 1 and <= 64) return true;
         MessageBox.Show(this, "Escribe un nombre para el perfil.", "Nombre requerido", MessageBoxButton.OK, MessageBoxImage.Information);
         ProfileNameBox.Focus();
@@ -332,6 +334,7 @@ public partial class CreateProfileWizard : Window
 
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
+        ProfileNameBox.Clear();
         DescriptionBox.Clear();
         VersionSearchBox.Clear();
         VanillaLoader.IsChecked = true;
@@ -343,7 +346,6 @@ public partial class CreateProfileWizard : Window
         MemorySlider.Value = recommendedMemoryMiB;
         ApplyVersionFilter();
         if (VersionList.Items.Count > 0) VersionList.SelectedIndex = 0;
-        if (VersionList.SelectedItem is MinecraftVersion version) ProfileNameBox.Text = $"Minecraft {version.Id}";
         SetStep(1);
     }
 
@@ -357,8 +359,9 @@ public partial class CreateProfileWizard : Window
         if (!ValidateInfo() || !ValidateVersion() || VersionList.SelectedItem is not MinecraftVersion version) return;
         var loader = SelectedLoader();
         var loaderVersion = loader == LoaderType.Vanilla ? null : (LoaderVersionBox.SelectedItem as LoaderVersion)?.Version;
+        var profileName = NormalizeProfileName(ProfileNameBox.Text);
         Result = new CreateProfileWizardResult(
-            ProfileNameBox.Text.Trim(),
+            profileName,
             DescriptionBox.Text.Trim(),
             version,
             loader,
@@ -368,4 +371,6 @@ public partial class CreateProfileWizard : Window
             CustomMemoryCheck.IsChecked == true ? (int)MemorySlider.Value : null);
         DialogResult = true;
     }
+
+    private static string NormalizeProfileName(string value) => value.Trim();
 }
