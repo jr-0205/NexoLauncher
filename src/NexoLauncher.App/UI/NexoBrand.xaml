@@ -12,36 +12,12 @@
     <DrawingImage x:Key="Nexo.BrandMark">
         <DrawingImage.Drawing>
             <DrawingGroup>
-                <GeometryDrawing Brush="{StaticResource Nexo.BrandGradient}">
-                    <GeometryDrawing.Geometry>
-                        <PathGeometry Figures="M 8,5 L 22,5 L 31,15 L 24,22 L 18,16 L 12,16 L 16,12 Z"/>
-                    </GeometryDrawing.Geometry>
-                </GeometryDrawing>
-                <GeometryDrawing Brush="{StaticResource Nexo.BrandGradient}">
-                    <GeometryDrawing.Geometry>
-                        <PathGeometry Figures="M 25,5 L 40,5 L 34,11 L 41,18 L 31,18 L 23,10 Z"/>
-                    </GeometryDrawing.Geometry>
-                </GeometryDrawing>
-                <GeometryDrawing Brush="{StaticResource Nexo.BrandGradient}">
-                    <GeometryDrawing.Geometry>
-                        <PathGeometry Figures="M 12,19 L 20,19 L 28,27 L 24,31 L 17,24 L 11,24 Z"/>
-                    </GeometryDrawing.Geometry>
-                </GeometryDrawing>
-                <GeometryDrawing Brush="{StaticResource Nexo.BrandGradient}">
-                    <GeometryDrawing.Geometry>
-                        <PathGeometry Figures="M 30,21 L 42,21 L 36,27 L 42,33 L 31,33 L 25,27 Z"/>
-                    </GeometryDrawing.Geometry>
-                </GeometryDrawing>
-                <GeometryDrawing Brush="#F4F7FC">
-                    <GeometryDrawing.Geometry>
-                        <PathGeometry Figures="M 7,17 L 14,17 L 11,20 L 5,20 Z"/>
-                    </GeometryDrawing.Geometry>
-                </GeometryDrawing>
-                <GeometryDrawing Brush="#F4F7FC">
-                    <GeometryDrawing.Geometry>
-                        <PathGeometry Figures="M 23,17 L 30,17 L 27,20 L 20,20 Z"/>
-                    </GeometryDrawing.Geometry>
-                </GeometryDrawing>
+                <GeometryDrawing Brush="{StaticResource Nexo.BrandGradient}" Geometry="M 8,5 L 22,5 L 31,15 L 24,22 L 18,16 L 12,16 L 16,12 Z"/>
+                <GeometryDrawing Brush="{StaticResource Nexo.BrandGradient}" Geometry="M 25,5 L 40,5 L 34,11 L 41,18 L 31,18 L 23,10 Z"/>
+                <GeometryDrawing Brush="{StaticResource Nexo.BrandGradient}" Geometry="M 12,19 L 20,19 L 28,27 L 24,31 L 17,24 L 11,24 Z"/>
+                <GeometryDrawing Brush="{StaticResource Nexo.BrandGradient}" Geometry="M 30,21 L 42,21 L 36,27 L 42,33 L 31,33 L 25,27 Z"/>
+                <GeometryDrawing Brush="#F4F7FC" Geometry="M 7,17 L 14,17 L 11,20 L 5,20 Z"/>
+                <GeometryDrawing Brush="#F4F7FC" Geometry="M 23,17 L 30,17 L 27,20 L 20,20 Z"/>
             </DrawingGroup>
         </DrawingImage.Drawing>
     </DrawingImage>
