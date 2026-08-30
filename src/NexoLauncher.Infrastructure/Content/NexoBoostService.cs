@@ -19,7 +19,7 @@ public sealed class NexoBoostService(ModrinthContentClient catalog)
     private const string ManifestName = "nexo-boost.json";
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
-    public bool IsApplied(string gameDirectory) => File.Exists(ManifestPath(gameDirectory));
+    public bool IsApplied(string gameDirectory) => File.Exists(ManifestPath(gameDirectory, ensureRuntime: false));
 
     public IReadOnlyList<NexoBoostComponent> Recommend(LoaderType loader) => loader switch
     {
@@ -141,13 +141,16 @@ public sealed class NexoBoostService(ModrinthContentClient catalog)
 
         await WriteManifestAsync(gameDirectory,
             new BoostManifest(ManifestSchema, instance.MinecraftVersion, LoaderName(instance.Loader), DateTimeOffset.UtcNow, managed), token);
-        return new NexoBoostApplyResult(managed.Count, managed.Select(file => Path.GetFileName(file.RelativePath)).ToArray(), skipped);
+        return new NexoBoostApplyResult(
+            managed.Count,
+            managed.Select(file => Path.GetFileName(file.RelativePath)!).ToArray(),
+            skipped);
     }
 
     public async Task<NexoBoostRemoveResult> RemoveAsync(string gameDirectory, CancellationToken token = default)
     {
         gameDirectory = Path.GetFullPath(gameDirectory);
-        var manifestPath = ManifestPath(gameDirectory);
+        var manifestPath = ManifestPath(gameDirectory, ensureRuntime: false);
         if (!File.Exists(manifestPath)) return new NexoBoostRemoveResult(0, []);
 
         BoostManifest manifest;
@@ -160,6 +163,9 @@ public sealed class NexoBoostService(ModrinthContentClient catalog)
         {
             throw new InvalidDataException("El manifiesto de NEXO Boost está dañado; NEXO no borrará mods sin poder verificar su propiedad.", exception);
         }
+
+        if (manifest.SchemaVersion != ManifestSchema || manifest.Files is null)
+            throw new InvalidDataException("El manifiesto de NEXO Boost no es compatible; NEXO no borrará archivos sin verificar su propiedad.");
 
         var removed = 0;
         var preserved = new List<string>();
@@ -208,19 +214,21 @@ public sealed class NexoBoostService(ModrinthContentClient catalog)
         _ => "vanilla"
     };
 
-    private static string ManifestPath(string gameDirectory)
+    private static string ManifestPath(string gameDirectory, bool ensureRuntime)
     {
         var game = Path.GetFullPath(gameDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var instanceRoot = Directory.GetParent(game)?.FullName
                            ?? throw new InvalidOperationException("No se pudo resolver la raíz de la instancia.");
         var runtime = Path.Combine(instanceRoot, "runtime");
-        Directory.CreateDirectory(runtime);
+        if (Directory.Exists(runtime) && new DirectoryInfo(runtime).Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new InvalidDataException("runtime/ no puede ser un enlace o junction.");
+        if (ensureRuntime) Directory.CreateDirectory(runtime);
         return Path.Combine(runtime, ManifestName);
     }
 
     private static async Task WriteManifestAsync(string gameDirectory, BoostManifest manifest, CancellationToken token)
     {
-        var path = ManifestPath(gameDirectory);
+        var path = ManifestPath(gameDirectory, ensureRuntime: true);
         var temporary = path + ".tmp";
         var bytes = JsonSerializer.SerializeToUtf8Bytes(manifest, Json);
         await File.WriteAllBytesAsync(temporary, bytes, token);
@@ -249,5 +257,10 @@ public sealed class NexoBoostService(ModrinthContentClient catalog)
     }
 
     private sealed record ManagedBoostFile(string RelativePath, string Sha512);
-    private sealed record BoostManifest(int SchemaVersion, string MinecraftVersion, string Loader, DateTimeOffset AppliedAt, IReadOnlyList<ManagedBoostFile> Files);
+    private sealed record BoostManifest(
+        int SchemaVersion,
+        string MinecraftVersion,
+        string Loader,
+        DateTimeOffset AppliedAt,
+        IReadOnlyList<ManagedBoostFile>? Files);
 }
