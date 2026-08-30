@@ -20,18 +20,19 @@ function Fail([string]$message) {
 }
 
 function Invoke-NativeCapture([string]$FileName, [string[]]$Arguments) {
-    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
     $startInfo.FileName = $FileName
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
 
-    foreach ($argument in $Arguments) {
-        [void]$startInfo.ArgumentList.Add($argument)
-    }
+    # Windows PowerShell 5.1 usa .NET Framework y ProcessStartInfo no expone
+    # ArgumentList. Esta función sólo se usa con argumentos simples como
+    # `-version`, por lo que Arguments es la opción compatible y suficiente.
+    $startInfo.Arguments = [string]::Join(' ', $Arguments)
 
-    $process = [System.Diagnostics.Process]::new()
+    $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $startInfo
     try {
         if (-not $process.Start()) {
@@ -103,10 +104,8 @@ if (-not [string]::IsNullOrWhiteSpace($JavaPath)) {
     $env:PATH = "$javaBin;$env:PATH"
 }
 
-# `java -version` escribe deliberadamente su versión por stderr. Ejecutarlo con
-# `2>&1` bajo `$ErrorActionPreference = 'Stop'` hace que Windows PowerShell lo
-# convierta en NativeCommandError aunque Java termine con código 0. Capturamos
-# stdout/stderr con Process para evaluar únicamente el código de salida real.
+# `java -version` escribe deliberadamente su versión por stderr. Capturamos
+# stdout/stderr con Process y evaluamos únicamente el código de salida real.
 $javaProbe = Invoke-NativeCapture $javaExecutable @('-version')
 $javaVersion = (($javaProbe.Output + [Environment]::NewLine + $javaProbe.Error).Trim())
 if ($javaProbe.ExitCode -ne 0) {
