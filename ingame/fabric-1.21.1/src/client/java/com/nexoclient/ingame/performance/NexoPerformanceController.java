@@ -16,12 +16,16 @@ public final class NexoPerformanceController {
     private static final String PRESET_KEY = "performancePreset";
     private final Path configPath;
     private NexoPerformancePreset selected;
-    private boolean applyPending = true;
-    private boolean sodiumExtraPending = true;
+    private boolean applyPending;
+    private boolean sodiumExtraPending;
 
     public NexoPerformanceController() {
         configPath = FabricLoader.getInstance().getConfigDir().resolve("nexo-ingame.properties");
         selected = load();
+        // Seguridad: nunca tocar opciones de Minecraft durante el arranque.
+        // El preset guardado sólo se aplica cuando el usuario lo selecciona explícitamente.
+        applyPending = false;
+        sodiumExtraPending = false;
     }
 
     public NexoPerformancePreset selected() {
@@ -58,12 +62,6 @@ public final class NexoPerformanceController {
         NexoParticleTuner.apply(preset);
     }
 
-    /**
-     * ParticlesMode cambió de net.minecraft.client.option a net.minecraft.particle
-     * dentro de la familia 1.21. Evitamos acoplar el adaptador a cualquiera de
-     * esos paquetes: GameOptions entrega el enum real y NEXA resuelve por nombre
-     * la semántica estable ALL / DECREASED / MINIMAL definida en el core.
-     */
     @SuppressWarnings({"rawtypes", "unchecked"})
     private static void applyParticleMode(MinecraftClient client, NexoPerformancePreset preset) {
         SimpleOption option = client.options.getParticles();
@@ -76,8 +74,7 @@ public final class NexoPerformanceController {
             option.setValue(resolved);
         }
         catch (IllegalArgumentException ignored) {
-            // Una versión futura puede renombrar los valores. El resto del preset
-            // sigue aplicándose y el adaptador correspondiente podrá traducirlo.
+            // Si una versión futura renombra estos valores, no se modifica esta opción.
         }
     }
 
@@ -88,8 +85,6 @@ public final class NexoPerformanceController {
         try (Reader reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
             properties.load(reader);
             var raw = properties.getProperty(PRESET_KEY, NexoPerformancePreset.MEDIUM.name());
-
-            // Compatibilidad con la primera preview de NEXO In-Game.
             if ("MAX_FPS".equalsIgnoreCase(raw)) return NexoPerformancePreset.LOW;
             return NexoPerformancePreset.valueOf(raw);
         }
