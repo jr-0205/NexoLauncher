@@ -4,6 +4,7 @@ import { applyBoost, deleteProfile, getBoostStatus, openProfileFolder, removeBoo
 import { defaultArtworkPlacement, type BoostApplyResult, type BoostStatus, type NexaProfile, type ProfileArtworkPlacement } from "../app/types";
 import { ArtworkViewport } from "../components/ArtworkViewport";
 import { NexaDialog } from "../components/NexaDialog";
+import { NexaInGameAction } from "../components/NexaInGameAction";
 
 type Props = {
   profile: NexaProfile;
@@ -181,6 +182,7 @@ export function ProfileDetailPage({ profile, launching, onLaunch, onContent, onU
         <div className="profile-hero-actions">
           <button className="primary-button wide-action" type="button" disabled={launching} onClick={() => onLaunch(profile)}>{launching ? <Loader2 className="spin" size={17} /> : <Play size={17} fill="currentColor" />} INICIAR</button>
           <button className={`secondary-button ${boostStatus?.applied ? "boost-active-button" : ""}`} type="button" onClick={() => setBoostOpen((value) => !value)}><Gauge size={16} /> NEXA BOOST</button>
+          <NexaInGameAction profile={profile} launching={launching} onNotice={onNotice} />
           <button className="secondary-button" type="button" onClick={() => onContent(profile)}><Boxes size={16} /> CONTENIDO</button>
           <button className="secondary-button" type="button" onClick={() => setEditing((value) => !value)}>{editing ? <X size={16} /> : <ImagePlus size={16} />} {editing ? "CERRAR EDITOR" : "EDITAR PERFIL"}</button>
           <button className="ghost-button" type="button" onClick={() => openProfileFolder(profile.id).catch((error: Error) => onNotice(error.message, "error"))}><FolderOpen size={16} /> ABRIR CARPETA</button>
