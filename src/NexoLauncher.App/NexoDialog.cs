@@ -15,18 +15,21 @@ internal enum NexoDialogKind
 internal static class NexoDialog
 {
     public static bool Confirm(Window owner, string title, string message, string primaryText = "ACEPTAR", string secondaryText = "CANCELAR", string? details = null)
-        => Show(owner, title, message, NexoDialogKind.Confirmation, primaryText, secondaryText, details);
+        => Show(owner, title, message, NexoDialogKind.Confirmation, primaryText, secondaryText, details, destructive: false);
+
+    public static bool ConfirmDanger(Window owner, string title, string message, string primaryText = "ELIMINAR", string secondaryText = "CANCELAR", string? details = null)
+        => Show(owner, title, message, NexoDialogKind.Warning, primaryText, secondaryText, details, destructive: true);
 
     public static void Info(Window owner, string title, string message, string primaryText = "ACEPTAR", string? details = null)
-        => Show(owner, title, message, NexoDialogKind.Information, primaryText, null, details);
+        => Show(owner, title, message, NexoDialogKind.Information, primaryText, null, details, destructive: false);
 
     public static void Warning(Window owner, string title, string message, string primaryText = "ACEPTAR", string? details = null)
-        => Show(owner, title, message, NexoDialogKind.Warning, primaryText, null, details);
+        => Show(owner, title, message, NexoDialogKind.Warning, primaryText, null, details, destructive: false);
 
     public static void Error(Window owner, string title, string message, string? details = null)
-        => Show(owner, title, message, NexoDialogKind.Error, "CERRAR", null, details);
+        => Show(owner, title, message, NexoDialogKind.Error, "CERRAR", null, details, destructive: false);
 
-    private static bool Show(Window owner, string title, string message, NexoDialogKind kind, string primaryText, string? secondaryText, string? details)
+    private static bool Show(Window owner, string title, string message, NexoDialogKind kind, string primaryText, string? secondaryText, string? details, bool destructive)
     {
         var window = new Window
         {
@@ -41,6 +44,7 @@ internal static class NexoDialog
             Background = Brush("Nexo.Background", Color.FromRgb(9, 13, 19)),
             Foreground = Brush("Nexo.Text", Color.FromRgb(244, 247, 252)),
             FontFamily = new FontFamily("Segoe UI Variable Text"),
+            Icon = System.Windows.Application.Current.TryFindResource("Nexo.BrandMark") as ImageSource,
             UseLayoutRounding = true,
             SnapsToDevicePixels = true
         };
@@ -58,8 +62,8 @@ internal static class NexoDialog
 
         var accent = kind switch
         {
-            NexoDialogKind.Warning => Color.FromRgb(244, 184, 82),
-            NexoDialogKind.Error => Color.FromRgb(240, 113, 103),
+            NexoDialogKind.Warning => Color.FromRgb(230, 184, 92),
+            NexoDialogKind.Error => Color.FromRgb(240, 120, 120),
             _ => Color.FromRgb(91, 140, 255)
         };
         var glyph = kind switch
@@ -168,7 +172,7 @@ internal static class NexoDialog
         footer.Child = footerGrid;
         footerGrid.Children.Add(new TextBlock
         {
-            Text = "NEXO Client",
+            Text = destructive ? "Esta acción modifica archivos del perfil" : "NEXO Client",
             Foreground = Brush("Nexo.TextMuted", Color.FromRgb(99, 113, 137)),
             FontSize = 9,
             VerticalAlignment = VerticalAlignment.Center
@@ -177,14 +181,19 @@ internal static class NexoDialog
         var accepted = false;
         if (!string.IsNullOrWhiteSpace(secondaryText))
         {
-            var secondary = Button(secondaryText, "Nexo.SecondaryButton", 112);
+            var secondary = CreateButton(secondaryText, "Nexo.SecondaryButton", 112);
             secondary.Margin = new Thickness(0, 0, 9, 0);
             secondary.Click += (_, _) => window.Close();
             Grid.SetColumn(secondary, 1);
             footerGrid.Children.Add(secondary);
         }
 
-        var primary = Button(primaryText, kind == NexoDialogKind.Error ? "Nexo.DangerButton" : "Nexo.PrimaryButton", 126);
+        var primary = CreateButton(primaryText, "Nexo.PrimaryButton", 126);
+        if (destructive)
+        {
+            primary.Background = Brush("Nexo.Danger", Color.FromRgb(240, 120, 120));
+            primary.Foreground = Brushes.White;
+        }
         primary.Click += (_, _) => { accepted = true; window.Close(); };
         Grid.SetColumn(primary, 2);
         footerGrid.Children.Add(primary);
@@ -193,7 +202,7 @@ internal static class NexoDialog
         return accepted;
     }
 
-    private static Button Button(string text, string styleKey, double minWidth)
+    private static Button CreateButton(string text, string styleKey, double minWidth)
     {
         var button = new Button { Content = text, MinWidth = minWidth, Height = 40, Padding = new Thickness(14, 7, 14, 7) };
         if (System.Windows.Application.Current.TryFindResource(styleKey) is Style style)
