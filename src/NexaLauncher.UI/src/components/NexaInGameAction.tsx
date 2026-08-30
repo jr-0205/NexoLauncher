@@ -1,4 +1,4 @@
-import { Check, Clipboard, Gamepad2, Loader2, RefreshCw, TerminalSquare, X } from "lucide-react";
+import { Check, Clipboard, Gamepad2, Loader2, RefreshCw, Terminal, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getNexaInGameStatus, getProfileLiveLogs, installNexaInGame, onBridgeEvent } from "../app/nexa-bridge";
 import type { NexaInGameStatus, NexaProfile, ProfileLiveLogs, ProfileLogSnapshot } from "../app/types";
@@ -51,7 +51,6 @@ export function NexaInGameAction({ profile, launching, onNotice }: Props) {
       const result = await getProfileLiveLogs(profile.id);
       setLogs(result);
       setLogError(null);
-      if (result.crash.available && result.crash.text.trim()) setLogTab((current) => current === "game" ? "crash" : current);
     } catch (error) {
       setLogError(error instanceof Error ? error.message : "No se pudieron leer los logs del perfil.");
     }
@@ -167,7 +166,7 @@ export function NexaInGameAction({ profile, launching, onNotice }: Props) {
       )}
 
       <button className="ghost-button ingame-maintenance-button" type="button" onClick={() => setConsoleOpen(true)}>
-        <TerminalSquare size={14} /> CONSOLA EN VIVO
+        <Terminal size={14} /> CONSOLA EN VIVO
       </button>
 
       {consoleOpen && (
@@ -175,7 +174,7 @@ export function NexaInGameAction({ profile, launching, onNotice }: Props) {
           <section className="profile-live-console glass-panel">
             <header className="live-console-heading">
               <div className="live-console-title">
-                <TerminalSquare size={18} />
+                <Terminal size={18} />
                 <div>
                   <strong>CONSOLA EN VIVO · {profile.name}</strong>
                   <span>Minecraft {profile.minecraftVersion} · {profile.loader}{profile.loaderVersion ? ` ${profile.loaderVersion}` : ""}</span>
