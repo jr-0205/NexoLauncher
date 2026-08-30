@@ -23,6 +23,7 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         Title = "NEXA Client";
+        Icon = NexaApplicationIcon.Create();
         Loaded += OnLoaded;
     }
 
@@ -106,7 +107,7 @@ public partial class MainWindow : Window
         try
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, args.Request.Uri);
-            request.Headers.UserAgent.ParseAdd("NEXA-Client/0.5.2");
+            request.Headers.UserAgent.ParseAdd("NEXA-Client/1.0.0");
             using var response = await previewHttp.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
             if (!response.IsSuccessStatusCode) return;
 
