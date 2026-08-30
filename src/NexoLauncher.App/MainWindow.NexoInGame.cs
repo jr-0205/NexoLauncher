@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -10,6 +11,9 @@ namespace NexoLauncher.App;
 
 public partial class MainWindow
 {
+    private static readonly TimeSpan NexoInGameInstallTimeout = TimeSpan.FromMinutes(20);
+    private const string NexoInGameStagePrefix = "NEXO_STAGE|";
+
     private Button? rightShiftButton;
 
     protected override void OnSourceInitialized(EventArgs e)
@@ -144,7 +148,8 @@ public partial class MainWindow
 
         var confirmation = MessageBox.Show(this,
             $"¿Añadir Right Shift a '{instance.Name}'?\n\n" +
-            "NEXO compilará su companion Fabric con Java 21, instalará el JAR en mods/ y añadirá Fabric API si hace falta.",
+            "NEXO compilará su companion Fabric con Java 21, instalará el JAR en mods/ y añadirá Fabric API si hace falta. " +
+            "El primer build puede tardar varios minutos porque Gradle descarga dependencias.",
             "Añadir NEXO In-Game",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question,
@@ -152,12 +157,43 @@ public partial class MainWindow
         if (confirmation != MessageBoxResult.Yes) return;
 
         Process? process = null;
+        var installLog = new StringBuilder();
+        var installLogLock = new object();
+
+        void CaptureInstallerLine(string? line)
+        {
+            if (string.IsNullOrWhiteSpace(line)) return;
+
+            lock (installLogLock)
+                installLog.AppendLine(line);
+
+            if (!line.StartsWith(NexoInGameStagePrefix, StringComparison.Ordinal)) return;
+            var stage = line[NexoInGameStagePrefix.Length..].Trim();
+            if (stage.Length == 0) return;
+
+            _ = Dispatcher.BeginInvoke(new Action(() =>
+            {
+                DetailSubtitle.Text = stage;
+                if (rightShiftButton is not null)
+                {
+                    rightShiftButton.Content = NexoInGameButtonText(stage);
+                    rightShiftButton.ToolTip = stage;
+                }
+            }), DispatcherPriority.Background);
+        }
+
+        string CurrentLog()
+        {
+            lock (installLogLock)
+                return installLog.ToString();
+        }
+
         try
         {
             SetBusy(true, $"Añadiendo Right Shift a {instance.Name}…");
-            rightShiftButton!.Content = "INSTALANDO…";
+            rightShiftButton!.Content = "PREPARANDO…";
             rightShiftButton.IsEnabled = false;
-            DetailSubtitle.Text = "Compilando e instalando NEXO In-Game…";
+            DetailSubtitle.Text = "Preparando NEXO In-Game…";
 
             var startInfo = new ProcessStartInfo
             {
@@ -178,23 +214,44 @@ public partial class MainWindow
             startInfo.ArgumentList.Add(java21.JavaExecutable);
 
             process = new Process { StartInfo = startInfo };
+            process.OutputDataReceived += (_, args) => CaptureInstallerLine(args.Data);
+            process.ErrorDataReceived += (_, args) => CaptureInstallerLine(args.Data);
+
             if (!process.Start())
                 throw new InvalidOperationException("Windows no pudo iniciar el instalador de NEXO In-Game.");
 
-            var outputTask = process.StandardOutput.ReadToEndAsync();
-            var errorTask = process.StandardError.ReadToEndAsync();
-            await process.WaitForExitAsync(lifetime.Token);
-            var output = await outputTask;
-            var error = await errorTask;
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
 
+            using var installTimeout = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
+            installTimeout.CancelAfter(NexoInGameInstallTimeout);
+
+            try
+            {
+                await process.WaitForExitAsync(installTimeout.Token);
+                // Garantiza que OutputDataReceived/ErrorDataReceived terminen de drenar.
+                process.WaitForExit();
+            }
+            catch (OperationCanceledException) when (!lifetime.IsCancellationRequested)
+            {
+                if (!process.HasExited)
+                {
+                    try { process.Kill(entireProcessTree: true); } catch { }
+                }
+
+                var details = TailInstallerLog(CurrentLog());
+                throw new TimeoutException(
+                    $"La instalación de NEXO In-Game superó {NexoInGameInstallTimeout.TotalMinutes:0} minutos y NEXO la detuvo para evitar un bloqueo indefinido." +
+                    (details.Length == 0 ? string.Empty : "\n\nÚltimo registro:\n" + details));
+            }
+
+            var output = CurrentLog();
             if (process.ExitCode != 0 || !IsNexoInGameInstalled(instance.Id))
             {
-                var details = string.Join(Environment.NewLine,
-                    new[] { output.Trim(), error.Trim() }.Where(value => !string.IsNullOrWhiteSpace(value)));
-                if (details.Length > 5000) details = details[^5000..];
+                var details = TailInstallerLog(output);
                 throw new InvalidOperationException(
                     "NEXO In-Game no pudo instalarse correctamente." +
-                    (string.IsNullOrWhiteSpace(details) ? string.Empty : "\n\n" + details));
+                    (details.Length == 0 ? string.Empty : "\n\n" + details));
             }
 
             DetailSubtitle.Text = "NEXO In-Game instalado · Right Shift listo";
@@ -223,6 +280,23 @@ public partial class MainWindow
             RefreshButton();
             RefreshRightShiftButtonState();
         }
+    }
+
+    private static string NexoInGameButtonText(string stage)
+    {
+        if (stage.Contains("Java", StringComparison.OrdinalIgnoreCase)) return "JAVA…";
+        if (stage.Contains("Gradle", StringComparison.OrdinalIgnoreCase)) return "GRADLE…";
+        if (stage.Contains("Compilando", StringComparison.OrdinalIgnoreCase)) return "COMPILANDO…";
+        if (stage.Contains("Fabric API", StringComparison.OrdinalIgnoreCase)) return "FABRIC API…";
+        if (stage.Contains("JAR", StringComparison.OrdinalIgnoreCase)) return "INSTALANDO…";
+        if (stage.Contains("Finalizando", StringComparison.OrdinalIgnoreCase)) return "FINALIZANDO…";
+        return "PREPARANDO…";
+    }
+
+    private static string TailInstallerLog(string value, int maximumLength = 6000)
+    {
+        value = value.Trim();
+        return value.Length <= maximumLength ? value : value[^maximumLength..];
     }
 
     private static string? FindRepositoryFile(params string[] relativeParts)
