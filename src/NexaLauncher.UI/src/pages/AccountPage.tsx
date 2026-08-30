@@ -1,5 +1,5 @@
 import { Check, Crown, Loader2, LogIn, LogOut, ShieldCheck, Shirt, Sparkles, Upload, UserRound } from "lucide-react";
-import { useEffect, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import type { NexaAccountState } from "../app/types";
 
 export type SkinVariant = "classic" | "slim";
@@ -144,7 +144,7 @@ export function AccountPage({ account, busy, onSignIn, onSignOut, onUploadSkin }
   );
 }
 
-function Feature({ icon, title, text }: { icon: React.ReactNode; title: string; text: string }) {
+function Feature({ icon, title, text }: { icon: ReactNode; title: string; text: string }) {
   return <div className="account-feature"><span>{icon}</span><div><strong>{title}</strong><p>{text}</p></div></div>;
 }
 
