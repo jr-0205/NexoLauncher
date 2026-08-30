@@ -28,7 +28,7 @@ public sealed class NexoDataLayoutMigrator(string instancesRoot, string sharedVe
         foreach (var source in Directory.EnumerateDirectories(instances).ToArray())
         {
             var name = Path.GetFileName(source);
-            if (name.StartsWith('.', StringComparison.Ordinal) || Guid.TryParseExact(name, "N", out _)) continue;
+            if (name.StartsWith(".", StringComparison.Ordinal) || Guid.TryParseExact(name, "N", out _)) continue;
             if (!File.Exists(Path.Combine(source, name + ".json")) || !File.Exists(Path.Combine(source, name + ".jar"))) continue;
             migrated += MergeLegacyShared(source, Path.Combine(versions, name));
         }
