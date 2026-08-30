@@ -1,3 +1,21 @@
+export type ProfileArtworkPlacement = {
+  iconPositionX: number;
+  iconPositionY: number;
+  iconFit: "cover" | "contain";
+  backgroundPositionX: number;
+  backgroundPositionY: number;
+  backgroundFit: "cover" | "contain";
+};
+
+export const defaultArtworkPlacement: ProfileArtworkPlacement = {
+  iconPositionX: 50,
+  iconPositionY: 50,
+  iconFit: "contain",
+  backgroundPositionX: 50,
+  backgroundPositionY: 50,
+  backgroundFit: "cover",
+};
+
 export type NexaProfile = {
   id: string;
   name: string;
@@ -9,6 +27,7 @@ export type NexaProfile = {
   memoryMiB?: number | null;
   iconDataUrl?: string | null;
   backgroundDataUrl?: string | null;
+  artwork?: ProfileArtworkPlacement;
 };
 
 export type ActiveLaunch = {
@@ -58,6 +77,11 @@ export type UpdateProfileRequest = {
   removeBackground: boolean;
 };
 
+export type ArtworkPlacementEntry = {
+  id: string;
+  artwork: ProfileArtworkPlacement;
+};
+
 export type InstalledContentEntry = {
   category: string;
   name: string;
@@ -76,6 +100,40 @@ export type ContentCatalogProject = {
   projectType: "mod" | "resourcepack" | "shader" | "datapack";
   iconUrl?: string | null;
   downloads: number;
+};
+
+export type BoostComponent = {
+  id: string;
+  name: string;
+  purpose: string;
+};
+
+export type BoostStatus = {
+  supported: boolean;
+  applied: boolean;
+  visualApplied: boolean;
+  profileId: string;
+  minecraftVersion: string;
+  loader: string;
+  components: BoostComponent[];
+};
+
+export type BoostApplyResult = {
+  applied: boolean;
+  reapplied: boolean;
+  filesInstalled: number;
+  installedFiles: string[];
+  skippedComponents: string[];
+  presetChanges: string[];
+  particleCoreConfigured: boolean;
+  note?: string | null;
+};
+
+export type BoostRemoveResult = {
+  applied: boolean;
+  filesRemoved: number;
+  valuesRestored: number;
+  preserved: string[];
 };
 
 export type OperationProgress = {
