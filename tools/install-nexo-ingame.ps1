@@ -11,16 +11,16 @@ $projectRoot = Join-Path $repoRoot 'ingame\fabric-1.21.1'
 $instancesRoot = Join-Path $env:LOCALAPPDATA 'NexoLauncher\instances'
 $cacheRoot = Join-Path $env:LOCALAPPDATA 'NexoLauncher\cache\devtools'
 $gradleVersion = '8.12'
-$gradleHome = Join-Path $cacheRoot "gradle-$gradleVersion"
-$gradleZip = Join-Path $cacheRoot "gradle-$gradleVersion-bin.zip"
+$gradleHome = Join-Path $cacheRoot ("gradle-{0}" -f $gradleVersion)
+$gradleZip = Join-Path $cacheRoot ("gradle-{0}-bin.zip" -f $gradleVersion)
 $gradleExe = Join-Path $gradleHome 'bin\gradle.bat'
 
 function Stage([string]$message) {
-    Write-Output "NEXO_STAGE|$message"
+    Write-Output ("NEXO_STAGE|{0}" -f $message)
 }
 
 function Fail([string]$message) {
-    throw "NEXO In-Game: $message"
+    throw ("NEXO In-Game: {0}" -f $message)
 }
 
 function Invoke-NativeCapture([string]$FileName, [string[]]$Arguments) {
@@ -30,15 +30,13 @@ function Invoke-NativeCapture([string]$FileName, [string[]]$Arguments) {
     $startInfo.CreateNoWindow = $true
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
-
-    # Compatible con Windows PowerShell 5.1 (.NET Framework).
     $startInfo.Arguments = [string]::Join(' ', $Arguments)
 
     $process = New-Object System.Diagnostics.Process
     $process.StartInfo = $startInfo
     try {
         if (-not $process.Start()) {
-            return [pscustomobject]@{ ExitCode = -1; Output = ''; Error = "No se pudo iniciar $FileName" }
+            return [pscustomobject]@{ ExitCode = -1; Output = ''; Error = ("Could not start {0}" -f $FileName) }
         }
 
         $stdoutTask = $process.StandardOutput.ReadToEndAsync()
@@ -56,19 +54,20 @@ function Invoke-NativeCapture([string]$FileName, [string[]]$Arguments) {
     }
 }
 
-Stage 'Localizando instancia Fabric 1.21.1…'
+Stage 'Locating Fabric 1.21.1 instance...'
 
 if (-not (Test-Path $projectRoot)) {
-    Fail "no se encontró el proyecto Fabric 1.21.1 en $projectRoot"
+    Fail ("Fabric 1.21.1 project was not found at {0}" -f $projectRoot)
 }
 if (-not (Test-Path $instancesRoot)) {
-    Fail "no existen instancias en $instancesRoot"
+    Fail ("Instances directory was not found at {0}" -f $instancesRoot)
 }
 
 $candidates = @()
 Get-ChildItem -Path $instancesRoot -Directory | ForEach-Object {
     $manifestPath = Join-Path $_.FullName 'instance.json'
     if (-not (Test-Path $manifestPath)) { return }
+
     try {
         $manifest = Get-Content -Raw -LiteralPath $manifestPath | ConvertFrom-Json
         $loaderType = if ($manifest.loader -is [string]) { [string]$manifest.loader } else { [string]$manifest.loader.type }
@@ -86,96 +85,99 @@ Get-ChildItem -Path $instancesRoot -Directory | ForEach-Object {
         }
     }
     catch {
-        Write-Warning "Se omitió un instance.json no interpretable: $manifestPath"
+        Write-Warning ("Skipped unreadable instance.json: {0}" -f $manifestPath)
     }
 }
 
 if ($candidates.Count -eq 0) {
-    if ($InstanceId) { Fail "no existe una instancia Fabric 1.21.1 con ID '$InstanceId'" }
-    Fail 'no se encontró ninguna instancia Fabric 1.21.1. Crea o selecciona una antes de instalar NEXO In-Game.'
+    if ($InstanceId) { Fail ("No Fabric 1.21.1 instance exists with ID '{0}'" -f $InstanceId) }
+    Fail 'No Fabric 1.21.1 instance was found.'
 }
 
 $target = $candidates | Sort-Object LastWrite -Descending | Select-Object -First 1
-Write-Output "Instancia: $($target.Name) [$($target.Id)]"
-Write-Output "Game dir: $($target.Game)"
+Write-Output ("Instance: {0} [{1}]" -f $target.Name, $target.Id)
+Write-Output ("Game dir: {0}" -f $target.Game)
 
-Stage 'Validando Java 21…'
+Stage 'Validating Java 21...'
 
 $javaExecutable = 'java'
 if (-not [string]::IsNullOrWhiteSpace($JavaPath)) {
     $javaExecutable = [System.IO.Path]::GetFullPath($JavaPath)
-    if (-not (Test-Path -LiteralPath $javaExecutable)) { Fail "Java no existe en $javaExecutable" }
+    if (-not (Test-Path -LiteralPath $javaExecutable)) { Fail ("Java does not exist at {0}" -f $javaExecutable) }
     $javaBin = Split-Path -Parent $javaExecutable
     $env:JAVA_HOME = Split-Path -Parent $javaBin
-    $env:PATH = "$javaBin;$env:PATH"
+    $env:PATH = ("{0};{1}" -f $javaBin, $env:PATH)
 }
 
-# java -version escribe deliberadamente por stderr; evaluamos el código real.
 $javaProbe = Invoke-NativeCapture $javaExecutable @('-version')
 $javaVersion = (($javaProbe.Output + [Environment]::NewLine + $javaProbe.Error).Trim())
 if ($javaProbe.ExitCode -ne 0) {
-    Fail "Java no está disponible. NEXO In-Game 1.21.1 necesita Java 21 para compilar.`n$javaVersion"
+    Fail ("Java is not available. Java 21 is required.`n{0}" -f $javaVersion)
 }
 if ($javaVersion -notmatch 'version\s+"21(?:\.|\")') {
-    Fail "se necesita Java 21 para compilar NEXO In-Game. Runtime detectado:`n$javaVersion"
+    Fail ("Java 21 is required. Detected runtime:`n{0}" -f $javaVersion)
 }
-Write-Output "Java 21 validado: $javaExecutable"
+Write-Output ("Java 21 validated: {0}" -f $javaExecutable)
 
 New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
 if (-not (Test-Path $gradleExe)) {
-    Stage "Descargando Gradle $gradleVersion…"
-    $uri = "https://services.gradle.org/distributions/gradle-$gradleVersion-bin.zip"
+    Stage ("Downloading Gradle {0}..." -f $gradleVersion)
+    $uri = ("https://services.gradle.org/distributions/gradle-{0}-bin.zip" -f $gradleVersion)
     Invoke-WebRequest -UseBasicParsing -TimeoutSec 180 -Uri $uri -OutFile $gradleZip
 
-    Stage "Preparando Gradle $gradleVersion…"
+    Stage ("Preparing Gradle {0}..." -f $gradleVersion)
     if (Test-Path $gradleHome) { Remove-Item -Recurse -Force $gradleHome }
     Expand-Archive -LiteralPath $gradleZip -DestinationPath $cacheRoot -Force
 }
-if (-not (Test-Path $gradleExe)) { Fail "Gradle no quedó disponible en $gradleExe" }
+if (-not (Test-Path $gradleExe)) { Fail ("Gradle was not prepared at {0}" -f $gradleExe) }
 
-Stage 'Compilando NEXO In-Game…'
+Stage 'Compiling NEXO In-Game...'
 $env:GRADLE_OPTS = '-Dorg.gradle.internal.http.connectionTimeout=60000 -Dorg.gradle.internal.http.socketTimeout=120000'
 & $gradleExe -p $projectRoot clean build --no-daemon --stacktrace --console=plain
-if ($LASTEXITCODE -ne 0) { Fail "Gradle terminó con código $LASTEXITCODE" }
+$gradleExitCode = $LASTEXITCODE
+if ($gradleExitCode -ne 0) { Fail ("Gradle exited with code {0}" -f $gradleExitCode) }
 
-Stage 'Preparando JAR de NEXO In-Game…'
+Stage 'Preparing NEXO In-Game JAR...'
 $jar = Get-ChildItem -Path (Join-Path $projectRoot 'build\libs') -Filter '*.jar' |
     Where-Object { $_.Name -notmatch 'sources|dev|javadoc' } |
     Sort-Object LastWriteTimeUtc -Descending |
     Select-Object -First 1
-if (-not $jar) { Fail 'la compilación terminó sin producir un JAR instalable' }
+if (-not $jar) { Fail 'Build finished without producing an installable JAR.' }
 
 $mods = Join-Path $target.Game 'mods'
 New-Item -ItemType Directory -Force -Path $mods | Out-Null
 Get-ChildItem -Path $mods -Filter 'nexo-ingame*.jar' -ErrorAction SilentlyContinue | Remove-Item -Force
 $installedJar = Join-Path $mods 'nexo-ingame-fabric-1.21.1.jar'
 Copy-Item -LiteralPath $jar.FullName -Destination $installedJar -Force
-Write-Output "NEXO In-Game instalado: $installedJar"
+Write-Output ("NEXO In-Game installed: {0}" -f $installedJar)
 
 $fabricApi = Get-ChildItem -Path $mods -Filter 'fabric-api*.jar' -ErrorAction SilentlyContinue | Select-Object -First 1
 if (-not $fabricApi) {
-    Stage 'Resolviendo Fabric API compatible…'
+    Stage 'Resolving compatible Fabric API...'
     $gameVersions = [Uri]::EscapeDataString('["1.21.1"]')
     $loaders = [Uri]::EscapeDataString('["fabric"]')
-    $versionsUri = "https://api.modrinth.com/v2/project/fabric-api/version?game_versions=$gameVersions&loaders=$loaders"
+    $versionsUri = ("https://api.modrinth.com/v2/project/fabric-api/version?game_versions={0}&loaders={1}" -f $gameVersions, $loaders)
     $headers = @{ 'User-Agent' = 'NexoLauncher/0.5.2 (github.com/jr-0205/NexoLauncher)' }
     $versions = Invoke-RestMethod -TimeoutSec 60 -Headers $headers -Uri $versionsUri -Method Get
     $selected = $versions |
         Where-Object { $_.version_type -eq 'release' } |
         Sort-Object { [DateTimeOffset]$_.date_published } -Descending |
         Select-Object -First 1
-    if (-not $selected) { $selected = $versions | Sort-Object { [DateTimeOffset]$_.date_published } -Descending | Select-Object -First 1 }
-    if (-not $selected) { Fail 'Modrinth no devolvió una versión de Fabric API compatible con Minecraft 1.21.1' }
+    if (-not $selected) {
+        $selected = $versions | Sort-Object { [DateTimeOffset]$_.date_published } -Descending | Select-Object -First 1
+    }
+    if (-not $selected) { Fail 'Modrinth returned no compatible Fabric API version for Minecraft 1.21.1.' }
+
     $file = $selected.files | Where-Object { $_.primary -eq $true } | Select-Object -First 1
     if (-not $file) { $file = $selected.files | Select-Object -First 1 }
-    if (-not $file) { Fail 'la versión de Fabric API no contiene archivos descargables' }
+    if (-not $file) { Fail 'The selected Fabric API version contains no downloadable files.' }
 
-    Stage 'Descargando Fabric API…'
+    Stage 'Downloading Fabric API...'
     $apiDestination = Join-Path $mods ([string]$file.filename)
     Invoke-WebRequest -UseBasicParsing -TimeoutSec 120 -Headers $headers -Uri ([string]$file.url) -OutFile $apiDestination
-    Write-Output "Fabric API instalado: $apiDestination"
+    Write-Output ("Fabric API installed: {0}" -f $apiDestination)
 }
 
-Stage 'Finalizando instalación…'
-Write-Output 'OK: NEXO In-Game está dentro de la instancia.'
-Write-Output 'Cierra Minecraft por completo, vuelve a iniciarlo desde NEXO y pulsa SHIFT DERECHO dentro del juego.'
+Stage 'Finalizing installation...'
+Write-Output 'OK: NEXO In-Game is installed in the selected instance.'
+Write-Output 'Close Minecraft completely, launch it again from NEXO, and press RIGHT SHIFT in game.'
