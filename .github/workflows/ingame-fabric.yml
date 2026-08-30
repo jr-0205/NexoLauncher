@@ -1,0 +1,49 @@
+name: NEXO In-Game Fabric
+
+on:
+  push:
+    branches:
+      - main
+      - 'codex/**'
+    paths:
+      - 'ingame/fabric-1.21.1/**'
+      - '.github/workflows/ingame-fabric.yml'
+  pull_request:
+    paths:
+      - 'ingame/fabric-1.21.1/**'
+      - '.github/workflows/ingame-fabric.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-fabric-1211:
+    name: Fabric 1.21.1 companion
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+
+      - name: Build NEXO In-Game
+        run: gradle -p ingame/fabric-1.21.1 build --stacktrace
+
+      - name: Upload companion JAR
+        uses: actions/upload-artifact@v4
+        with:
+          name: nexo-ingame-fabric-1.21.1
+          path: ingame/fabric-1.21.1/build/libs/*.jar
+          if-no-files-found: error
