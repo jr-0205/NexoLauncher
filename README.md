@@ -32,8 +32,11 @@ La línea 0.5.2 estabiliza la arquitectura interna antes de continuar agregando 
 - importación `.mrpack` oficial: descarga `files[]`, respeta `env.client`, aplica `overrides`/`client-overrides` y verifica SHA-512/SHA-1;
 - importación de exports CurseForge con `manifest.json`, validación de versión/loader, hashes y overrides;
 - visor de lanzamiento con PID, tiempo, log y detención del proceso;
+- **UI Quality Module** con design tokens, componentes WPF centralizados, foco visible, estados coherentes, remapeo gradual de estilos legacy y primer breakpoint responsive;
 - harness de regresión cuyo total se calcula dinámicamente para evitar documentación desactualizada;
 - workflow de CI para Windows + .NET SDK `10.0.202` preparado en `.github/workflows/ci.yml`.
+
+La especificación del módulo visual está en `docs/NEXO-UI-QUALITY.md`.
 
 ## Regla de arquitectura
 
@@ -177,6 +180,7 @@ La rama 0.5.2 se concentra en integridad de datos y estabilización. Continúan 
 - autenticación Microsoft/Xbox/Minecraft integrada al flujo normal;
 - backend/integración de producción aprobada para catálogo CurseForge sin exponer credenciales;
 - diagnóstico y reparación automática más amplia de instalaciones incompletas;
+- evolución del UI Quality Module: biblioteca, flujo de instalación, Content Hub, Settings/Accounts y eliminación progresiva de estilos locales legacy;
 - política/UI futura para múltiples Minecraft simultáneos (el filesystem ya no depende de un único directorio mutable);
 - Mission Control y módulo in-game como subsistemas separados.
 
