@@ -37,6 +37,7 @@ public sealed record GameInstance
     public required string Name { get; init; }
     public string Description { get; init; } = string.Empty;
     public string? IconPath { get; init; }
+    public string? BackgroundPath { get; init; }
     public required string MinecraftVersion { get; init; }
     public LoaderType Loader { get; init; } = LoaderType.Vanilla;
     public string? LoaderVersion { get; init; }
