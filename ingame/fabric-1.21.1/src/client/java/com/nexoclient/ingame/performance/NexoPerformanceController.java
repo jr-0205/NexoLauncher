@@ -2,6 +2,7 @@ package com.nexoclient.ingame.performance;
 
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.option.SimpleOption;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -53,8 +54,31 @@ public final class NexoPerformanceController {
         client.options.getViewDistance().setValue(preset.renderDistance());
         client.options.getSimulationDistance().setValue(preset.simulationDistance());
         client.options.getEntityDistanceScaling().setValue(preset.entityDistanceScaling());
-        client.options.getParticles().setValue(preset.particles());
+        applyParticleMode(client, preset);
         NexoParticleTuner.apply(preset);
+    }
+
+    /**
+     * ParticlesMode cambió de net.minecraft.client.option a net.minecraft.particle
+     * dentro de la familia 1.21. Evitamos acoplar el adaptador a cualquiera de
+     * esos paquetes: GameOptions entrega el enum real y NEXA resuelve por nombre
+     * la semántica estable ALL / DECREASED / MINIMAL definida en el core.
+     */
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static void applyParticleMode(MinecraftClient client, NexoPerformancePreset preset) {
+        SimpleOption option = client.options.getParticles();
+        Object current = option.getValue();
+        if (!(current instanceof Enum<?> currentEnum)) return;
+
+        try {
+            Class enumType = currentEnum.getDeclaringClass();
+            Object resolved = Enum.valueOf(enumType, preset.particleMode().name());
+            option.setValue(resolved);
+        }
+        catch (IllegalArgumentException ignored) {
+            // Una versión futura puede renombrar los valores. El resto del preset
+            // sigue aplicándose y el adaptador correspondiente podrá traducirlo.
+        }
     }
 
     private NexoPerformancePreset load() {
