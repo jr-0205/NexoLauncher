@@ -19,6 +19,14 @@ public partial class App : System.Windows.Application
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
     }
 
+    protected override void OnStartup(StartupEventArgs e)
+    {
+        // Replace the early vector placeholder with the exact mark supplied by the creator.
+        // DynamicResource consumers update automatically and Window.Icon can reuse the same source.
+        Resources["Nexo.BrandMark"] = NexoBrandImage.Create();
+        base.OnStartup(e);
+    }
+
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         var report = WriteCrashReport("dispatcher", e.Exception);
