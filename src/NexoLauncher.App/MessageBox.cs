@@ -14,7 +14,12 @@ internal static class MessageBox
         => Show(messageBoxText, caption, button, MessageBoxImage.None);
 
     public static MessageBoxResult Show(string messageBoxText, string caption, MessageBoxButton button, MessageBoxImage icon)
-        => Show(ResolveOwner(), messageBoxText, caption, button, icon, MessageBoxResult.None);
+    {
+        var owner = ResolveOwner();
+        return owner is null
+            ? System.Windows.MessageBox.Show(messageBoxText, caption, button, icon)
+            : Show(owner, messageBoxText, caption, button, icon, MessageBoxResult.None);
+    }
 
     public static MessageBoxResult Show(Window owner, string messageBoxText)
         => Show(owner, messageBoxText, "NEXO Client", MessageBoxButton.OK, MessageBoxImage.None, MessageBoxResult.None);
@@ -30,8 +35,7 @@ internal static class MessageBox
 
     public static MessageBoxResult Show(Window owner, string messageBoxText, string caption, MessageBoxButton button, MessageBoxImage icon, MessageBoxResult defaultResult)
     {
-        if (owner is null)
-            return System.Windows.MessageBox.Show(messageBoxText, caption, button, icon, defaultResult);
+        ArgumentNullException.ThrowIfNull(owner);
 
         if (button == MessageBoxButton.YesNo)
         {
