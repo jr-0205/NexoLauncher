@@ -16,6 +16,8 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+    <PackageReference Include="Microsoft.Identity.Client" Version="4.88.0" />
+    <PackageReference Include="Microsoft.Identity.Client.Extensions.Msal" Version="4.88.0" />
     <ProjectReference Include="..\NexoLauncher.Core\NexoLauncher.Core.csproj" />
     <ProjectReference Include="..\NexoLauncher.Domain\NexoLauncher.Domain.csproj" />
     <ProjectReference Include="..\NexoLauncher.Application\NexoLauncher.Application.csproj" />
