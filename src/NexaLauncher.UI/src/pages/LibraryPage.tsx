@@ -1,6 +1,6 @@
 import { Search, Plus, Play, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { NexaProfile } from "../app/types";
+import { defaultArtworkPlacement, type NexaProfile } from "../app/types";
 import { ProfileCard } from "../components/ProfileCard";
 
 type LibraryPageProps = {
@@ -19,6 +19,13 @@ export function LibraryPage({ profiles, launchingProfileId, onCreate, onOpen, on
     return profiles.filter((profile) => `${profile.name} ${profile.minecraftVersion} ${profile.loader}`.toLowerCase().includes(q));
   }, [profiles, query]);
   const recent = profiles[0];
+  const recentArtwork = recent?.artwork ?? defaultArtworkPlacement;
+  const recentStyle = recent?.backgroundDataUrl ? {
+    backgroundImage: `linear-gradient(90deg, rgba(9,13,19,.96), rgba(9,13,19,.45)), url(${recent.backgroundDataUrl})`,
+    backgroundPosition: `center, ${recentArtwork.backgroundPositionX}% ${recentArtwork.backgroundPositionY}%`,
+    backgroundSize: `auto, ${recentArtwork.backgroundFit}`,
+    backgroundRepeat: "no-repeat, no-repeat",
+  } : undefined;
 
   return (
     <section className="page library-page">
@@ -32,8 +39,8 @@ export function LibraryPage({ profiles, launchingProfileId, onCreate, onOpen, on
       </div>
 
       {recent && (
-        <div className="continue-panel glass-panel" style={recent.backgroundDataUrl ? { backgroundImage: `linear-gradient(90deg, rgba(9,13,19,.96), rgba(9,13,19,.45)), url(${recent.backgroundDataUrl})` } : undefined} onClick={() => onOpen(recent)} role="button" tabIndex={0}>
-          <div className="continue-icon"><img src={recent.iconDataUrl ?? "./brand/nexa-mark.png"} alt="" /></div>
+        <div className="continue-panel glass-panel" style={recentStyle} onClick={() => onOpen(recent)} role="button" tabIndex={0}>
+          <div className="continue-icon"><img src={recent.iconDataUrl ?? "./brand/nexa-mark.png"} alt="" style={{ objectFit: recentArtwork.iconFit, objectPosition: `${recentArtwork.iconPositionX}% ${recentArtwork.iconPositionY}%` }} /></div>
           <div className="continue-copy">
             <span>CONTINUAR JUGANDO</span>
             <h2>{recent.name}</h2>
