@@ -210,6 +210,22 @@ export type NexaInGameBuildGenerateResult = {
   library: NexaInGameBuildLibrary;
 };
 
+export type ProfileLogSnapshot = {
+  available: boolean;
+  path?: string | null;
+  text: string;
+  updatedAt?: string | null;
+  sizeBytes: number;
+};
+
+export type ProfileLiveLogs = {
+  profileId: string;
+  capturedAt: string;
+  game: ProfileLogSnapshot;
+  launcher: ProfileLogSnapshot;
+  crash: ProfileLogSnapshot;
+};
+
 export type OperationProgress = {
   stage: string;
   completed?: number;
