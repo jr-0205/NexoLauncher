@@ -43,8 +43,10 @@ public partial class MainWindow
         {
             UpdateContinuePlayingCard();
             ApplyLibraryFilter();
+            RefreshVisibleProfileActions();
         };
         UpdateContinuePlayingCard();
+        _ = Dispatcher.InvokeAsync(InitializeVisibleProfileActions);
     }
 
     private FrameworkElement CreateLibraryExperienceHeader()
