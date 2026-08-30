@@ -58,6 +58,7 @@ public static class NexoUiQualityModule
         }
 
         ApplyMainShellColors(window);
+        ApplyWizardBranding(window);
         ApplyResponsiveLayout(window);
     }
 
@@ -94,6 +95,32 @@ public static class NexoUiQualityModule
         sidebar.BorderBrush = Brush("Nexo.Border", sidebar.BorderBrush);
     }
 
+    private static void ApplyWizardBranding(Window window)
+    {
+        if (window is not CreateProfileWizard) return;
+        var markSource = System.Windows.Application.Current.TryFindResource("Nexo.BrandMark") as ImageSource;
+        if (markSource is null) return;
+
+        var title = VisualDescendants(window)
+            .OfType<TextBlock>()
+            .FirstOrDefault(value => string.Equals(value.Text, "NEXO", StringComparison.Ordinal) && value.FontSize >= 20);
+        if (title?.Parent is StackPanel stack && !stack.Children.OfType<Image>().Any())
+        {
+            stack.Children.Insert(0, new Image
+            {
+                Source = markSource,
+                Width = 58,
+                Height = 44,
+                Stretch = Stretch.Uniform,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 0, 0, 8)
+            });
+        }
+
+        if (window.FindName("IconPreview") is Image preview && preview.Source is null)
+            preview.Source = markSource;
+    }
+
     private static void ApplyResponsiveLayout(Window window)
     {
         if (window is not MainWindow || window.Content is not Grid shell || shell.ColumnDefinitions.Count < 2) return;
@@ -104,8 +131,6 @@ public static class NexoUiQualityModule
         if (window.FindName("LibraryPanel") is not Grid library) return;
         library.Margin = compact ? new Thickness(26, 24, 26, 24) : new Thickness(34, 28, 34, 28);
 
-        // El shell de producción inserta "Continuar jugando" entre el header y el body,
-        // por lo que el panel de instancias puede estar en row 1 o row 2.
         var libraryBody = library.Children
             .OfType<Grid>()
             .FirstOrDefault(grid => Grid.GetRow(grid) >= 1 && grid.ColumnDefinitions.Count >= 2);
