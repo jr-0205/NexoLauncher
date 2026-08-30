@@ -77,7 +77,7 @@ public static class NexoUiQualityModule
         void Add(string legacyKey, string modernKey)
         {
             if (window.TryFindResource(legacyKey) is Style legacy &&
-                Application.Current.TryFindResource(modernKey) is Style modern)
+                System.Windows.Application.Current.TryFindResource(modernKey) is Style modern)
                 mappings[legacy] = modern;
         }
     }
@@ -124,7 +124,7 @@ public static class NexoUiQualityModule
     }
 
     private static Brush Brush(string key, Brush fallback) =>
-        Application.Current.TryFindResource(key) as Brush ?? fallback;
+        System.Windows.Application.Current.TryFindResource(key) as Brush ?? fallback;
 
     private static string ProductVersion()
     {
