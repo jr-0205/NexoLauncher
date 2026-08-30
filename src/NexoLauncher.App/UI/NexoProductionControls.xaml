@@ -141,7 +141,7 @@
                                ViewportSize="{TemplateBinding ViewportSize}"
                                Focusable="False">
                             <Track.DecreaseRepeatButton>
-                                <RepeatButton x:Name="DecreaseButton" Command="ScrollBar.PageUpCommand" Opacity="0" Focusable="False" IsTabStop="False"/>
+                                <RepeatButton x:Name="DecreaseButton" Command="{x:Static ScrollBar.PageUpCommand}" Opacity="0" Focusable="False" IsTabStop="False"/>
                             </Track.DecreaseRepeatButton>
                             <Track.Thumb>
                                 <Thumb>
@@ -158,15 +158,15 @@
                                 </Thumb>
                             </Track.Thumb>
                             <Track.IncreaseRepeatButton>
-                                <RepeatButton x:Name="IncreaseButton" Command="ScrollBar.PageDownCommand" Opacity="0" Focusable="False" IsTabStop="False"/>
+                                <RepeatButton x:Name="IncreaseButton" Command="{x:Static ScrollBar.PageDownCommand}" Opacity="0" Focusable="False" IsTabStop="False"/>
                             </Track.IncreaseRepeatButton>
                         </Track>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="Orientation" Value="Horizontal">
                             <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False"/>
-                            <Setter TargetName="DecreaseButton" Property="Command" Value="ScrollBar.PageLeftCommand"/>
-                            <Setter TargetName="IncreaseButton" Property="Command" Value="ScrollBar.PageRightCommand"/>
+                            <Setter TargetName="DecreaseButton" Property="Command" Value="{x:Static ScrollBar.PageLeftCommand}"/>
+                            <Setter TargetName="IncreaseButton" Property="Command" Value="{x:Static ScrollBar.PageRightCommand}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
