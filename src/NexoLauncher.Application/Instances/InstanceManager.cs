@@ -97,30 +97,76 @@ public sealed class InstanceManager(IInstanceRepository repository)
 
     private static async Task CopyDirectoryAsync(string source, string destination, CancellationToken token)
     {
-        var sourceRoot = Path.GetFullPath(source).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        Directory.CreateDirectory(destination);
-        foreach (var directory in Directory.EnumerateDirectories(source, "*", SearchOption.AllDirectories))
+        var sourceRoot = Path.GetFullPath(source).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var destinationRoot = Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        EnsureDirectoryIsNotReparsePoint(sourceRoot, "No se puede copiar una instancia cuyo gameDirectory es un enlace o junction.");
+        if (Directory.Exists(destinationRoot))
+            EnsureDirectoryIsNotReparsePoint(destinationRoot, "El destino de la copia no puede ser un enlace o junction.");
+        Directory.CreateDirectory(destinationRoot);
+        await CopyLevelAsync(sourceRoot, destinationRoot, sourceRoot, destinationRoot, token);
+    }
+
+    private static async Task CopyLevelAsync(string currentSource, string currentDestination, string sourceRoot, string destinationRoot, CancellationToken token)
+    {
+        foreach (var directory in Directory.EnumerateDirectories(currentSource, "*", SearchOption.TopDirectoryOnly))
         {
             token.ThrowIfCancellationRequested();
-            if (new DirectoryInfo(directory).Attributes.HasFlag(FileAttributes.ReparsePoint))
-                throw new InvalidDataException("No se puede copiar una instancia que contiene directorios enlazados.");
-            Directory.CreateDirectory(Path.Combine(destination, Path.GetRelativePath(sourceRoot, directory)));
+            EnsureDirectoryIsNotReparsePoint(directory, "No se puede copiar una instancia que contiene directorios enlazados.");
+            var relative = SafeRelative(sourceRoot, directory);
+            var target = SafeDestination(destinationRoot, relative);
+            Directory.CreateDirectory(target);
+            await CopyLevelAsync(directory, target, sourceRoot, destinationRoot, token);
         }
-        foreach (var file in Directory.EnumerateFiles(source, "*", SearchOption.AllDirectories))
+
+        foreach (var file in Directory.EnumerateFiles(currentSource, "*", SearchOption.TopDirectoryOnly))
         {
             token.ThrowIfCancellationRequested();
             if (new FileInfo(file).Attributes.HasFlag(FileAttributes.ReparsePoint))
                 throw new InvalidDataException("No se puede copiar una instancia que contiene archivos enlazados.");
-            var target = Path.Combine(destination, Path.GetRelativePath(sourceRoot, file));
+            var relative = SafeRelative(sourceRoot, file);
+            var target = SafeDestination(destinationRoot, relative);
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
             var temporary = target + ".nexo-copy";
-            await using (var input = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true))
-            await using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
+            try
             {
-                await input.CopyToAsync(output, token);
-                await output.FlushAsync(token);
+                await using (var input = new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.Read, 81920, true))
+                await using (var output = new FileStream(temporary, FileMode.Create, FileAccess.Write, FileShare.None, 81920, true))
+                {
+                    await input.CopyToAsync(output, token);
+                    await output.FlushAsync(token);
+                }
+                File.Move(temporary, target, true);
             }
-            File.Move(temporary, target, true);
+            finally
+            {
+                try { if (File.Exists(temporary)) File.Delete(temporary); }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+            }
         }
+    }
+
+    private static void EnsureDirectoryIsNotReparsePoint(string directory, string message)
+    {
+        if (new DirectoryInfo(directory).Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new InvalidDataException(message);
+    }
+
+    private static string SafeRelative(string root, string path)
+    {
+        var relative = Path.GetRelativePath(root, path);
+        if (Path.IsPathRooted(relative) || relative is "." or ".." ||
+            relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(part => part == ".."))
+            throw new InvalidDataException("La copia intenta salir del gameDirectory original.");
+        return relative;
+    }
+
+    private static string SafeDestination(string root, string relative)
+    {
+        var rootWithSeparator = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        var destination = Path.GetFullPath(Path.Combine(root, relative));
+        if (!destination.StartsWith(rootWithSeparator, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("La copia intenta escribir fuera de la nueva instancia.");
+        return destination;
     }
 }
