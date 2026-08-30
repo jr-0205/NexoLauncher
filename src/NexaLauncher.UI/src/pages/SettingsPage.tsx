@@ -37,6 +37,7 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
   const [confirmBuild, setConfirmBuild] = useState(false);
   const [selectedBuild, setSelectedBuild] = useState<NexaInGameBuildEntry | null>(null);
   const [collapsedFamilies, setCollapsedFamilies] = useState<Set<string>>(new Set());
+  const [failedBuilds, setFailedBuilds] = useState<Map<string, string>>(new Map());
 
   const modernReleases = useMemo(
     () => minecraftVersions.filter((item) => item.stable && isSupportedReleaseRange(item.id)),
@@ -64,6 +65,15 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
       .finally(() => { if (!cancelled) setLoadingBuilds(false); });
     return () => { cancelled = true; };
   }, [onNotice]);
+
+  function setBuildFailure(key: string, message?: string | null) {
+    setFailedBuilds((current) => {
+      const next = new Map(current);
+      if (message) next.set(key, message);
+      else next.delete(key);
+      return next;
+    });
+  }
 
   async function save() {
     setSaving(true);
@@ -104,16 +114,22 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
       if (compatible.length === 0) throw new Error("No hay adaptadores NEXA compatibles para compilar.");
 
       for (const build of compatible) {
-        setBuildingTarget(buildKey(build));
+        const key = buildKey(build);
+        setBuildingTarget(key);
         try {
           const result = await generateNexaInGameBuild(build.minecraftVersion, build.loader);
           if (result.published) {
             publishedCount++;
+            setBuildFailure(key, null);
           } else {
-            failures.push(`${build.loader} ${build.minecraftVersion}: ${result.failures[0]?.message ?? "la build no fue publicada"}`);
+            const detail = result.failures[0]?.message ?? "La build no fue publicada.";
+            setBuildFailure(key, detail);
+            failures.push(`${build.loader} ${build.minecraftVersion}: ${detail}`);
           }
         } catch (error) {
-          failures.push(`${build.loader} ${build.minecraftVersion}: ${error instanceof Error ? error.message : "error de compilación"}`);
+          const detail = error instanceof Error ? error.message : "Error de compilación";
+          setBuildFailure(key, detail);
+          failures.push(`${build.loader} ${build.minecraftVersion}: ${detail}`);
         }
       }
 
@@ -139,13 +155,17 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
       const result = await generateNexaInGameBuild(build.minecraftVersion, build.loader);
       setBuildLibrary(await getNexaInGameBuildLibrary());
       if (result.published) {
+        setBuildFailure(key, null);
         onNotice(`NEXA In-Game ${build.loader} ${build.minecraftVersion} compilada con Compiler v2 y publicada localmente.`, "success");
       } else {
-        const detail = result.failures[0]?.message;
-        onNotice(`Falló ${build.loader} ${build.minecraftVersion}.${detail ? ` ${detail}` : ""}`, "error");
+        const detail = result.failures[0]?.message ?? "Gradle terminó sin publicar el JAR.";
+        setBuildFailure(key, detail);
+        onNotice(`Falló ${build.loader} ${build.minecraftVersion}. ${detail}`, "error");
       }
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : `No se pudo compilar ${build.loader} ${build.minecraftVersion}.`, "error");
+      const detail = error instanceof Error ? error.message : `No se pudo compilar ${build.loader} ${build.minecraftVersion}.`;
+      setBuildFailure(key, detail);
+      onNotice(detail, "error");
     } finally {
       setBuildingTarget(null);
     }
@@ -249,6 +269,7 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
                 library={buildLibrary}
                 anyBuildRunning={anyBuildRunning}
                 buildingTarget={buildingTarget}
+                failedBuilds={failedBuilds}
                 onToggle={() => toggleFamily(family.id)}
                 onBuild={setSelectedBuild}
               />
@@ -302,12 +323,13 @@ function BuildMetric({ icon, label, value, compact = false }: { icon: ReactNode;
   return <div className={`build-metric ${compact ? "compact" : ""}`}><span>{icon}</span><div><small>{label}</small><strong>{value}</strong></div></div>;
 }
 
-function VersionFamilyGroup({ family, collapsed, library, anyBuildRunning, buildingTarget, onToggle, onBuild }: {
+function VersionFamilyGroup({ family, collapsed, library, anyBuildRunning, buildingTarget, failedBuilds, onToggle, onBuild }: {
   family: BuildFamily;
   collapsed: boolean;
   library: NexaInGameBuildLibrary | null;
   anyBuildRunning: boolean;
   buildingTarget: string | null;
+  failedBuilds: Map<string, string>;
   onToggle(): void;
   onBuild(build: NexaInGameBuildEntry): void;
 }) {
@@ -331,6 +353,7 @@ function VersionFamilyGroup({ family, collapsed, library, anyBuildRunning, build
                 build={build}
                 busy={buildingTarget === buildKey(build)}
                 compilable={compilable}
+                failureMessage={failedBuilds.get(buildKey(build)) ?? null}
                 disabled={anyBuildRunning || !library?.sourceAvailable || !compilable}
                 onBuild={() => onBuild(build)}
               />
@@ -342,20 +365,22 @@ function VersionFamilyGroup({ family, collapsed, library, anyBuildRunning, build
   );
 }
 
-function BuildRow({ build, busy, disabled, compilable, onBuild }: { build: NexaInGameBuildEntry; busy: boolean; disabled: boolean; compilable: boolean; onBuild(): void }) {
+function BuildRow({ build, busy, disabled, compilable, failureMessage, onBuild }: { build: NexaInGameBuildEntry; busy: boolean; disabled: boolean; compilable: boolean; failureMessage: string | null; onBuild(): void }) {
   const published = build.status === "published" && build.exists;
   const planned = build.status === "planned";
   const unsupported = !compilable;
-  const state = published ? "PUBLICADA" : unsupported ? "SIN ADAPTADOR" : planned ? "PENDIENTE" : "SIN JAR";
+  const failed = Boolean(failureMessage) && !published;
+  const state = published ? "PUBLICADA" : unsupported ? "SIN ADAPTADOR" : failed ? "FALLÓ" : planned ? "PENDIENTE" : "SIN JAR";
+  const stateClass = published ? "published" : unsupported ? "unsupported" : failed ? "failed" : planned ? "planned" : "missing";
   const size = build.exists && build.sizeBytes > 0 ? ` · ${formatBytes(build.sizeBytes)}` : "";
   return (
     <div className="build-library-row build-library-child-row">
       <strong>{build.minecraftVersion}</strong>
       <span>{build.loader}</span>
       <span>{compilable ? build.nexaInGameVersion : "—"}</span>
-      <span className="build-file" title={build.fileName ?? undefined}>{compilable ? (build.fileName ?? "—") : "Adaptador todavía no portado"}{size}</span>
-      <span className={`build-state ${published ? "published" : unsupported ? "unsupported" : planned ? "planned" : "missing"}`}>{state}</span>
-      <button className="build-row-action" type="button" disabled={disabled} onClick={onBuild}>{busy ? <Loader2 className="spin" size={12} /> : <Hammer size={12} />}{busy ? "COMPILANDO" : unsupported ? "NO DISPONIBLE" : published ? "RECOMPILAR" : "COMPILAR"}</button>
+      <span className="build-file" title={failureMessage ?? build.fileName ?? undefined}>{failed ? firstLine(failureMessage!) : compilable ? (build.fileName ?? "—") : "Adaptador todavía no portado"}{failed ? "" : size}</span>
+      <span className={`build-state ${stateClass}`} title={failureMessage ?? undefined}>{state}</span>
+      <button className="build-row-action" type="button" disabled={disabled} onClick={onBuild}>{busy ? <Loader2 className="spin" size={12} /> : <Hammer size={12} />}{busy ? "COMPILANDO" : unsupported ? "NO DISPONIBLE" : published ? "RECOMPILAR" : failed ? "REINTENTAR" : "COMPILAR"}</button>
     </div>
   );
 }
@@ -440,6 +465,10 @@ function isSupportedReleaseRange(id: string) {
 
 function buildKey(build: Pick<NexaInGameBuildEntry, "loader" | "minecraftVersion">) {
   return `${build.loader.toLowerCase()}::${build.minecraftVersion}`;
+}
+
+function firstLine(value: string) {
+  return value.split(/\r?\n/, 1)[0] ?? value;
 }
 
 function formatBytes(value: number) {
