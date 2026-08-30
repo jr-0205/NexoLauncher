@@ -66,7 +66,8 @@ public sealed class NexoBoostVisualPackService(ModrinthContentClient catalog)
 
         foreach (var staged in Directory.EnumerateFiles(stagingMods, "*.jar", SearchOption.TopDirectoryOnly).ToArray())
         {
-            if (!existingNames.Contains(Path.GetFileName(staged))) continue;
+            var stagedName = Path.GetFileName(staged);
+            if (stagedName is null || !existingNames.Contains(stagedName)) continue;
             File.Delete(staged);
         }
 
