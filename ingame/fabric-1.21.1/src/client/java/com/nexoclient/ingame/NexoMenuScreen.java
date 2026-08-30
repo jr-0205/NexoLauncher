@@ -106,12 +106,17 @@ public final class NexoMenuScreen extends Screen {
     }
 
     @Override
-    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        // Minecraft 1.21.8 rejects applying the vanilla screen blur more than once
-        // in the same frame. NEXA uses its own lightweight dim layer instead of
-        // renderBackground(), so opening the Control Center can never request a
-        // second vanilla blur from the render pipeline.
+    public void renderBackground(DrawContext context, int mouseX, int mouseY, float delta) {
+        // Never delegate to Screen#renderBackground here. Minecraft 1.21.8 applies
+        // its blur from that method and throws when another screen/mod already blurred
+        // the same frame. Keeping this override makes every background-render path
+        // for NEXA safe, including calls triggered by Screen/Fabric internals.
         context.fill(0, 0, width, height, NEXA_BACKGROUND);
+    }
+
+    @Override
+    public void render(DrawContext context, int mouseX, int mouseY, float delta) {
+        renderBackground(context, mouseX, mouseY, delta);
         context.drawCenteredTextWithShadow(textRenderer, Text.literal("NEXA CLIENT"), width / 2, 14, 0xF4F7FC);
         context.drawCenteredTextWithShadow(textRenderer,
             Text.literal("Right Shift · Rendimiento y módulos"), width / 2, 29, 0xB4C0D2);
