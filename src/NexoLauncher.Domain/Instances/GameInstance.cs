@@ -31,6 +31,34 @@ public sealed record InstanceSettings(
     int? WindowHeight = null,
     bool? Fullscreen = null);
 
+/// <summary>
+/// Posición visual del artwork dentro de los recuadros de NEXA. Los porcentajes
+/// siguen la semántica de CSS object-position: 0 = inicio, 50 = centro, 100 = final.
+/// Fit sólo acepta cover/contain y se normaliza al cargar/guardar desde la UI.
+/// </summary>
+public sealed record ProfileArtworkPlacement(
+    double IconPositionX = 50,
+    double IconPositionY = 50,
+    string IconFit = "contain",
+    double BackgroundPositionX = 50,
+    double BackgroundPositionY = 50,
+    string BackgroundFit = "cover")
+{
+    public ProfileArtworkPlacement Normalize() => this with
+    {
+        IconPositionX = Math.Clamp(IconPositionX, 0, 100),
+        IconPositionY = Math.Clamp(IconPositionY, 0, 100),
+        IconFit = NormalizeFit(IconFit, "contain"),
+        BackgroundPositionX = Math.Clamp(BackgroundPositionX, 0, 100),
+        BackgroundPositionY = Math.Clamp(BackgroundPositionY, 0, 100),
+        BackgroundFit = NormalizeFit(BackgroundFit, "cover")
+    };
+
+    private static string NormalizeFit(string? value, string fallback) =>
+        string.Equals(value, "cover", StringComparison.OrdinalIgnoreCase) ? "cover" :
+        string.Equals(value, "contain", StringComparison.OrdinalIgnoreCase) ? "contain" : fallback;
+}
+
 public sealed record GameInstance
 {
     public required InstanceId Id { get; init; }
@@ -38,6 +66,7 @@ public sealed record GameInstance
     public string Description { get; init; } = string.Empty;
     public string? IconPath { get; init; }
     public string? BackgroundPath { get; init; }
+    public ProfileArtworkPlacement Artwork { get; init; } = new();
     public required string MinecraftVersion { get; init; }
     public LoaderType Loader { get; init; } = LoaderType.Vanilla;
     public string? LoaderVersion { get; init; }
