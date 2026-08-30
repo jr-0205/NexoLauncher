@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 import { Boxes, FolderOpen, ImagePlus, Loader2, Play, Save, Trash2, X } from "lucide-react";
 import { deleteProfile, openProfileFolder, updateProfile } from "../app/nexa-bridge";
 import type { NexaProfile } from "../app/types";
+import { NexaDialog } from "../components/NexaDialog";
 
 type Props = {
   profile: NexaProfile;
@@ -34,6 +35,7 @@ export function ProfileDetailPage({ profile, launching, onLaunch, onContent, onU
   const [removeBackground, setRemoveBackground] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const iconInput = useRef<HTMLInputElement>(null);
   const backgroundInput = useRef<HTMLInputElement>(null);
 
@@ -79,10 +81,10 @@ export function ProfileDetailPage({ profile, launching, onLaunch, onContent, onU
   }
 
   async function remove() {
-    if (!window.confirm(`¿Eliminar definitivamente '${profile.name}'?\n\nSe borrarán mundos, mods y configuración de este perfil. Los recursos compartidos y otros perfiles no se tocarán.`)) return;
     setDeleting(true);
     try {
       await deleteProfile(profile.id);
+      setConfirmDelete(false);
       onDeleted();
       onNotice("Perfil eliminado.", "success");
     } catch (error) {
@@ -118,7 +120,7 @@ export function ProfileDetailPage({ profile, launching, onLaunch, onContent, onU
             <div className="editor-fields">
               <label className="field-label">NOMBRE<input className="nexa-input" maxLength={64} value={name} onChange={(event) => setName(event.target.value)} /></label>
               <label className="field-label">DESCRIPCIÓN<textarea className="nexa-input nexa-textarea" maxLength={800} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
-              <div className="danger-zone"><div><strong>Eliminar perfil</strong><span>Borra sólo este GUID y su contenido privado.</span></div><button className="danger-button" type="button" disabled={deleting} onClick={remove}>{deleting ? <Loader2 className="spin" size={15} /> : <Trash2 size={15} />} ELIMINAR</button></div>
+              <div className="danger-zone"><div><strong>Eliminar perfil</strong><span>Borra sólo este GUID y su contenido privado.</span></div><button className="danger-button" type="button" onClick={() => setConfirmDelete(true)}><Trash2 size={15} /> ELIMINAR</button></div>
             </div>
             <div className="editor-artwork">
               <div className="artwork-card compact-artwork"><span>ICONO</span><div className="icon-preview"><img src={shownIcon} alt="" /></div><div className="artwork-actions"><button className="secondary-button" type="button" onClick={() => iconInput.current?.click()}>CAMBIAR</button><button className="ghost-button" type="button" onClick={() => { setIconDataUrl(null); setRemoveIcon(true); }}>RESTABLECER</button></div><input hidden ref={iconInput} type="file" accept="image/*" onChange={(event) => choose("icon", event.target.files?.[0])} /></div>
@@ -127,6 +129,17 @@ export function ProfileDetailPage({ profile, launching, onLaunch, onContent, onU
           </div>
         </div>
       )}
+
+      <NexaDialog
+        open={confirmDelete}
+        tone="danger"
+        title="Eliminar perfil"
+        description={`Se eliminará '${profile.name}' con sus mundos, mods y configuración. Los recursos compartidos de NEXA y los demás perfiles no se tocarán.`}
+        confirmLabel="ELIMINAR"
+        busy={deleting}
+        onCancel={() => setConfirmDelete(false)}
+        onConfirm={remove}
+      />
     </section>
   );
 }
