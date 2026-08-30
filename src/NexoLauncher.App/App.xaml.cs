@@ -1,5 +1,6 @@
 using System.Text;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Threading;
 using NexoLauncher.App.UI;
 using NexoLauncher.Core.Installation;
@@ -21,30 +22,47 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        // Product-facing brand is NEXA. Resource keys stay stable while the internal
-        // namespace/data-layout rename is handled as a separate compatibility migration.
-        Resources["Nexo.BrandMark"] = NexoBrandImage.Create();
-        Resources["Nexo.BrandWordmark"] = NexaBrandAssets.CreateWordmark();
-        Resources["Nexo.BrandFull"] = NexaBrandAssets.CreateFull();
+        // Branding is presentation-only and must never prevent the launcher from starting.
+        // Existing XAML resources remain as fallbacks if any embedded image is invalid.
+        TryRegisterBrandAsset("Nexo.BrandMark", NexoBrandImage.Create);
+        TryRegisterBrandAsset("Nexo.BrandWordmark", NexaBrandAssets.CreateWordmark);
+        TryRegisterBrandAsset("Nexo.BrandFull", NexaBrandAssets.CreateFull);
         base.OnStartup(e);
+    }
+
+    private void TryRegisterBrandAsset(string key, Func<ImageSource> factory)
+    {
+        try
+        {
+            var image = factory();
+            if (image is not null) Resources[key] = image;
+        }
+        catch (Exception exception)
+        {
+            WriteCrashReport("branding-" + key.Replace('.', '-'), exception);
+        }
     }
 
     private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
     {
         var report = WriteCrashReport("dispatcher", e.Exception);
         e.Handled = true;
+
+        // Dispatcher exceptions are commonly presentation failures. We log them and keep
+        // the launcher alive so a broken visual component cannot take down profile data.
         try
         {
-            MessageBox.Show(
-                "NEXA encontró un error inesperado y se cerrará para proteger el estado de tus perfiles.\n\n" +
-                "Se creó un informe local de diagnóstico:\n" + report,
-                "NEXA se cerró inesperadamente",
+            System.Windows.MessageBox.Show(
+                "NEXA encontró un error de interfaz y lo aisló. Tus perfiles no fueron modificados.\n\n" +
+                "Se creó un informe local de diagnóstico:\n" + report +
+                "\n\nPuedes continuar usando el launcher. Si alguna sección quedó incompleta, reinicia NEXA después de actualizar.",
+                "NEXA aisló un error",
                 MessageBoxButton.OK,
-                MessageBoxImage.Error);
+                MessageBoxImage.Warning);
         }
-        finally
+        catch
         {
-            Shutdown(-1);
+            // Never allow the error-reporting UI itself to cause another fatal exception.
         }
     }
 
