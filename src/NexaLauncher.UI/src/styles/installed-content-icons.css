@@ -1,0 +1,26 @@
+.installed-icon {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.installed-icon > svg {
+  position: relative;
+  z-index: 0;
+}
+
+.installed-icon > img {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  background: #0a1019;
+}
+
+.installed-icon.has-image {
+  border-color: rgba(99, 153, 239, .28);
+  background: rgba(7, 12, 20, .92);
+}
