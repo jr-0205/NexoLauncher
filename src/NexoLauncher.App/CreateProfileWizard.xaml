@@ -1,23 +1,43 @@
 <Window x:Class="NexoLauncher.App.CreateProfileWizard"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Crear perfil · NEXO" Width="1120" Height="720" MinWidth="980" MinHeight="640"
-        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" ResizeMode="CanResizeWithGrip"
-        Background="{StaticResource Nexo.Background}" Foreground="{StaticResource Nexo.Text}"
+        Title="Crear perfil · NEXO"
+        Width="1180" Height="760" MinWidth="1040" MinHeight="680"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False" ResizeMode="CanResize"
+        Background="{DynamicResource Nexo.Background}" Foreground="{DynamicResource Nexo.Text}"
         FontFamily="Segoe UI Variable Text" UseLayoutRounding="True" SnapsToDevicePixels="True">
     <Window.Resources>
-        <Style x:Key="WizardStepButton" TargetType="Button" BasedOn="{StaticResource Nexo.GhostButton}">
-            <Setter Property="Height" Value="56"/>
-            <Setter Property="HorizontalContentAlignment" Value="Left"/>
-            <Setter Property="Padding" Value="14,8"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
+        <Style x:Key="WizardRailButton" TargetType="Button">
+            <Setter Property="Height" Value="70"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{DynamicResource Nexo.TextSecondary}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Chrome" Background="{TemplateBinding Background}" CornerRadius="10" Padding="8,6">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Nexo.Surface}"/>
+                                <Setter Property="Foreground" Value="{DynamicResource Nexo.Text}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
+
         <Style x:Key="LoaderChip" TargetType="RadioButton">
-            <Setter Property="Foreground" Value="{StaticResource Nexo.TextSecondary}"/>
-            <Setter Property="Background" Value="{StaticResource Nexo.SurfaceRaised}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource Nexo.Border}"/>
+            <Setter Property="Foreground" Value="{DynamicResource Nexo.TextSecondary}"/>
+            <Setter Property="Background" Value="{DynamicResource Nexo.Surface}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource Nexo.Border}"/>
             <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="14,9"/>
+            <Setter Property="Padding" Value="16,10"/>
             <Setter Property="Margin" Value="0,0,8,0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
@@ -28,28 +48,42 @@
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource Nexo.BorderStrong}"/></Trigger>
-                            <Trigger Property="IsChecked" Value="True"><Setter TargetName="Chrome" Property="Background" Value="#1B2B4A"/><Setter TargetName="Chrome" Property="BorderBrush" Value="{StaticResource Nexo.Accent}"/><Setter Property="Foreground" Value="{StaticResource Nexo.Text}"/></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="{DynamicResource Nexo.SurfaceHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Chrome" Property="Background" Value="#1C3158"/>
+                                <Setter TargetName="Chrome" Property="BorderBrush" Value="{DynamicResource Nexo.Accent}"/>
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
         </Style>
+
         <Style x:Key="VersionItem" TargetType="ListBoxItem">
             <Setter Property="Padding" Value="0"/>
-            <Setter Property="Margin" Value="0,0,0,8"/>
+            <Setter Property="Margin" Value="0,0,0,7"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="ListBoxItem">
-                        <Border x:Name="Card" Background="{StaticResource Nexo.SurfaceRaised}" BorderBrush="{StaticResource Nexo.Border}"
-                                BorderThickness="1" CornerRadius="10" Padding="15,12">
+                        <Border x:Name="Card" Background="{DynamicResource Nexo.Surface}" BorderBrush="{DynamicResource Nexo.Border}"
+                                BorderThickness="1" CornerRadius="10" Padding="16,12">
                             <ContentPresenter/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource Nexo.BorderStrong}"/><Setter TargetName="Card" Property="Background" Value="{StaticResource Nexo.SurfaceHover}"/></Trigger>
-                            <Trigger Property="IsSelected" Value="True"><Setter TargetName="Card" Property="BorderBrush" Value="{StaticResource Nexo.Accent}"/><Setter TargetName="Card" Property="Background" Value="#172746"/></Trigger>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Card" Property="Background" Value="{DynamicResource Nexo.SurfaceHover}"/>
+                                <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource Nexo.BorderStrong}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Card" Property="Background" Value="#182B4F"/>
+                                <Setter TargetName="Card" Property="BorderBrush" Value="{DynamicResource Nexo.Accent}"/>
+                            </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
@@ -57,137 +91,229 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="22">
+    <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="230"/>
+            <ColumnDefinition Width="220"/>
             <ColumnDefinition Width="1"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
-        <Grid Margin="0,8,22,8">
-            <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-            <StackPanel>
-                <TextBlock Text="NEXO" FontSize="25" FontWeight="Bold"/>
-                <TextBlock Text="CREAR PERFIL" Foreground="{StaticResource Nexo.Accent}" FontSize="10" FontWeight="Bold" Margin="1,2,0,0"/>
+        <!-- Product rail -->
+        <Grid Background="#070B11" Margin="0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <StackPanel Margin="26,26,22,0">
+                <Image Source="{DynamicResource Nexo.BrandMark}" Width="52" Height="52" Stretch="Uniform" HorizontalAlignment="Left"/>
+                <TextBlock Text="NEXO" FontSize="22" FontWeight="Bold" Margin="0,9,0,0"/>
+                <TextBlock Text="CREAR PERFIL" Foreground="{DynamicResource Nexo.Accent}" FontSize="9" FontWeight="Bold" Margin="1,2,0,0"/>
             </StackPanel>
-            <StackPanel Grid.Row="1" Margin="0,38,0,0">
-                <Button x:Name="InfoStepButton" Style="{StaticResource WizardStepButton}" Click="GoInfo_Click">
-                    <StackPanel Orientation="Horizontal"><Border x:Name="InfoStepDot" Width="30" Height="30" CornerRadius="15" Background="{StaticResource Nexo.Accent}"><TextBlock Text="1" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/></Border><StackPanel Margin="12,0,0,0"><TextBlock Text="Información" FontWeight="SemiBold"/><TextBlock Text="Nombre y descripción" Foreground="{StaticResource Nexo.TextMuted}" FontSize="10" Margin="0,2,0,0"/></StackPanel></StackPanel>
-                </Button>
-                <Button x:Name="VersionStepButton" Style="{StaticResource WizardStepButton}" Click="GoVersion_Click">
-                    <StackPanel Orientation="Horizontal"><Border x:Name="VersionStepDot" Width="30" Height="30" CornerRadius="15" Background="{StaticResource Nexo.SurfaceHover}"><TextBlock Text="2" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/></Border><StackPanel Margin="12,0,0,0"><TextBlock Text="Versión del juego" FontWeight="SemiBold"/><TextBlock Text="Minecraft y loader" Foreground="{StaticResource Nexo.TextMuted}" FontSize="10" Margin="0,2,0,0"/></StackPanel></StackPanel>
-                </Button>
-                <Button x:Name="AppearanceStepButton" Style="{StaticResource WizardStepButton}" Click="GoAppearance_Click">
-                    <StackPanel Orientation="Horizontal"><Border x:Name="AppearanceStepDot" Width="30" Height="30" CornerRadius="15" Background="{StaticResource Nexo.SurfaceHover}"><TextBlock Text="3" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/></Border><StackPanel Margin="12,0,0,0"><TextBlock Text="Apariencia" FontWeight="SemiBold"/><TextBlock Text="Icono y fondo" Foreground="{StaticResource Nexo.TextMuted}" FontSize="10" Margin="0,2,0,0"/></StackPanel></StackPanel>
-                </Button>
-            </StackPanel>
-            <Button Grid.Row="2" Content="RESTABLECER" Style="{StaticResource Nexo.GhostButton}" Click="Reset_Click"/>
+
+            <Grid Grid.Row="1" Margin="20,38,18,0">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="42"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Width="2" Background="{DynamicResource Nexo.Border}" HorizontalAlignment="Center" Margin="0,34,0,108"/>
+                <StackPanel Grid.ColumnSpan="2">
+                    <Button x:Name="InfoStepButton" Style="{StaticResource WizardRailButton}" Click="GoInfo_Click">
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="42"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                            <Border x:Name="InfoStepDot" Width="32" Height="32" CornerRadius="16" Background="{DynamicResource Nexo.Accent}" HorizontalAlignment="Center">
+                                <TextBlock Text="1" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="Información" FontSize="13" FontWeight="SemiBold"/>
+                                <TextBlock Text="Nombre y descripción" Foreground="{DynamicResource Nexo.TextMuted}" FontSize="10" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+                    <Button x:Name="VersionStepButton" Style="{StaticResource WizardRailButton}" Click="GoVersion_Click">
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="42"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                            <Border x:Name="VersionStepDot" Width="32" Height="32" CornerRadius="16" Background="{DynamicResource Nexo.SurfaceHover}" HorizontalAlignment="Center">
+                                <TextBlock Text="2" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="Versión del juego" FontSize="13" FontWeight="SemiBold"/>
+                                <TextBlock Text="Minecraft y loader" Foreground="{DynamicResource Nexo.TextMuted}" FontSize="10" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+                    <Button x:Name="AppearanceStepButton" Style="{StaticResource WizardRailButton}" Click="GoAppearance_Click">
+                        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="42"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                            <Border x:Name="AppearanceStepDot" Width="32" Height="32" CornerRadius="16" Background="{DynamicResource Nexo.SurfaceHover}" HorizontalAlignment="Center">
+                                <TextBlock Text="3" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="Bold"/>
+                            </Border>
+                            <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="Apariencia" FontSize="13" FontWeight="SemiBold"/>
+                                <TextBlock Text="Icono y fondo" Foreground="{DynamicResource Nexo.TextMuted}" FontSize="10" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <Button Grid.Row="2" Content="RESTABLECER" Style="{DynamicResource Nexo.GhostButton}" Margin="26,0,26,24" Height="40" Click="Reset_Click"/>
         </Grid>
 
-        <Border Grid.Column="1" Background="{StaticResource Nexo.Border}"/>
+        <Border Grid.Column="1" Background="{DynamicResource Nexo.Border}"/>
 
-        <Grid Grid.Column="2" Margin="28,4,0,4">
-            <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <!-- Main wizard canvas -->
+        <Grid Grid.Column="2" Margin="34,28,34,26">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
 
+            <!-- Step 1 -->
             <Grid x:Name="InfoPanel">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel MaxWidth="760" HorizontalAlignment="Left">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel MaxWidth="800" HorizontalAlignment="Left" Margin="0,0,18,0">
                         <TextBlock Text="Información del perfil" FontSize="30" FontWeight="SemiBold"/>
-                        <TextBlock Text="Dale identidad a tu perfil. NEXO mantendrá sus mundos, mods y configuración completamente aislados." Foreground="{StaticResource Nexo.TextSecondary}" Margin="0,8,0,30" TextWrapping="Wrap"/>
+                        <TextBlock Text="Crea un perfil independiente. NEXO mantendrá separados mundos, mods, configuración y ajustes aunque otro perfil use la misma versión." Foreground="{DynamicResource Nexo.TextSecondary}" Margin="0,7,0,28" TextWrapping="Wrap"/>
 
-                        <TextBlock Text="NOMBRE DEL PERFIL" Style="{StaticResource Nexo.Label}"/>
-                        <TextBox x:Name="ProfileNameBox" Style="{StaticResource Nexo.Field}" MaxLength="64" TextChanged="ProfileNameBox_TextChanged"/>
-                        <TextBlock x:Name="NameCounterText" Text="64 caracteres restantes" HorizontalAlignment="Right" Foreground="{StaticResource Nexo.TextMuted}" FontSize="10" Margin="0,5,0,22"/>
+                        <TextBlock Text="NOMBRE" Style="{DynamicResource Nexo.Label}"/>
+                        <TextBox x:Name="ProfileNameBox" Style="{DynamicResource Nexo.Field}" MaxLength="64" TextChanged="ProfileNameBox_TextChanged"/>
+                        <TextBlock x:Name="NameCounterText" Text="64 caracteres restantes" HorizontalAlignment="Right" Foreground="{DynamicResource Nexo.TextMuted}" FontSize="10" Margin="0,5,0,22"/>
 
-                        <TextBlock Text="DESCRIPCIÓN" Style="{StaticResource Nexo.Label}"/>
-                        <Border Background="#0E1622" BorderBrush="{StaticResource Nexo.Border}" BorderThickness="1" CornerRadius="8" Height="145">
-                            <TextBox x:Name="DescriptionBox" Background="Transparent" BorderThickness="0" Foreground="{StaticResource Nexo.Text}" CaretBrush="{StaticResource Nexo.Text}"
+                        <TextBlock Text="DESCRIPCIÓN" Style="{DynamicResource Nexo.Label}"/>
+                        <Border Background="#0E1622" BorderBrush="{DynamicResource Nexo.Border}" BorderThickness="1" CornerRadius="9" Height="138">
+                            <TextBox x:Name="DescriptionBox" Background="Transparent" BorderThickness="0" Foreground="{DynamicResource Nexo.Text}" CaretBrush="{DynamicResource Nexo.Text}"
                                      Padding="12,10" AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" MaxLength="300" TextChanged="DescriptionBox_TextChanged"/>
                         </Border>
-                        <TextBlock x:Name="DescriptionCounterText" Text="300 caracteres restantes" HorizontalAlignment="Right" Foreground="{StaticResource Nexo.TextMuted}" FontSize="10" Margin="0,5,0,22"/>
+                        <TextBlock x:Name="DescriptionCounterText" Text="300 caracteres restantes" HorizontalAlignment="Right" Foreground="{DynamicResource Nexo.TextMuted}" FontSize="10" Margin="0,5,0,22"/>
 
-                        <Border Style="{StaticResource Nexo.Card}" Padding="16">
+                        <Border Background="#101A29" BorderBrush="{DynamicResource Nexo.Border}" BorderThickness="1" CornerRadius="11" Padding="16">
                             <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                <Border Width="38" Height="38" CornerRadius="10" Background="#172746"><TextBlock Text="◆" Foreground="{StaticResource Nexo.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="18"/></Border>
-                                <StackPanel Grid.Column="1" Margin="13,0,0,0"><TextBlock Text="Perfil aislado" FontWeight="SemiBold"/><TextBlock Text="Siempre activo: cada perfil obtiene un GUID propio y su propio game directory. Dos perfiles pueden usar la misma versión sin compartir mundos, mods ni configuración." Foreground="{StaticResource Nexo.TextMuted}" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"/></StackPanel>
+                                <Border Width="38" Height="38" CornerRadius="9" Background="#1A315C">
+                                    <TextBlock Text="✓" Foreground="#79E1BC" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="17" FontWeight="Bold"/>
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="13,0,0,0">
+                                    <TextBlock Text="Perfil aislado por diseño" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Cada perfil obtiene un GUID propio y un game directory independiente. Esta protección no se puede desactivar." Foreground="{DynamicResource Nexo.TextMuted}" TextWrapping="Wrap" FontSize="11" Margin="0,4,0,0"/>
+                                </StackPanel>
                             </Grid>
                         </Border>
                     </StackPanel>
                 </ScrollViewer>
             </Grid>
 
+            <!-- Step 2 -->
             <Grid x:Name="VersionPanel" Visibility="Collapsed">
                 <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
                 <StackPanel>
                     <TextBlock Text="Seleccionar versión del juego" FontSize="30" FontWeight="SemiBold"/>
-                    <TextBlock Text="Elige Minecraft y el loader. NEXO seleccionará automáticamente Java y, por defecto, la versión estable recomendada del loader." Foreground="{StaticResource Nexo.TextSecondary}" Margin="0,8,0,22" TextWrapping="Wrap"/>
+                    <TextBlock Text="Elige Minecraft y el loader. Java y la build estable del loader se resolverán automáticamente." Foreground="{DynamicResource Nexo.TextSecondary}" Margin="0,7,0,22"/>
                 </StackPanel>
+
                 <Grid Grid.Row="1" Margin="0,0,0,16">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                     <StackPanel Orientation="Horizontal">
-                        <RadioButton x:Name="VanillaLoader" Content="Vanilla" Style="{StaticResource LoaderChip}" Tag="Vanilla" Checked="Loader_Checked" IsChecked="True"/>
-                        <RadioButton x:Name="FabricLoader" Content="Fabric" Style="{StaticResource LoaderChip}" Tag="Fabric" Checked="Loader_Checked"/>
-                        <RadioButton x:Name="ForgeLoader" Content="Forge" Style="{StaticResource LoaderChip}" Tag="Forge" Checked="Loader_Checked"/>
-                        <RadioButton x:Name="NeoForgeLoader" Content="NeoForge" Style="{StaticResource LoaderChip}" Tag="NeoForge" Checked="Loader_Checked"/>
+                        <RadioButton x:Name="VanillaLoader" Content="Vanilla" Style="{StaticResource LoaderChip}" Checked="Loader_Checked" IsChecked="True"/>
+                        <RadioButton x:Name="FabricLoader" Content="Fabric" Style="{StaticResource LoaderChip}" Checked="Loader_Checked"/>
+                        <RadioButton x:Name="ForgeLoader" Content="Forge" Style="{StaticResource LoaderChip}" Checked="Loader_Checked"/>
+                        <RadioButton x:Name="NeoForgeLoader" Content="NeoForge" Style="{StaticResource LoaderChip}" Checked="Loader_Checked"/>
                     </StackPanel>
-                    <TextBox Grid.Column="1" x:Name="VersionSearchBox" Style="{StaticResource Nexo.Field}" Margin="18,0,0,0" ToolTip="Buscar versión, por ejemplo 1.21.1" TextChanged="VersionSearchBox_TextChanged"/>
+                    <TextBox Grid.Column="2" x:Name="VersionSearchBox" Style="{DynamicResource Nexo.Field}" ToolTip="Buscar versión, por ejemplo 1.21.1" TextChanged="VersionSearchBox_TextChanged"/>
                 </Grid>
+
                 <Grid Grid.Row="2">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="280"/></Grid.ColumnDefinitions>
-                    <ListBox x:Name="VersionList" ItemContainerStyle="{StaticResource VersionItem}" Background="Transparent" BorderThickness="0" SelectionChanged="VersionList_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
-                        <ListBox.ItemTemplate><DataTemplate><Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><StackPanel><TextBlock Text="{Binding Id}" FontSize="16" FontWeight="SemiBold"/><TextBlock Text="{Binding ReleaseTime, StringFormat='Publicada {0:yyyy-MM-dd}'}" Foreground="{StaticResource Nexo.TextMuted}" FontSize="10" Margin="0,3,0,0"/></StackPanel><TextBlock Grid.Column="1" Text="ESTABLE" Foreground="{StaticResource Nexo.Success}" FontSize="9" FontWeight="Bold" VerticalAlignment="Center"/></Grid></DataTemplate></ListBox.ItemTemplate>
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="300"/></Grid.ColumnDefinitions>
+                    <ListBox x:Name="VersionList" ItemContainerStyle="{StaticResource VersionItem}" Background="Transparent" BorderThickness="0"
+                             SelectionChanged="VersionList_SelectionChanged" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Id}" FontSize="15" FontWeight="SemiBold"/>
+                                        <TextBlock Text="{Binding ReleaseTime, StringFormat='Publicada {0:yyyy-MM-dd}'}" Foreground="{DynamicResource Nexo.TextMuted}" FontSize="10" Margin="0,3,0,0"/>
+                                    </StackPanel>
+                                    <Border Grid.Column="1" Background="#153829" CornerRadius="6" Padding="8,4" VerticalAlignment="Center">
+                                        <TextBlock Text="RELEASE" Foreground="#72DDB7" FontSize="8" FontWeight="Bold"/>
+                                    </Border>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
                     </ListBox>
-                    <Border Grid.Column="1" Style="{StaticResource Nexo.Card}" Margin="18,0,0,0" Padding="18">
+
+                    <Border Grid.Column="1" Background="{DynamicResource Nexo.Surface}" BorderBrush="{DynamicResource Nexo.Border}" BorderThickness="1" CornerRadius="12" Margin="18,0,0,0" Padding="19">
                         <StackPanel>
-                            <TextBlock Text="CONFIGURACIÓN" Foreground="{StaticResource Nexo.Accent}" FontWeight="Bold" FontSize="10"/>
-                            <TextBlock x:Name="SelectedVersionText" Text="Selecciona una versión" FontSize="18" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap"/>
-                            <TextBlock x:Name="SelectedLoaderText" Text="Vanilla" Foreground="{StaticResource Nexo.TextSecondary}" Margin="0,5,0,18"/>
-                            <TextBlock Text="VERSIÓN DEL LOADER" Style="{StaticResource Nexo.Label}"/>
-                            <ComboBox x:Name="LoaderVersionBox" Style="{StaticResource Nexo.ComboBox}" SelectionChanged="LoaderVersionBox_SelectionChanged"/>
-                            <TextBlock x:Name="LoaderStatusText" Text="Vanilla no requiere loader adicional." Foreground="{StaticResource Nexo.TextMuted}" FontSize="10" Margin="0,7,0,18" TextWrapping="Wrap"/>
-                            <Separator Background="{StaticResource Nexo.Border}" Margin="0,0,0,16"/>
-                            <TextBlock Text="JAVA" Style="{StaticResource Nexo.Label}"/>
-                            <TextBlock Text="Automático según Minecraft" FontWeight="SemiBold"/>
-                            <TextBlock Text="NEXO resolverá el runtime correcto al instalar y al jugar." Foreground="{StaticResource Nexo.TextMuted}" FontSize="10" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                            <TextBlock Text="CONFIGURACIÓN" Foreground="{DynamicResource Nexo.Accent}" FontWeight="Bold" FontSize="9"/>
+                            <TextBlock x:Name="SelectedVersionText" Text="Selecciona una versión" FontSize="19" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap"/>
+                            <TextBlock x:Name="SelectedLoaderText" Text="Vanilla" Foreground="{DynamicResource Nexo.TextSecondary}" Margin="0,4,0,18"/>
+
+                            <StackPanel x:Name="LoaderVersionSection" Visibility="Collapsed">
+                                <TextBlock Text="VERSIÓN DEL LOADER" Style="{DynamicResource Nexo.Label}"/>
+                                <ComboBox x:Name="LoaderVersionBox" Style="{DynamicResource Nexo.ComboBox}" SelectionChanged="LoaderVersionBox_SelectionChanged"/>
+                                <TextBlock x:Name="LoaderStatusText" Text="" Foreground="{DynamicResource Nexo.TextMuted}" FontSize="10" Margin="0,7,0,18" TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <Border Background="#0D1520" BorderBrush="{DynamicResource Nexo.Border}" BorderThickness="1" CornerRadius="9" Padding="12">
+                                <StackPanel>
+                                    <TextBlock Text="JAVA" Foreground="{DynamicResource Nexo.TextMuted}" FontSize="9" FontWeight="Bold"/>
+                                    <TextBlock Text="Automático" FontWeight="SemiBold" Margin="0,4,0,0"/>
+                                    <TextBlock Text="NEXO elegirá el runtime correcto para esta versión." Foreground="{DynamicResource Nexo.TextMuted}" FontSize="10" TextWrapping="Wrap" Margin="0,3,0,0"/>
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
                 </Grid>
             </Grid>
 
+            <!-- Step 3 -->
             <Grid x:Name="AppearancePanel" Visibility="Collapsed">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel MaxWidth="820" HorizontalAlignment="Left">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel MaxWidth="850" HorizontalAlignment="Left" Margin="0,0,18,0">
                         <TextBlock Text="Personalizar perfil" FontSize="30" FontWeight="SemiBold"/>
-                        <TextBlock Text="Elige un icono y un fondo. Son opcionales y se copiarán dentro del perfil para que siga siendo portable." Foreground="{StaticResource Nexo.TextSecondary}" Margin="0,8,0,26" TextWrapping="Wrap"/>
+                        <TextBlock Text="Haz que cada perfil sea reconocible de un vistazo. El icono y el fondo se copian dentro del perfil y permanecen aunque muevas el archivo original." Foreground="{DynamicResource Nexo.TextSecondary}" Margin="0,7,0,25" TextWrapping="Wrap"/>
+
                         <Grid>
-                            <Grid.ColumnDefinitions><ColumnDefinition Width="250"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="190"/><ColumnDefinition Width="18"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Text="ICONO" Style="{StaticResource Nexo.Label}"/>
-                                <Border Height="250" Style="{StaticResource Nexo.Card}" Padding="10" Background="#0E1622">
-                                    <Grid><TextBlock Text="N" FontSize="64" FontWeight="Bold" Foreground="{StaticResource Nexo.Accent}" HorizontalAlignment="Center" VerticalAlignment="Center"/><Image x:Name="IconPreview" Stretch="UniformToFill"/></Grid>
+                                <TextBlock Text="ICONO" Style="{DynamicResource Nexo.Label}"/>
+                                <Border Height="190" Background="#0D1520" BorderBrush="{DynamicResource Nexo.Border}" BorderThickness="1" CornerRadius="12" Padding="18" ClipToBounds="True">
+                                    <Image x:Name="IconPreview" Source="{DynamicResource Nexo.BrandMark}" Stretch="Uniform" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
                                 </Border>
-                                <Button Content="ELEGIR ICONO" Style="{StaticResource Nexo.SecondaryButton}" Margin="0,10,0,0" Click="ChooseIcon_Click"/>
+                                <Button Content="ELEGIR ICONO" Style="{DynamicResource Nexo.SecondaryButton}" Margin="0,10,0,0" Height="40" Click="ChooseIcon_Click"/>
                             </StackPanel>
+
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="FONDO" Style="{StaticResource Nexo.Label}"/>
-                                <Border Height="250" Style="{StaticResource Nexo.Card}" Padding="0" Background="#0E1622" ClipToBounds="True">
+                                <TextBlock Text="FONDO" Style="{DynamicResource Nexo.Label}"/>
+                                <Border Height="190" Background="#0D1520" BorderBrush="{DynamicResource Nexo.Border}" BorderThickness="1" CornerRadius="12" ClipToBounds="True">
                                     <Grid>
-                                        <Border><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#203F86"/><GradientStop Color="#172131" Offset="0.55"/><GradientStop Color="#090D13" Offset="1"/></LinearGradientBrush></Border.Background></Border>
+                                        <Border>
+                                            <Border.Background>
+                                                <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                                    <GradientStop Color="#16294C"/>
+                                                    <GradientStop Color="#101927" Offset="0.55"/>
+                                                    <GradientStop Color="#080C12" Offset="1"/>
+                                                </LinearGradientBrush>
+                                            </Border.Background>
+                                        </Border>
                                         <Image x:Name="BackgroundPreview" Stretch="UniformToFill"/>
-                                        <Border Background="#55090D13"/>
-                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"><TextBlock Text="NEXO" FontSize="29" FontWeight="Bold" HorizontalAlignment="Center"/><TextBlock Text="Vista previa del perfil" Foreground="{StaticResource Nexo.TextSecondary}" Margin="0,4,0,0"/></StackPanel>
+                                        <Border Background="#28090D13"/>
+                                        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <Image Source="{DynamicResource Nexo.BrandMark}" Width="58" Height="58" Stretch="Uniform" Opacity="0.55" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                                            <TextBlock Text="FONDO DEL PERFIL" Foreground="{DynamicResource Nexo.TextMuted}" FontSize="9" FontWeight="Bold" HorizontalAlignment="Center" Margin="0,8,0,0"/>
+                                        </StackPanel>
                                     </Grid>
                                 </Border>
-                                <Button Content="ELEGIR FONDO" Style="{StaticResource Nexo.SecondaryButton}" Margin="0,10,0,0" Click="ChooseBackground_Click"/>
+                                <Button Content="ELEGIR FONDO" Style="{DynamicResource Nexo.SecondaryButton}" Margin="0,10,0,0" Height="40" Click="ChooseBackground_Click"/>
                             </StackPanel>
                         </Grid>
-                        <TextBlock Text="Formatos recomendados: PNG o JPG. NEXO conservará una copia propia; mover el archivo original después no romperá el perfil." Foreground="{StaticResource Nexo.TextMuted}" FontSize="10" Margin="0,16,0,24" TextWrapping="Wrap"/>
-                        <Expander Header="Opciones avanzadas" Foreground="{StaticResource Nexo.TextSecondary}">
-                            <Border Style="{StaticResource Nexo.Card}" Margin="0,10,0,0" Padding="18">
+
+                        <TextBlock Text="PNG, JPG, JPEG o BMP. Recomendado: icono cuadrado y fondo panorámico." Foreground="{DynamicResource Nexo.TextMuted}" FontSize="10" Margin="0,14,0,20"/>
+
+                        <Expander Header="Opciones avanzadas">
+                            <Border Background="{DynamicResource Nexo.Surface}" BorderBrush="{DynamicResource Nexo.Border}" BorderThickness="1" CornerRadius="11" Margin="0,10,0,0" Padding="16">
                                 <StackPanel>
-                                    <CheckBox x:Name="CustomMemoryCheck" Content="Usar memoria personalizada en este perfil" Checked="CustomMemoryCheck_Changed" Unchecked="CustomMemoryCheck_Changed"/>
-                                    <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="90"/></Grid.ColumnDefinitions><Slider x:Name="MemorySlider" Minimum="1024" Maximum="8192" TickFrequency="512" IsSnapToTickEnabled="True" IsEnabled="False" ValueChanged="MemorySlider_ValueChanged"/><Border Grid.Column="1" Background="{StaticResource Nexo.SurfaceHover}" CornerRadius="7" Margin="12,0,0,0"><TextBlock x:Name="MemoryText" Text="4 GB" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold"/></Border></Grid>
-                                    <TextBlock x:Name="MemoryHintText" Text="Por defecto NEXO usa la memoria global recomendada." Foreground="{StaticResource Nexo.TextMuted}" FontSize="10" Margin="0,7,0,0"/>
+                                    <CheckBox x:Name="CustomMemoryCheck" Content="Usar memoria personalizada sólo en este perfil" Checked="CustomMemoryCheck_Changed" Unchecked="CustomMemoryCheck_Changed"/>
+                                    <Grid Margin="0,14,0,0"><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="86"/></Grid.ColumnDefinitions>
+                                        <Slider x:Name="MemorySlider" Minimum="1024" Maximum="8192" TickFrequency="512" IsSnapToTickEnabled="True" IsEnabled="False" ValueChanged="MemorySlider_ValueChanged"/>
+                                        <Border Grid.Column="1" Background="{DynamicResource Nexo.SurfaceHover}" CornerRadius="7" Margin="12,0,0,0">
+                                            <TextBlock x:Name="MemoryText" Text="4 GB" HorizontalAlignment="Center" VerticalAlignment="Center" FontWeight="SemiBold"/>
+                                        </Border>
+                                    </Grid>
+                                    <TextBlock x:Name="MemoryHintText" Text="Por defecto NEXO usa la memoria global recomendada." Foreground="{DynamicResource Nexo.TextMuted}" FontSize="10" Margin="0,7,0,0"/>
                                 </StackPanel>
                             </Border>
                         </Expander>
@@ -197,9 +323,9 @@
 
             <Grid Grid.Row="1" Margin="0,20,0,0">
                 <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                <TextBlock x:Name="FooterHintText" Text="Paso 1 de 3 · Completa el nombre para continuar." Foreground="{StaticResource Nexo.TextMuted}" VerticalAlignment="Center"/>
-                <Button Grid.Column="1" x:Name="BackButton" Content="ATRÁS" Style="{StaticResource Nexo.GhostButton}" Width="112" Margin="0,0,10,0" Click="Back_Click" IsEnabled="False"/>
-                <Button Grid.Column="2" x:Name="NextButton" Content="SIGUIENTE" Style="{StaticResource Nexo.PrimaryButton}" Width="170" Click="Next_Click"/>
+                <TextBlock x:Name="FooterHintText" Text="Paso 1 de 3 · Escribe un nombre para continuar." Foreground="{DynamicResource Nexo.TextMuted}" VerticalAlignment="Center" FontSize="10"/>
+                <Button Grid.Column="1" x:Name="BackButton" Content="ATRÁS" Style="{DynamicResource Nexo.GhostButton}" Width="116" Margin="0,0,10,0" Click="Back_Click" IsEnabled="False"/>
+                <Button Grid.Column="2" x:Name="NextButton" Content="SIGUIENTE" Style="{DynamicResource Nexo.PrimaryButton}" Width="174" Click="Next_Click"/>
             </Grid>
         </Grid>
     </Grid>
