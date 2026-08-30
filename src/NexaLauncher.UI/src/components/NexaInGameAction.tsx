@@ -1,5 +1,5 @@
 import { Check, Gamepad2, Loader2, RefreshCw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { getNexaInGameStatus, installNexaInGame } from "../app/nexa-bridge";
 import type { NexaInGameStatus, NexaProfile } from "../app/types";
 
@@ -8,6 +8,12 @@ type Props = {
   launching: boolean;
   onNotice(message: string, kind?: "success" | "error"): void;
 };
+
+function installedVersionFromFileName(fileName?: string | null) {
+  if (!fileName) return null;
+  const match = fileName.match(/-(\d+\.\d+\.\d+(?:[-+][A-Za-z0-9.-]+)?)\.jar$/i);
+  return match?.[1] ?? null;
+}
 
 export function NexaInGameAction({ profile, launching, onNotice }: Props) {
   const [status, setStatus] = useState<NexaInGameStatus | null>(null);
@@ -24,6 +30,18 @@ export function NexaInGameAction({ profile, launching, onNotice }: Props) {
       });
     return () => { active = false; };
   }, [profile.id]);
+
+  const installedVersion = useMemo(
+    () => installedVersionFromFileName(status?.fileName),
+    [status?.fileName],
+  );
+  const updateAvailable = Boolean(
+    status?.installed &&
+    status.available &&
+    status.version &&
+    installedVersion &&
+    status.version !== installedVersion,
+  );
 
   async function installOrRepair() {
     if (busy || launching || !status) return;
@@ -57,13 +75,19 @@ export function NexaInGameAction({ profile, launching, onNotice }: Props) {
 
   const label = busy
     ? status?.installed ? "REINSTALANDO / ACTUALIZANDO…" : "INSTALANDO NEXA IN-GAME…"
-    : status?.installed
-      ? "NEXA IN-GAME · LISTO"
-      : status?.available
-        ? "AÑADIR NEXA IN-GAME"
-        : status
-          ? "NEXA IN-GAME · BUILD PENDIENTE"
-          : "NEXA IN-GAME";
+    : updateAvailable
+      ? `NEXA IN-GAME · ACTUALIZAR ${status?.version}`
+      : status?.installed
+        ? "NEXA IN-GAME · LISTO"
+        : status?.available
+          ? "AÑADIR NEXA IN-GAME"
+          : status
+            ? "NEXA IN-GAME · BUILD PENDIENTE"
+            : "NEXA IN-GAME";
+
+  const maintenanceLabel = updateAvailable
+    ? `ACTUALIZAR A ${status?.version}`
+    : "REINSTALAR";
 
   return (
     <div className="ingame-action-stack">
@@ -80,16 +104,18 @@ export function NexaInGameAction({ profile, launching, onNotice }: Props) {
 
       {status?.installed && (
         <button
-          className="ghost-button ingame-maintenance-button"
+          className={`ghost-button ingame-maintenance-button ${updateAvailable ? "update-available" : ""}`}
           type="button"
           disabled={busy || launching || !status.available}
           title={status.available
-            ? "Instala la build publicada más reciente compatible. Si es la misma, la reinstala y vuelve a verificarla."
+            ? updateAvailable
+              ? `Sustituye ${installedVersion ?? "la build instalada"} por NEXA In-Game ${status.version}.`
+              : "Reinstala la misma build publicada y vuelve a verificar su SHA-256."
             : "No hay una build publicada disponible para mantenimiento en este momento."}
           onClick={installOrRepair}
         >
           {busy ? <Loader2 className="spin" size={14} /> : <RefreshCw size={14} />}
-          REINSTALAR / ACTUALIZAR
+          {maintenanceLabel}
         </button>
       )}
     </div>
