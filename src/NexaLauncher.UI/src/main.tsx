@@ -10,6 +10,7 @@ import "./styles/live-console.css";
 import "./styles/profile-actions.css";
 import "./styles/build-manager.css";
 import "./styles/build-family.css";
+import "./styles/installed-content-icons.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
