@@ -3,9 +3,9 @@ using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
+using NexoLauncher.Core.Installation;
 using NexoLauncher.Domain.Instances;
 using NexoLauncher.Infrastructure.Instances;
-using NexoLauncher.Infrastructure.System;
 
 namespace NexoLauncher.App;
 
@@ -127,10 +127,9 @@ public partial class InstanceEditorDialog : Window
             var appearanceChanged = selectedIconSource is not null || selectedBackgroundSource is not null || ClearIconRequested || ClearBackgroundRequested;
             var iconPath = instance.IconPath;
             var backgroundPath = instance.BackgroundPath;
-            ProfileArtwork? artwork = null;
             if (appearanceChanged)
             {
-                artwork = await ProfileArtworkStore.UpdateAsync(
+                var artwork = await ProfileArtworkStore.UpdateAsync(
                     instanceRoot,
                     selectedIconSource,
                     selectedBackgroundSource,
