@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, ExternalLink, Loader2, Save, ShieldCheck } from "lucide-react";
 import { updateSettings } from "../app/nexa-bridge";
+import { nexaWordmarkDataUrl } from "../brand/nexa-wordmark";
 
 type Props = {
   username: string;
@@ -66,6 +67,7 @@ export function SettingsPage({ username, closeLauncherOnGameStart, version, onUp
         <article className="settings-card glass-panel settings-wide about-react-card">
           <div className="about-mark"><img src="./brand/nexa-mark.png" alt="NEXA" /></div>
           <div className="about-copy">
+            <img className="about-wordmark" src={nexaWordmarkDataUrl} alt="NEXA Client" />
             <span className="eyebrow">ACERCA DE NEXA</span>
             <h2>NEXA Client <small>{version}</small></h2>
             <p>Cliente de Minecraft para Windows. Backend .NET, interfaz React y perfiles físicamente aislados por GUID.</p>
