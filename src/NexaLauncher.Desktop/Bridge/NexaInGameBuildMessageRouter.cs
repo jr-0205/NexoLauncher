@@ -10,13 +10,13 @@ namespace NexaLauncher.Desktop;
 
 /// <summary>
 /// Ruta IPC dedicada a compilar una sola variante de NEXA In-Game.
-/// Se procesa antes del router general para no obligar a BuildAll.
+/// Usa Compiler v2: core común + adaptador/target en workspace temporal.
 /// </summary>
 internal sealed class NexaInGameBuildMessageRouter
 {
     private const string MethodName = "ingame.builds.generateOne";
     private readonly CoreWebView2 webView;
-    private readonly NexoInGameBuildService builds;
+    private readonly NexoInGameCompiler compiler;
     private readonly JavaRuntimeDetector javaDetector = new(new JavaRuntimeInspector());
     private readonly SemaphoreSlim buildLock = new(1, 1);
     private readonly JsonSerializerOptions json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
@@ -24,7 +24,7 @@ internal sealed class NexaInGameBuildMessageRouter
     public NexaInGameBuildMessageRouter(NexoPaths paths, CoreWebView2 webView)
     {
         this.webView = webView;
-        builds = new NexoInGameBuildService(new HttpClient { Timeout = TimeSpan.FromMinutes(20) }, paths);
+        compiler = new NexoInGameCompiler(new HttpClient { Timeout = TimeSpan.FromMinutes(20) }, paths);
     }
 
     public async Task<bool> TryHandleAsync(CoreWebView2WebMessageReceivedEventArgs eventArgs)
@@ -67,19 +67,25 @@ internal sealed class NexaInGameBuildMessageRouter
         {
             var repositoryRoot = FindRepositoryRoot()
                 ?? throw new DirectoryNotFoundException("No se encontró el checkout de NexoLauncher con ingame/. Esta opción sólo está disponible desde una build de desarrollo.");
-            var target = builds.DiscoverTargets(repositoryRoot).FirstOrDefault(candidate =>
+            var target = compiler.DiscoverTargets(repositoryRoot).FirstOrDefault(candidate =>
                 string.Equals(candidate.MinecraftVersion, minecraftVersion, StringComparison.Ordinal) &&
                 string.Equals(candidate.Loader, loader, StringComparison.OrdinalIgnoreCase))
                 ?? throw new NotSupportedException($"No existe un target NEXA In-Game para Minecraft {minecraftVersion} + {loader}.");
+            var adapter = compiler.AdapterFor(repositoryRoot, target.MinecraftVersion, target.Loader) ?? "legacy";
 
-            PostEvent("operation.progress", new { stage = $"Preparando {target.Loader} {target.MinecraftVersion}", completed = 0, total = 0 });
+            PostEvent("operation.progress", new
+            {
+                stage = $"Compiler v2 · {adapter} · {target.Loader} {target.MinecraftVersion}",
+                completed = 0,
+                total = 0
+            });
             var runtimes = await javaDetector.DetectAsync();
             var runtime = JavaRuntimeSelector.Select(runtimes, target.JavaMajor)
                           ?? throw new InvalidOperationException($"NEXA necesita Java {target.JavaMajor} para compilar {target.Loader} {target.MinecraftVersion}.");
 
             var progress = new Progress<string>(stage =>
                 PostEvent("operation.progress", new { stage, completed = 0, total = 0 }));
-            var result = await builds.BuildOneAsync(
+            var result = await compiler.BuildOneAsync(
                 repositoryRoot,
                 target.MinecraftVersion,
                 target.Loader,
@@ -91,7 +97,7 @@ internal sealed class NexaInGameBuildMessageRouter
             PostEvent("operation.progress", new
             {
                 stage = published
-                    ? $"NEXA In-Game {target.Loader} {target.MinecraftVersion} lista"
+                    ? $"NEXA In-Game {target.Loader} {target.MinecraftVersion} lista · {adapter}"
                     : $"NEXA In-Game {target.Loader} {target.MinecraftVersion} falló",
                 completed = 1,
                 total = 1,
@@ -101,6 +107,8 @@ internal sealed class NexaInGameBuildMessageRouter
             return new
             {
                 published,
+                compiler = "v2",
+                adapter,
                 minecraftVersion = target.MinecraftVersion,
                 loader = target.Loader,
                 failureCount = result.Failures.Count,
