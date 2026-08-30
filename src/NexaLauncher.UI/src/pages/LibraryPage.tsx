@@ -1,0 +1,62 @@
+import { Search, Plus, Play } from "lucide-react";
+import { useMemo, useState } from "react";
+import type { NexaProfile } from "../app/types";
+import { ProfileCard } from "../components/ProfileCard";
+
+type LibraryPageProps = {
+  profiles: NexaProfile[];
+  onCreate(): void;
+};
+
+export function LibraryPage({ profiles, onCreate }: LibraryPageProps) {
+  const [query, setQuery] = useState("");
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return profiles;
+    return profiles.filter((profile) => `${profile.name} ${profile.minecraftVersion} ${profile.loader}`.toLowerCase().includes(q));
+  }, [profiles, query]);
+  const recent = profiles[0];
+
+  return (
+    <section className="page library-page">
+      <div className="hero-row">
+        <div>
+          <span className="eyebrow">TU MINECRAFT. TU ESPACIO.</span>
+          <h1>Biblioteca</h1>
+          <p>Perfiles aislados, contenido administrable y rendimiento bajo control.</p>
+        </div>
+        <button className="primary-button" type="button" onClick={onCreate}><Plus size={17} /> NUEVO PERFIL</button>
+      </div>
+
+      {recent && (
+        <div className="continue-panel glass-panel" style={recent.backgroundDataUrl ? { backgroundImage: `linear-gradient(90deg, rgba(9,13,19,.96), rgba(9,13,19,.45)), url(${recent.backgroundDataUrl})` } : undefined}>
+          <div className="continue-icon"><img src={recent.iconDataUrl ?? "./brand/nexa-mark.png"} alt="" /></div>
+          <div className="continue-copy">
+            <span>CONTINUAR JUGANDO</span>
+            <h2>{recent.name}</h2>
+            <p>{recent.loader} · Minecraft {recent.minecraftVersion}</p>
+          </div>
+          <button className="play-button" type="button"><Play size={18} fill="currentColor" /> INICIAR</button>
+        </div>
+      )}
+
+      <div className="library-toolbar">
+        <div className="search-field"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar perfiles" /></div>
+        <span>{visible.length} {visible.length === 1 ? "perfil" : "perfiles"}</span>
+      </div>
+
+      {visible.length > 0 ? (
+        <div className="profile-grid">
+          {visible.map((profile) => <ProfileCard key={profile.id} profile={profile} onPlay={() => {}} />)}
+        </div>
+      ) : (
+        <div className="empty-state glass-panel">
+          <div className="nexa-wordmark"><strong>NEXA</strong><span>CLIENT</span></div>
+          <h2>{profiles.length ? "No encontramos perfiles" : "Tu biblioteca está lista"}</h2>
+          <p>{profiles.length ? "Prueba con otra búsqueda." : "Crea tu primer perfil y NEXA mantendrá mundos, mods y configuración totalmente aislados."}</p>
+          {!profiles.length && <button className="primary-button" type="button" onClick={onCreate}><Plus size={17} /> CREAR PERFIL</button>}
+        </div>
+      )}
+    </section>
+  );
+}
