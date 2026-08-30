@@ -158,8 +158,8 @@
 .build-library-head,
 .build-library-row {
   display: grid;
-  grid-template-columns: 110px 105px 125px minmax(220px, 1fr) 105px;
-  gap: 12px;
+  grid-template-columns: 95px 90px 115px minmax(190px, 1fr) 95px 112px;
+  gap: 10px;
   align-items: center;
 }
 
@@ -175,7 +175,7 @@
 }
 
 .build-library-row {
-  min-height: 53px;
+  min-height: 55px;
   padding: 8px 14px;
   border-bottom: 1px solid rgba(91, 126, 176, .09);
   color: #aebdd1;
@@ -235,6 +235,35 @@
   background: rgba(62, 78, 102, .10);
 }
 
+.build-row-action {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 9px;
+  border: 1px solid rgba(91, 140, 255, .24);
+  border-radius: 9px;
+  background: linear-gradient(145deg, rgba(36, 57, 91, .70), rgba(18, 30, 49, .66));
+  color: #cfe0ff;
+  font: inherit;
+  font-size: 7px;
+  font-weight: 850;
+  letter-spacing: .045em;
+  cursor: pointer;
+  transition: .16s ease;
+}
+
+.build-row-action:hover:not(:disabled) {
+  color: #fff;
+  border-color: rgba(91, 140, 255, .50);
+  background: rgba(42, 67, 108, .84);
+}
+
+.build-row-action:disabled {
+  cursor: not-allowed;
+}
+
 .build-library-empty {
   min-height: 84px;
   display: flex;
@@ -268,7 +297,7 @@
 
   .build-library-head,
   .build-library-row {
-    min-width: 760px;
+    min-width: 850px;
   }
 }
 
