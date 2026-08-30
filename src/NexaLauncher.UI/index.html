@@ -6,6 +6,24 @@
     <meta name="color-scheme" content="dark" />
     <meta name="theme-color" content="#070a10" />
     <title>NEXA Client</title>
+    <script>
+      (() => {
+        const errors = [];
+        window.addEventListener("error", (event) => {
+          errors.push(event.message || "Error desconocido al cargar la interfaz.");
+        });
+        window.addEventListener("unhandledrejection", (event) => {
+          const reason = event.reason;
+          errors.push(reason && reason.message ? reason.message : String(reason || "Promesa rechazada sin detalle."));
+        });
+        window.setTimeout(() => {
+          const root = document.getElementById("root");
+          if (!root || root.childElementCount > 0) return;
+          const detail = errors.length ? errors.slice(-4).join("\n") : "El bundle JavaScript no llegó a montar React. Comprueba que dist/assets fue copiado completo a wwwroot/assets.";
+          root.innerHTML = `<main style="min-height:100vh;display:grid;place-items:center;padding:32px;background:#070a10;color:#f4f7fc;font:14px 'Segoe UI',sans-serif"><section style="width:min(720px,90vw);padding:30px;border:1px solid #26364d;border-radius:18px;background:linear-gradient(145deg,#161f2e,#0d131e);box-shadow:0 24px 70px rgba(0,0,0,.35)"><div style="color:#5b8cff;font-size:11px;font-weight:700;letter-spacing:.12em">NEXA · DIAGNÓSTICO DE INTERFAZ</div><h1 style="margin:10px 0 8px;font-size:26px">React no pudo iniciar</h1><p style="margin:0 0 16px;color:#9eacbf;line-height:1.6">La ventana de escritorio y WebView2 están funcionando, pero la UI no llegó a montarse.</p><pre style="margin:0;padding:14px;white-space:pre-wrap;word-break:break-word;border-radius:12px;background:#090e16;color:#d8e2f1;border:1px solid #26364d">${detail.replace(/[&<>]/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;"}[char]))}</pre></section></main>`;
+        }, 2200);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
