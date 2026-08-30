@@ -1,6 +1,6 @@
-import { Boxes, LibraryBig, Plus, Settings2, Sparkles } from "lucide-react";
+import { Boxes, Crown, LibraryBig, Plus, Settings2, Sparkles } from "lucide-react";
 
-type Section = "library" | "create" | "content" | "settings";
+type Section = "library" | "create" | "content" | "account" | "settings";
 
 type SidebarProps = {
   active: Section;
@@ -11,6 +11,7 @@ const items: Array<{ key: Section; label: string; icon: typeof LibraryBig }> = [
   { key: "library", label: "Biblioteca", icon: LibraryBig },
   { key: "create", label: "Crear perfil", icon: Plus },
   { key: "content", label: "Contenido", icon: Boxes },
+  { key: "account", label: "Cuenta", icon: Crown },
   { key: "settings", label: "Configuración", icon: Settings2 },
 ];
 
