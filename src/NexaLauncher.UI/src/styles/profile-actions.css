@@ -85,6 +85,13 @@
   color: #dceaff !important;
 }
 
+.profile-hero-actions .ingame-maintenance-button.update-available {
+  border-color: rgba(82, 213, 171, .42) !important;
+  background: linear-gradient(135deg, rgba(39, 124, 99, .20), rgba(24, 77, 104, .20)) !important;
+  color: #8ce2c5 !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .035), 0 0 24px rgba(82, 213, 171, .06);
+}
+
 /* 4. Profile/file maintenance sits at the bottom with equal visual weight. */
 .profile-hero-actions > button:nth-of-type(4) {
   grid-column: 1;
