@@ -1,4 +1,4 @@
-name: NEXO In-Game Fabric
+name: NEXA In-Game Fabric
 
 on:
   push:
@@ -6,11 +6,11 @@ on:
       - main
       - 'codex/**'
     paths:
-      - 'ingame/fabric-1.21.1/**'
+      - 'ingame/**'
       - '.github/workflows/ingame-fabric.yml'
   pull_request:
     paths:
-      - 'ingame/fabric-1.21.1/**'
+      - 'ingame/**'
       - '.github/workflows/ingame-fabric.yml'
   workflow_dispatch:
 
@@ -18,32 +18,44 @@ permissions:
   contents: read
 
 jobs:
-  build-fabric-1211:
-    name: Fabric 1.21.1 companion
+  build-fabric:
+    name: Fabric ${{ matrix.minecraft }} companion
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - minecraft: '1.21.1'
+            project: 'ingame/fabric-1.21.1'
+            java: '21'
+            gradle: '8.12'
+          - minecraft: '1.21.8'
+            project: 'ingame/fabric-1.21.8'
+            java: '21'
+            gradle: '8.12'
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Java 21
+      - name: Setup Java ${{ matrix.java }}
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: ${{ matrix.java }}
 
-      - name: Setup Gradle
+      - name: Setup Gradle ${{ matrix.gradle }}
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.12'
+          gradle-version: ${{ matrix.gradle }}
 
-      - name: Build NEXO In-Game
-        run: gradle -p ingame/fabric-1.21.1 build --stacktrace --console=plain
+      - name: Build NEXA In-Game
+        run: gradle -p ${{ matrix.project }} build --stacktrace --console=plain
 
       - name: Upload companion JAR
         uses: actions/upload-artifact@v4
         with:
-          name: nexo-ingame-fabric-1.21.1
-          path: ingame/fabric-1.21.1/build/libs/*.jar
+          name: nexo-ingame-fabric-${{ matrix.minecraft }}
+          path: ${{ matrix.project }}/build/libs/*.jar
           if-no-files-found: error
