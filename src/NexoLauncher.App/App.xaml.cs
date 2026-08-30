@@ -1,14 +1,12 @@
-using System.Configuration;
-using System.Data;
 using System.Windows;
+using NexoLauncher.App.UI;
 
 namespace NexoLauncher.App;
 
-/// <summary>
-/// Interaction logic for App.xaml
-/// </summary>
 public partial class App : System.Windows.Application
 {
+    public App()
+    {
+        NexoUiQualityModule.Initialize();
+    }
 }
-
-
