@@ -3,14 +3,14 @@ namespace NexoLauncher.App;
 internal static class NexoFeatureFlags
 {
 #if DEBUG
-    public const bool DeveloperTools = true;
+    public static readonly bool DeveloperTools = true;
 #else
-    public const bool DeveloperTools = false;
+    public static readonly bool DeveloperTools = false;
 #endif
 
     // Reservados para la fase de autenticación/premium. No deben aparecer como módulos muertos
     // antes de que exista una sesión Microsoft/Minecraft de producción.
-    public const bool Accounts = false;
-    public const bool Premium = false;
-    public const bool Social = false;
+    public static readonly bool Accounts = false;
+    public static readonly bool Premium = false;
+    public static readonly bool Social = false;
 }
