@@ -120,7 +120,7 @@ public partial class MainWindow
     {
         if (ContentInstanceBox.SelectedItem is not ContentInstanceChoice choice || busy) return;
         var kind = entry.IsDirectory ? "carpeta" : "archivo";
-        if (!NexoDialog.Confirm(
+        if (!NexoDialog.ConfirmDanger(
                 this,
                 "Eliminar contenido",
                 $"¿Eliminar '{entry.Name}' de este perfil?\n\nSe eliminará únicamente esta {kind} dentro de {entry.Category}. Los recursos compartidos de NEXO y los demás perfiles no se tocarán.",
