@@ -2,6 +2,54 @@
   "schemaVersion": 1,
   "artifacts": [
     {
+      "minecraftVersion": "1.19.4",
+      "loader": "Fabric",
+      "nexoInGameVersion": "0.1.0",
+      "status": "planned",
+      "fileName": "nexo-ingame-fabric-1.19.4-0.1.0.jar",
+      "relativePath": "0.1.0/fabric/1.19.4/nexo-ingame-fabric-1.19.4-0.1.0.jar",
+      "downloadUrl": null,
+      "sha256": "",
+      "publishedAt": null,
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
+    },
+    {
+      "minecraftVersion": "1.20.1",
+      "loader": "Fabric",
+      "nexoInGameVersion": "0.1.0",
+      "status": "planned",
+      "fileName": "nexo-ingame-fabric-1.20.1-0.1.0.jar",
+      "relativePath": "0.1.0/fabric/1.20.1/nexo-ingame-fabric-1.20.1-0.1.0.jar",
+      "downloadUrl": null,
+      "sha256": "",
+      "publishedAt": null,
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
+    },
+    {
+      "minecraftVersion": "1.20.4",
+      "loader": "Fabric",
+      "nexoInGameVersion": "0.1.0",
+      "status": "planned",
+      "fileName": "nexo-ingame-fabric-1.20.4-0.1.0.jar",
+      "relativePath": "0.1.0/fabric/1.20.4/nexo-ingame-fabric-1.20.4-0.1.0.jar",
+      "downloadUrl": null,
+      "sha256": "",
+      "publishedAt": null,
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
+    },
+    {
+      "minecraftVersion": "1.20.6",
+      "loader": "Fabric",
+      "nexoInGameVersion": "0.1.0",
+      "status": "planned",
+      "fileName": "nexo-ingame-fabric-1.20.6-0.1.0.jar",
+      "relativePath": "0.1.0/fabric/1.20.6/nexo-ingame-fabric-1.20.6-0.1.0.jar",
+      "downloadUrl": null,
+      "sha256": "",
+      "publishedAt": null,
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
+    },
+    {
       "minecraftVersion": "1.21.1",
       "loader": "Fabric",
       "nexoInGameVersion": "0.1.0",
@@ -11,14 +59,31 @@
       "downloadUrl": null,
       "sha256": "",
       "publishedAt": null,
-      "dependencies": [
-        {
-          "source": "modrinth",
-          "projectId": "fabric-api",
-          "projectType": "mod",
-          "detectPattern": "fabric-api*.jar"
-        }
-      ]
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
+    },
+    {
+      "minecraftVersion": "1.21.4",
+      "loader": "Fabric",
+      "nexoInGameVersion": "0.1.0",
+      "status": "planned",
+      "fileName": "nexo-ingame-fabric-1.21.4-0.1.0.jar",
+      "relativePath": "0.1.0/fabric/1.21.4/nexo-ingame-fabric-1.21.4-0.1.0.jar",
+      "downloadUrl": null,
+      "sha256": "",
+      "publishedAt": null,
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
+    },
+    {
+      "minecraftVersion": "1.21.8",
+      "loader": "Fabric",
+      "nexoInGameVersion": "0.1.0",
+      "status": "planned",
+      "fileName": "nexo-ingame-fabric-1.21.8-0.1.0.jar",
+      "relativePath": "0.1.0/fabric/1.21.8/nexo-ingame-fabric-1.21.8-0.1.0.jar",
+      "downloadUrl": null,
+      "sha256": "",
+      "publishedAt": null,
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
     }
   ]
 }
