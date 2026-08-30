@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Loader2, X } from "lucide-react";
-import { bootstrap, launchProfile, onBridgeEvent } from "./nexa-bridge";
+import { bootstrap, launchProfile, onBridgeEvent, updateSettings } from "./nexa-bridge";
 import type { BootstrapData, NexaProfile, OperationProgress } from "./types";
 import { Sidebar } from "../components/Sidebar";
 import { Topbar } from "../components/Topbar";
@@ -111,6 +111,12 @@ export default function App() {
     }
   }, [data?.closeLauncherOnGameStart, launchingProfileId, showNotice]);
 
+  const updateLocalUsername = useCallback(async (username: string) => {
+    const result = await updateSettings(username, data?.closeLauncherOnGameStart ?? true);
+    setData((current) => current ? { ...current, username: result.username, closeLauncherOnGameStart: result.closeLauncherOnGameStart } : current);
+    showNotice(`Nombre local actualizado a ${result.username}.`, "success");
+  }, [data?.closeLauncherOnGameStart, showNotice]);
+
   const replaceProfile = useCallback((profile: NexaProfile) => {
     setData((current) => current ? {
       ...current,
@@ -128,7 +134,7 @@ export default function App() {
       <div className="ambient ambient-two" />
       <Sidebar active={activeSidebar} onChange={navigate} />
       <div className="workspace">
-        <Topbar title={title} username={data?.username ?? "Player"} />
+        <Topbar title={title} username={data?.username ?? "Player"} isPremium={false} onUpdateLocalUsername={updateLocalUsername} />
         <main className="content-scroll">
           {fatalError && <div className="inline-error"><strong>NEXA no pudo cargar el launcher.</strong><span>{fatalError}</span><button type="button" onClick={() => refresh().catch((reason: Error) => setFatalError(reason.message))}>REINTENTAR</button></div>}
 
