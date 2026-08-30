@@ -124,10 +124,10 @@ public partial class MainWindow : Window
     {
         var files = string.Join("<br>", missingAssets.Select(WebUtility.HtmlEncode));
         var root = WebUtility.HtmlEncode(uiRoot);
-        return $"""
+        return $$"""
 <!doctype html><html><head><meta charset='utf-8'><title>NEXA Client</title>
-<style>body{{margin:0;background:#070a10;color:#f4f7fc;font:14px Segoe UI,Arial;display:grid;place-items:center;height:100vh}}main{{width:min(720px,84vw);padding:34px;border:1px solid #26364d;border-radius:18px;background:linear-gradient(145deg,#161f2e,#0d131e);box-shadow:0 24px 70px #0007}}h1{{margin:8px 0 10px}}p{{color:#9aa8bc;line-height:1.65}}code{{color:#72a0ff}}.tag{{color:#5b8cff;font-size:11px;font-weight:700;letter-spacing:.12em}}.files{{padding:14px;border:1px solid #26364d;border-radius:12px;background:#090e16;color:#dce7f7;line-height:1.65}}</style></head>
-<body><main><div class='tag'>NEXA · BUNDLE INCOMPLETO</div><h1>Faltan archivos de la interfaz</h1><p>WebView2 e index.html están disponibles, pero el build de React no fue copiado completo al directorio de ejecución.</p><div class='files'>{files}</div><p>Directorio comprobado:<br><code>{root}</code></p><p>Vuelve a ejecutar <code>npm run build</code> y después <code>dotnet build NexoLauncher.slnx</code>.</p></main></body></html>
+<style>body{margin:0;background:#070a10;color:#f4f7fc;font:14px Segoe UI,Arial;display:grid;place-items:center;height:100vh}main{width:min(720px,84vw);padding:34px;border:1px solid #26364d;border-radius:18px;background:linear-gradient(145deg,#161f2e,#0d131e);box-shadow:0 24px 70px #0007}h1{margin:8px 0 10px}p{color:#9aa8bc;line-height:1.65}code{color:#72a0ff}.tag{color:#5b8cff;font-size:11px;font-weight:700;letter-spacing:.12em}.files{padding:14px;border:1px solid #26364d;border-radius:12px;background:#090e16;color:#dce7f7;line-height:1.65}</style></head>
+<body><main><div class='tag'>NEXA · BUNDLE INCOMPLETO</div><h1>Faltan archivos de la interfaz</h1><p>WebView2 e index.html están disponibles, pero el build de React no fue copiado completo al directorio de ejecución.</p><div class='files'>{{files}}</div><p>Directorio comprobado:<br><code>{{root}}</code></p><p>Vuelve a ejecutar <code>npm run build</code> y después <code>dotnet build NexoLauncher.slnx</code>.</p></main></body></html>
 """;
     }
 
