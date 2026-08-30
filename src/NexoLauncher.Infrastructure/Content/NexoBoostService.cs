@@ -26,6 +26,7 @@ public sealed class NexoBoostService(ModrinthContentClient catalog)
         LoaderType.Fabric =>
         [
             new("sodium", "Sodium", "Motor de renderizado de alto rendimiento", true),
+            new("sodium-extra", "Sodium Extra", "Añade controles avanzados de rendimiento y calidad que NEXA In-Game puede ajustar por preset"),
             new("lithium", "Lithium", "Optimiza lógica, ticks y física"),
             new("ferrite-core", "FerriteCore", "Reduce uso y presión de memoria"),
             new("immediatelyfast", "ImmediatelyFast", "Reduce coste de entidades, partículas, texto y HUD"),
@@ -35,6 +36,7 @@ public sealed class NexoBoostService(ModrinthContentClient catalog)
         LoaderType.NeoForge =>
         [
             new("sodium", "Sodium", "Motor de renderizado de alto rendimiento", true),
+            new("sodium-extra", "Sodium Extra", "Añade controles avanzados de rendimiento y calidad que NEXA puede coordinar con sus presets"),
             new("lithium", "Lithium", "Optimiza lógica, ticks y física"),
             new("ferrite-core", "FerriteCore", "Reduce uso y presión de memoria"),
             new("immediatelyfast", "ImmediatelyFast", "Reduce coste de entidades, partículas, texto y HUD"),
@@ -61,9 +63,9 @@ public sealed class NexoBoostService(ModrinthContentClient catalog)
         gameDirectory = Path.GetFullPath(gameDirectory);
         var components = Recommend(instance.Loader);
         if (components.Count == 0)
-            throw new NotSupportedException("NEXO Boost requiere una instancia Fabric, Forge o NeoForge. No modifica perfiles Vanilla automáticamente.");
+            throw new NotSupportedException("NEXA Boost requiere una instancia Fabric, Forge o NeoForge. No modifica perfiles Vanilla automáticamente.");
         if (IsApplied(gameDirectory))
-            throw new InvalidOperationException("NEXO Boost ya está activo en esta instancia. Desactívalo antes de volver a aplicarlo.");
+            throw new InvalidOperationException("NEXA Boost ya está activo en esta instancia. Desactívalo antes de volver a aplicarlo.");
 
         Directory.CreateDirectory(gameDirectory);
         var finalMods = Path.Combine(gameDirectory, "mods");
@@ -93,7 +95,7 @@ public sealed class NexoBoostService(ModrinthContentClient catalog)
             try
             {
                 await catalog.InstallAsync(
-                    new ContentCatalogProject(component.ProjectId, component.Name, component.Purpose, "NEXO", "mod", null, 0),
+                    new ContentCatalogProject(component.ProjectId, component.Name, component.Purpose, "NEXA", "mod", null, 0),
                     instance.MinecraftVersion,
                     LoaderName(instance.Loader),
                     transaction.StagingGameDirectory,
@@ -157,15 +159,15 @@ public sealed class NexoBoostService(ModrinthContentClient catalog)
         try
         {
             manifest = JsonSerializer.Deserialize<BoostManifest>(await File.ReadAllBytesAsync(manifestPath, token), Json)
-                       ?? throw new InvalidDataException("El manifiesto de NEXO Boost está vacío.");
+                       ?? throw new InvalidDataException("El manifiesto de NEXA Boost está vacío.");
         }
         catch (JsonException exception)
         {
-            throw new InvalidDataException("El manifiesto de NEXO Boost está dañado; NEXO no borrará mods sin poder verificar su propiedad.", exception);
+            throw new InvalidDataException("El manifiesto de NEXA Boost está dañado; NEXA no borrará mods sin poder verificar su propiedad.", exception);
         }
 
         if (manifest.SchemaVersion != ManifestSchema || manifest.Files is null)
-            throw new InvalidDataException("El manifiesto de NEXO Boost no es compatible; NEXO no borrará archivos sin verificar su propiedad.");
+            throw new InvalidDataException("El manifiesto de NEXA Boost no es compatible; NEXA no borrará archivos sin verificar su propiedad.");
 
         var removed = 0;
         var preserved = new List<string>();
