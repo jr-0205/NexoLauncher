@@ -24,15 +24,15 @@ public partial class MainWindow
 
         var boost = new MenuItem
         {
-            Header = "NEXO Boost · Más FPS",
-            ToolTip = "Instala automáticamente optimizaciones compatibles para esta instancia"
+            Header = "NEXO Boost · Equilibrado (recomendado)",
+            ToolTip = "Más FPS conservando gráficos y partículas importantes de combate"
         };
         boost.Click += ApplyNexoBoost_Click;
 
         var removeBoost = new MenuItem
         {
             Header = "Desactivar NEXO Boost",
-            ToolTip = "Retira únicamente los archivos que NEXO Boost instaló y que no fueron modificados"
+            ToolTip = "Retira únicamente archivos administrados por Boost y restaura sus ajustes visuales cuando siguen intactos"
         };
         removeBoost.Click += RemoveNexoBoost_Click;
 
@@ -71,6 +71,8 @@ public partial class MainWindow
         if (instance is null) return;
 
         var service = new NexoBoostService(contentCatalog);
+        var visualService = new NexoBoostVisualPackService(contentCatalog);
+        var presetService = new NexoBoostPresetService();
         var components = service.Recommend(instance.Loader);
         if (components.Count == 0)
         {
@@ -85,22 +87,49 @@ public partial class MainWindow
         var gameDirectory = instanceRepository.GetPaths(instance.Id).Game;
         if (service.IsApplied(gameDirectory))
         {
-            MessageBox.Show(this,
-                "NEXO Boost ya está activo en esta instancia. Puedes desactivarlo desde el menú contextual antes de volver a aplicarlo.",
-                "NEXO Boost",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            try
+            {
+                SetBusy(true, $"Actualizando preset Equilibrado de {instance.Name}…");
+                var visual = await visualService.ApplyAsync(instance, gameDirectory, lifetime.Token);
+                var preset = await presetService.ApplyAsync(gameDirectory, NexoBoostPreset.Balanced, lifetime.Token);
+                var details = preset.Changes.Count == 0
+                    ? "El preset ya estaba configurado."
+                    : string.Join(Environment.NewLine, preset.Changes.Select(value => "• " + value));
+                var visualNote = visual.FilesInstalled > 0
+                    ? $"\n\nOptimizador de partículas: {visual.FilesInstalled} archivo(s) instalado(s)."
+                    : string.IsNullOrWhiteSpace(visual.Note) ? string.Empty : "\n\n" + visual.Note;
+                MessageBox.Show(this,
+                    "NEXO Boost ya estaba activo. Se volvió a aplicar el perfil Equilibrado:\n\n" + details + visualNote +
+                    "\n\nSi acabas de ejecutar Minecraft por primera vez con Boost, esta segunda aplicación permite que NEXO configure también Particle Core.",
+                    "NEXO Boost · Equilibrado",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                DetailSubtitle.Text = "NEXO Boost activo · Equilibrado";
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
+            catch (Exception exception)
+            {
+                MessageBox.Show(this, exception.Message, "NEXO Boost", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+            finally
+            {
+                SetBusy(false);
+                RefreshButton();
+            }
             return;
         }
 
         var componentList = string.Join(Environment.NewLine, components.Select(component => $"• {component.Name} — {component.Purpose}"));
         var confirmation = MessageBox.Show(this,
-            $"¿Activar NEXO Boost en '{instance.Name}'?\n\n" +
+            $"¿Activar NEXO Boost Equilibrado en '{instance.Name}'?\n\n" +
             $"Minecraft {instance.MinecraftVersion} · {instance.Loader}\n\n" +
             "NEXO consultará Modrinth y sólo instalará builds compatibles:\n\n" +
-            componentList + "\n\n" +
+            componentList + "\n" +
+            "• Particle Core — optimiza partículas y permite reducir sólo ambiente innecesario\n\n" +
+            "Equilibrado conserva gráficos, sombras, nubes, mipmaps y partículas de combate. " +
+            "Mantiene barrido de espada, críticos, indicadores de daño y tótem al 100%; limita principalmente distancias excesivas, goteos, lluvia y partículas ambientales.\n\n" +
             "No se sobrescriben JARs existentes. Los archivos añadidos quedan registrados con SHA-512 para poder retirarlos de forma segura.",
-            "NEXO Boost · Más FPS",
+            "NEXO Boost · Equilibrado",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question,
             MessageBoxResult.Yes);
@@ -110,18 +139,29 @@ public partial class MainWindow
         {
             SetBusy(true, $"Optimizando {instance.Name}…");
             var result = await service.ApplyAsync(instance, gameDirectory, lifetime.Token);
+            var visual = await visualService.ApplyAsync(instance, gameDirectory, lifetime.Token);
+            var preset = await presetService.ApplyAsync(gameDirectory, NexoBoostPreset.Balanced, lifetime.Token);
+
             var skipped = result.SkippedComponents.Count == 0
                 ? string.Empty
                 : "\n\nOmitidos automáticamente:\n" + string.Join(Environment.NewLine, result.SkippedComponents.Select(value => "• " + value));
             var installed = result.FilesInstalled == 0
-                ? "No fue necesario añadir archivos nuevos."
-                : $"NEXO Boost instaló {result.FilesInstalled} archivo(s):\n" + string.Join(Environment.NewLine, result.InstalledFiles.Select(value => "• " + value));
+                ? "No fue necesario añadir archivos base nuevos."
+                : $"NEXO Boost instaló {result.FilesInstalled} archivo(s) base:\n" + string.Join(Environment.NewLine, result.InstalledFiles.Select(value => "• " + value));
+            var visualInstalled = visual.FilesInstalled > 0
+                ? "\n\nPartículas optimizadas con Particle Core y dependencias:\n" + string.Join(Environment.NewLine, visual.InstalledFiles.Select(value => "• " + value))
+                : string.IsNullOrWhiteSpace(visual.Note) ? string.Empty : "\n\n" + visual.Note;
+            var presetDetails = preset.Changes.Count == 0
+                ? string.Empty
+                : "\n\nPreset Equilibrado:\n" + string.Join(Environment.NewLine, preset.Changes.Select(value => "• " + value));
+
             MessageBox.Show(this,
-                installed + skipped + "\n\nReinicia Minecraft para aplicar los cambios.",
-                "NEXO Boost",
+                installed + visualInstalled + presetDetails + skipped +
+                "\n\nReinicia Minecraft para aplicar los cambios. Después del primer inicio puedes pulsar Ctrl+B otra vez para que NEXO afine el archivo de configuración que Particle Core genere.",
+                "NEXO Boost · Equilibrado",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
-            DetailSubtitle.Text = result.FilesInstalled > 0 ? "NEXO Boost activo · optimización de FPS instalada" : "NEXO Boost revisado · sin cambios necesarios";
+            DetailSubtitle.Text = "NEXO Boost activo · Equilibrado";
         }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         catch (Exception exception)
@@ -141,6 +181,8 @@ public partial class MainWindow
         var instance = await instanceManager.GetAsync(item.Id, lifetime.Token);
         if (instance is null) return;
         var service = new NexoBoostService(contentCatalog);
+        var visualService = new NexoBoostVisualPackService(contentCatalog);
+        var presetService = new NexoBoostPresetService();
         var gameDirectory = instanceRepository.GetPaths(instance.Id).Game;
         if (!service.IsApplied(gameDirectory))
         {
@@ -150,7 +192,8 @@ public partial class MainWindow
 
         var confirmation = MessageBox.Show(this,
             $"¿Desactivar NEXO Boost en '{instance.Name}'?\n\n" +
-            "NEXO sólo retirará archivos que Boost instaló y cuyo SHA-512 siga intacto. Mods modificados o actualizados posteriormente serán preservados.",
+            "NEXO restaurará únicamente los ajustes del preset que sigan con el valor aplicado por Boost y retirará sólo JARs cuyo SHA-512 siga intacto. " +
+            "Cambios manuales, mods actualizados o configuraciones modificadas posteriormente serán preservados.",
             "Desactivar NEXO Boost",
             MessageBoxButton.YesNo,
             MessageBoxImage.Warning,
@@ -160,12 +203,18 @@ public partial class MainWindow
         try
         {
             SetBusy(true, $"Retirando NEXO Boost de {instance.Name}…");
+            var preset = await presetService.RestoreAsync(gameDirectory, lifetime.Token);
+            var visual = await visualService.RemoveAsync(gameDirectory, lifetime.Token);
             var result = await service.RemoveAsync(gameDirectory, lifetime.Token);
-            var preserved = result.PreservedFiles.Count == 0
+            var preservedValues = preset.PreservedValues
+                .Concat(visual.PreservedFiles)
+                .Concat(result.PreservedFiles)
+                .ToArray();
+            var preserved = preservedValues.Length == 0
                 ? string.Empty
-                : "\n\nPreservados por seguridad:\n" + string.Join(Environment.NewLine, result.PreservedFiles.Select(value => "• " + value));
+                : "\n\nPreservados por seguridad:\n" + string.Join(Environment.NewLine, preservedValues.Select(value => "• " + value));
             MessageBox.Show(this,
-                $"Se retiraron {result.FilesRemoved} archivo(s) administrados por NEXO Boost." + preserved,
+                $"Se retiraron {result.FilesRemoved + visual.FilesRemoved} archivo(s) administrados por NEXO Boost y se restauraron {preset.ValuesRestored} ajuste(s) visual(es)." + preserved,
                 "NEXO Boost desactivado",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
