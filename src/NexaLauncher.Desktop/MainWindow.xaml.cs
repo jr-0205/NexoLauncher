@@ -178,7 +178,8 @@ public partial class MainWindow : Window
     private static Uri? ResolveDevelopmentOrigin(string? value)
     {
         if (string.IsNullOrWhiteSpace(value) || !Uri.TryCreate(value.Trim(), UriKind.Absolute, out var uri)) return null;
-        if (uri.Scheme is not (Uri.UriSchemeHttp or Uri.UriSchemeHttps)) return null;
+        if (!string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(uri.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)) return null;
         if (!uri.IsLoopback && !string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase)) return null;
         return new Uri(uri.GetLeftPart(UriPartial.Authority) + "/");
     }
