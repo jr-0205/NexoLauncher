@@ -40,6 +40,7 @@ public partial class MainWindow : Window
 #endif
             bridge = new NexaBridge(paths, core);
             core.WebMessageReceived += bridge.OnWebMessageReceived;
+            core.WindowCloseRequested += (_, _) => Close();
             core.NavigationStarting += (_, args) =>
             {
                 if (IsAllowedNavigation(args.Uri)) return;
