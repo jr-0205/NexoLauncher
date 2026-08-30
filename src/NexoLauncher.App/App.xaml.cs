@@ -22,6 +22,17 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        // WPF remains a temporary fallback during the React migration. Keep every visible
+        // legacy window branded as NEXA without renaming compatibility namespaces yet.
+        EventManager.RegisterClassHandler(
+            typeof(Window),
+            FrameworkElement.LoadedEvent,
+            new RoutedEventHandler((sender, _) =>
+            {
+                if (sender is Window window && window.Title.Contains("NEXO", StringComparison.OrdinalIgnoreCase))
+                    window.Title = window.Title.Replace("NEXO", "NEXA", StringComparison.OrdinalIgnoreCase);
+            }));
+
         // Branding is presentation-only and must never prevent the launcher from starting.
         // Existing XAML resources remain as fallbacks if any embedded image is invalid.
         TryRegisterBrandAsset("Nexo.BrandMark", NexoBrandImage.Create);
