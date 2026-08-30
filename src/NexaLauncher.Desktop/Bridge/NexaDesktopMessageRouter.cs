@@ -196,9 +196,11 @@ internal sealed class NexaDesktopMessageRouter
                 request.IconPositionX,
                 request.IconPositionY,
                 request.IconFit,
+                request.IconZoom,
                 request.BackgroundPositionX,
                 request.BackgroundPositionY,
-                request.BackgroundFit).Normalize();
+                request.BackgroundFit,
+                request.BackgroundZoom).Normalize();
             await WriteArtworkLayoutAsync(id, placement);
             return new { id = id.ToString(), artwork = placement };
         }
@@ -268,29 +270,37 @@ internal sealed class NexaDesktopMessageRouter
         double IconPositionX,
         double IconPositionY,
         string IconFit,
+        double IconZoom,
         double BackgroundPositionX,
         double BackgroundPositionY,
-        string BackgroundFit);
+        string BackgroundFit,
+        double BackgroundZoom);
 
     private sealed record ArtworkPlacement(
         double IconPositionX,
         double IconPositionY,
         string IconFit,
+        double IconZoom,
         double BackgroundPositionX,
         double BackgroundPositionY,
-        string BackgroundFit)
+        string BackgroundFit,
+        double BackgroundZoom)
     {
-        public static ArtworkPlacement Default { get; } = new(50, 50, "contain", 50, 50, "cover");
+        public static ArtworkPlacement Default { get; } = new(50, 50, "contain", 100, 50, 50, "cover", 100);
 
         public ArtworkPlacement Normalize() => this with
         {
             IconPositionX = Math.Clamp(IconPositionX, 0, 100),
             IconPositionY = Math.Clamp(IconPositionY, 0, 100),
             IconFit = NormalizeFit(IconFit, "contain"),
+            IconZoom = NormalizeZoom(IconZoom),
             BackgroundPositionX = Math.Clamp(BackgroundPositionX, 0, 100),
             BackgroundPositionY = Math.Clamp(BackgroundPositionY, 0, 100),
-            BackgroundFit = NormalizeFit(BackgroundFit, "cover")
+            BackgroundFit = NormalizeFit(BackgroundFit, "cover"),
+            BackgroundZoom = NormalizeZoom(BackgroundZoom)
         };
+
+        private static double NormalizeZoom(double value) => value <= 0 ? 100 : Math.Clamp(value, 50, 300);
 
         private static string NormalizeFit(string? value, string fallback) =>
             string.Equals(value, "cover", StringComparison.OrdinalIgnoreCase) ? "cover" :
