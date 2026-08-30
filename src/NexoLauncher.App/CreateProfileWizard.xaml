@@ -172,7 +172,6 @@
                                 <TextBlock Text="FONDO" Style="{StaticResource Nexo.Label}"/>
                                 <Border Height="250" Style="{StaticResource Nexo.Card}" Padding="0" Background="#0E1622" ClipToBounds="True">
                                     <Grid>
-                                        <LinearGradientBrush x:Name="UnusedBrush"/>
                                         <Border><Border.Background><LinearGradientBrush StartPoint="0,0" EndPoint="1,1"><GradientStop Color="#203F86"/><GradientStop Color="#172131" Offset="0.55"/><GradientStop Color="#090D13" Offset="1"/></LinearGradientBrush></Border.Background></Border>
                                         <Image x:Name="BackgroundPreview" Stretch="UniformToFill"/>
                                         <Border Background="#55090D13"/>
