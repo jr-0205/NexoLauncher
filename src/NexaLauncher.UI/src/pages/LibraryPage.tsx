@@ -1,14 +1,17 @@
-import { Search, Plus, Play } from "lucide-react";
+import { Search, Plus, Play, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import type { NexaProfile } from "../app/types";
 import { ProfileCard } from "../components/ProfileCard";
 
 type LibraryPageProps = {
   profiles: NexaProfile[];
+  launchingProfileId?: string | null;
   onCreate(): void;
+  onOpen(profile: NexaProfile): void;
+  onPlay(profile: NexaProfile): void;
 };
 
-export function LibraryPage({ profiles, onCreate }: LibraryPageProps) {
+export function LibraryPage({ profiles, launchingProfileId, onCreate, onOpen, onPlay }: LibraryPageProps) {
   const [query, setQuery] = useState("");
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -29,14 +32,16 @@ export function LibraryPage({ profiles, onCreate }: LibraryPageProps) {
       </div>
 
       {recent && (
-        <div className="continue-panel glass-panel" style={recent.backgroundDataUrl ? { backgroundImage: `linear-gradient(90deg, rgba(9,13,19,.96), rgba(9,13,19,.45)), url(${recent.backgroundDataUrl})` } : undefined}>
+        <div className="continue-panel glass-panel" style={recent.backgroundDataUrl ? { backgroundImage: `linear-gradient(90deg, rgba(9,13,19,.96), rgba(9,13,19,.45)), url(${recent.backgroundDataUrl})` } : undefined} onClick={() => onOpen(recent)} role="button" tabIndex={0}>
           <div className="continue-icon"><img src={recent.iconDataUrl ?? "./brand/nexa-mark.png"} alt="" /></div>
           <div className="continue-copy">
             <span>CONTINUAR JUGANDO</span>
             <h2>{recent.name}</h2>
             <p>{recent.loader} · Minecraft {recent.minecraftVersion}</p>
           </div>
-          <button className="play-button" type="button"><Play size={18} fill="currentColor" /> INICIAR</button>
+          <button className="play-button" type="button" disabled={launchingProfileId === recent.id} onClick={(event) => { event.stopPropagation(); onPlay(recent); }}>
+            {launchingProfileId === recent.id ? <Loader2 className="spin" size={18} /> : <Play size={18} fill="currentColor" />} INICIAR
+          </button>
         </div>
       )}
 
@@ -47,11 +52,11 @@ export function LibraryPage({ profiles, onCreate }: LibraryPageProps) {
 
       {visible.length > 0 ? (
         <div className="profile-grid">
-          {visible.map((profile) => <ProfileCard key={profile.id} profile={profile} onPlay={() => {}} />)}
+          {visible.map((profile) => <ProfileCard key={profile.id} profile={profile} launching={launchingProfileId === profile.id} onOpen={onOpen} onPlay={onPlay} />)}
         </div>
       ) : (
         <div className="empty-state glass-panel">
-          <div className="nexa-wordmark"><strong>NEXA</strong><span>CLIENT</span></div>
+          <img className="empty-brand-mark" src="./brand/nexa-mark.png" alt="NEXA" />
           <h2>{profiles.length ? "No encontramos perfiles" : "Tu biblioteca está lista"}</h2>
           <p>{profiles.length ? "Prueba con otra búsqueda." : "Crea tu primer perfil y NEXA mantendrá mundos, mods y configuración totalmente aislados."}</p>
           {!profiles.length && <button className="primary-button" type="button" onClick={onCreate}><Plus size={17} /> CREAR PERFIL</button>}
