@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
+using NexoLauncher.Domain.Instances;
 
 namespace NexoLauncher.App;
 
@@ -26,7 +27,7 @@ public partial class CreateProfileWizard
     private void RefreshLoaderVisibility()
     {
         if (LoaderVersionSection is null) return;
-        LoaderVersionSection.Visibility = SelectedLoader() == Domain.Instances.LoaderType.Vanilla
+        LoaderVersionSection.Visibility = SelectedLoader() == LoaderType.Vanilla
             ? Visibility.Collapsed
             : Visibility.Visible;
     }
