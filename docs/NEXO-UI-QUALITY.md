@@ -2,140 +2,158 @@
 
 ## Objetivo
 
-Elevar la interfaz de NEXO desde una base funcional aproximada de **7.5/10** a una experiencia de producto consistente, rápida y mantenible de **9/10 o superior**, sin introducir Electron, WebView ni dependencias visuales innecesarias.
+La UI de NEXO parte de una base funcional sólida, pero el objetivo del módulo es convertirla en un sistema visual coherente, mantenible y suficientemente flexible para crecer sin acumular estilos locales inconsistentes.
 
-La UI sigue siendo WPF nativa. El módulo no modifica la lógica de Minecraft, loaders, Java, perfiles o almacenamiento.
+La valoración inicial de referencia para esta línea de trabajo es **7.5/10**. La meta no es perseguir una cifra artificial, sino eliminar los factores que actualmente impiden que la interfaz se sienta como un producto terminado.
 
-## Principios
+## Problemas detectados
 
-1. **Jerarquía antes que decoración.** La acción principal de cada pantalla debe entenderse en menos de un segundo.
-2. **Consistencia antes que variedad.** Un mismo tipo de acción usa el mismo componente, espaciado y estado visual.
-3. **Estado siempre visible.** Cargando, listo, error, deshabilitado, ejecutando y selección deben distinguirse sin depender únicamente del texto.
-4. **Teclado y foco son ciudadanos de primera clase.** Los controles interactivos deben mostrar foco y conservar navegación coherente.
-5. **Responsive dentro del escritorio.** NEXO debe conservar jerarquía desde su ancho mínimo hasta pantallas grandes sin cortar acciones críticas.
-6. **Cero lógica de negocio en el tema.** El módulo visual puede presentar estado; no decide instalación, autenticación, filesystem o lanzamiento.
-7. **Tokens semánticos.** Las vistas no deben inventar nuevos hexadecimales cuando existe un token de superficie, borde, texto o estado.
+La primera auditoría de `MainWindow.xaml` encontró:
 
-## Arquitectura
+- colores y tamaños definidos directamente en múltiples controles;
+- estilos principales encapsulados sólo dentro de la ventana;
+- iconografía basada en caracteres Unicode con métricas diferentes;
+- distintos lenguajes visuales entre botones, campos y combos;
+- jerarquías visuales repetidas manualmente;
+- adaptación limitada a cambios de tamaño;
+- estados de foco menos cuidados que hover/pressed;
+- un `MainWindow` demasiado responsable tanto de UI como de lógica.
 
-```text
-NexoLauncher.App/
-└── UI/
-    ├── NexoTheme.xaml
-    └── NexoUiQualityModule.cs
-```
+## Fase 1: Design system
 
-`NexoTheme.xaml` es la fuente central de:
+Implementada en `src/NexoLauncher.App/UI/NexoTheme.xaml`.
 
-- paleta semántica;
-- superficies y bordes;
+Incluye tokens semánticos para:
+
+- background;
+- sidebar;
+- surfaces;
+- border;
 - texto principal/secundario/muted;
-- accent, success, warning y danger;
-- foco de teclado;
-- botones primarios, secundarios y ghost;
-- campos de texto;
-- ComboBox;
-- navegación;
-- cards;
-- ToolTip, CheckBox y ProgressBar.
+- accent;
+- success;
+- warning;
+- danger.
 
-`NexoUiQualityModule` permite migrar incrementalmente el XAML histórico. Durante `Loaded` identifica los estilos legacy de `MainWindow` y los sustituye por componentes del design system. Esto evita una reescritura masiva de una pantalla funcional y permite retirar los estilos locales gradualmente.
+También incluye estilos para:
+
+- labels;
+- text fields;
+- primary buttons;
+- secondary buttons;
+- ghost buttons;
+- navigation buttons;
+- combo boxes;
+- cards;
+- tooltips;
+- checkboxes;
+- progress bars.
+
+La intención es que las pantallas nuevas consuman estos estilos directamente y que las existentes migren gradualmente.
+
+## Fase 2: Compatibility layer
+
+`NexoUiQualityModule` permite aplicar el design system nuevo a controles que todavía usan claves legacy (`PrimaryButton`, `FieldStyle`, etc.) sin reescribir de golpe toda la ventana principal.
 
 También:
 
-- sincroniza el texto de versión visible con la versión real del assembly;
-- activa ClearType y text formatting apropiado para UI;
-- aplica colores base del shell;
-- ajusta densidad del sidebar y panel de detalles en anchos compactos.
+- aplica colores semánticos al shell;
+- sincroniza el número de versión mostrado con el assembly;
+- mejora el rendering de texto;
+- incorpora un primer responsive pass para ventanas compactas.
 
-## Scorecard de calidad
+Esta capa es temporal. El objetivo final es que los estilos legacy desaparezcan del XAML principal.
 
-La evaluación futura de la UI debe dividirse en criterios concretos, no en una nota subjetiva única:
+## Fase 3: Library Experience
 
-| Área | Peso | Objetivo |
-|---|---:|---:|
-| Jerarquía visual y legibilidad | 20% | 9/10 |
-| Consistencia de componentes | 20% | 9.5/10 |
-| Estados y feedback de operaciones | 15% | 9/10 |
-| Navegación, teclado y foco | 15% | 9/10 |
-| Responsive / escalado de escritorio | 10% | 9/10 |
-| Accesibilidad y contraste | 10% | 9/10 |
-| Pulido visual y microinteracciones | 5% | 8.5/10 |
-| Coste de mantenimiento | 5% | 9.5/10 |
+Pendiente.
 
-## Fase actual · UI Foundation
+Objetivos:
 
-Implementado:
+- tarjetas de instancia con estados más informativos;
+- loaders representados de manera consistente;
+- acciones frecuentes más visibles;
+- duplicar perfil como acción de primer nivel, no sólo menú contextual;
+- mejores empty states;
+- estado de ejecución integrado en la tarjeta correspondiente;
+- estados de error/repair sin depender exclusivamente de MessageBox.
 
-- design tokens centralizados;
-- estilos reutilizables;
-- estados hover / pressed / disabled;
-- foco visible;
-- remapeo de estilos legacy;
-- versión visible automática;
-- shell dark coherente;
-- primer breakpoint compacto para biblioteca/sidebar;
-- ToolTips, CheckBox y progreso alineados con el tema.
+## Fase 4: Creation Flow
 
-## Próximas fases
+Pendiente.
 
-### UI 2 · Library Experience
+La creación de instancia debe convertirse en un flujo guiado que reduzca decisiones innecesarias:
 
-- tarjetas de instancia con icono/loader/versión/status reales;
-- badges semánticos en lugar de texto decorativo fijo;
-- búsqueda y ordenamiento de instancias;
-- acciones secundarias en menú contextual consistente;
-- mejores empty/loading/error states;
-- panel de detalles con agrupación y menor ruido visual.
-
-### UI 3 · Install Flow
-
-Convertir “Nueva instalación” en un flujo más guiado:
-
-1. Minecraft;
+1. versión;
 2. loader;
-3. nombre del perfil;
-4. runtime/memoria avanzada;
-5. resumen;
-6. instalar/crear.
+3. configuración recomendada;
+4. resumen;
+5. instalación.
 
-La configuración avanzada debe existir sin competir visualmente con el camino normal.
+Java debe permanecer automático por defecto. La RAM debe mostrar claramente recomendado, seleccionado y límite seguro.
 
-### UI 4 · Content Hub
+## Fase 5: Content Hub
 
-- separar claramente catálogo y archivos locales;
-- distinguir Modrinth y CurseForge como proveedores;
-- chips de compatibilidad Minecraft/loader;
-- progreso por dependencia/archivo;
-- resultado final con resumen de cambios;
-- estados de error accionables y no sólo MessageBox.
+Pendiente.
 
-### UI 5 · Settings and Accounts
+Objetivos:
 
-- navegación interna por secciones cuando crezca configuración;
-- cuenta Microsoft como identidad visible, no como campo suelto;
-- runtimes Java como inventario inspeccionable;
-- configuración global frente a override de instancia claramente diferenciada.
+- búsqueda y filtros más claros;
+- distinguir Modrinth, archivos locales e imports;
+- progreso por operación;
+- compatibilidad visible antes de instalar;
+- estado transaccional de importación;
+- errores recuperables dentro de la pantalla;
+- futuro acceso a optimización opcional por instancia.
 
-## Reglas para nuevos controles
+La lógica de optimización del proceso Minecraft ya se documenta por separado en `docs/NEXO-PERFORMANCE.md`; la UI futura deberá exponer únicamente controles comprensibles, no flags JVM crudos.
 
-- no introducir colores hexadecimales nuevos en vistas sin justificar un token;
-- no usar emoji como iconografía funcional permanente;
-- no crear otro template de botón si el caso cabe en Primary, Secondary, Ghost o Danger;
-- todo control interactivo debe tener estado disabled y foco visible;
-- operaciones de más de un instante deben mostrar estado/progreso;
-- errores deben indicar qué pasó y qué acción puede tomar el usuario;
-- el nombre visible de una instancia nunca debe confundirse con su ruta física/GUID.
+## Fase 6: Settings / Accounts
 
-## Definición de terminado para una pantalla
+Pendiente.
 
-Una pantalla sólo se considera terminada cuando:
+Objetivos:
 
-- funciona con ratón y teclado;
-- mantiene contraste suficiente;
-- no pierde controles esenciales al redimensionar hasta el mínimo soportado;
-- loading, empty, success y error están definidos cuando apliquen;
-- usa componentes del design system;
-- no duplica estilos locales sin una razón documentada;
-- no bloquea el hilo UI con trabajo de red/disco;
-- no introduce regresiones en la lógica funcional existente.
+- separar sistema, Java, memoria, comportamiento y cuentas;
+- añadir autenticación Microsoft cuando la implementación esté lista;
+- indicar qué valores son globales y cuáles son overrides de instancia;
+- evitar ajustes que el usuario no necesita entender para jugar.
+
+## Accesibilidad y calidad
+
+Cada componente debe considerar:
+
+- keyboard focus visible;
+- contraste;
+- lectura a 100–150% de escala;
+- tooltips donde una acción sólo tenga icono;
+- orden de tabulación razonable;
+- disabled state identificable sin depender sólo del color;
+- texto completo disponible mediante tooltip cuando se trunca.
+
+## Responsive
+
+El shell inicial tiene dos modos:
+
+- normal: sidebar 252 px y detalle 350 px;
+- compacto: sidebar 228 px y detalle 315 px.
+
+Esta adaptación todavía no convierte NEXO en una UI completamente responsive. La siguiente fase debe sustituir anchos rígidos restantes por breakpoints y layouts que puedan reordenarse.
+
+## Criterio de salida
+
+La mejora UI no debe considerarse finalizada sólo porque el tema sea más atractivo. Antes de declararla estable deben probarse manualmente:
+
+- Biblioteca vacía y con varias instancias;
+- nombres largos y nombres repetidos;
+- Vanilla/Fabric/Forge/NeoForge;
+- ventana mínima y maximizada;
+- escalado de Windows;
+- Crear instancia;
+- Contenido;
+- Configuración;
+- diálogos de Java y edición;
+- estados busy/error;
+- instancia en ejecución.
+
+La nota visual debe subir como consecuencia de resolver estos problemas, no como objetivo aislado.
