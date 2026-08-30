@@ -24,6 +24,7 @@ internal sealed class NexaDesktopMessageRouter
     private readonly NexoBoostService boost;
     private readonly NexoBoostVisualPackService boostVisual;
     private readonly NexoBoostPresetService boostPreset = new();
+    private readonly NexoInGameArtifactService inGame;
     private readonly SemaphoreSlim mutationLock = new(1, 1);
     private readonly JsonSerializerOptions json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
@@ -35,6 +36,7 @@ internal sealed class NexaDesktopMessageRouter
         catalog = new ModrinthContentClient(http);
         boost = new NexoBoostService(catalog);
         boostVisual = new NexoBoostVisualPackService(catalog);
+        inGame = new NexoInGameArtifactService(http, catalog, paths, FindDevelopmentArtifactRoot());
     }
 
     public async Task<bool> TryHandleAsync(CoreWebView2WebMessageReceivedEventArgs eventArgs)
@@ -51,6 +53,7 @@ internal sealed class NexaDesktopMessageRouter
 
         if (request is null || string.IsNullOrWhiteSpace(request.Method)) return false;
         if (!request.Method.StartsWith("boost.", StringComparison.Ordinal) &&
+            !request.Method.StartsWith("ingame.", StringComparison.Ordinal) &&
             !request.Method.StartsWith("artwork.", StringComparison.Ordinal)) return false;
 
         try
@@ -60,6 +63,8 @@ internal sealed class NexaDesktopMessageRouter
                 "boost.status" => await BoostStatusAsync(request.Payload),
                 "boost.apply" => await ApplyBoostAsync(request.Payload),
                 "boost.remove" => await RemoveBoostAsync(request.Payload),
+                "ingame.status" => await InGameStatusAsync(request.Payload),
+                "ingame.install" => await InstallInGameAsync(request.Payload),
                 "artwork.list" => await ArtworkListAsync(),
                 "artwork.update" => await UpdateArtworkAsync(request.Payload),
                 _ => throw new NotSupportedException($"El método '{request.Method}' todavía no está disponible en NEXA.")
@@ -172,6 +177,161 @@ internal sealed class NexaDesktopMessageRouter
         {
             mutationLock.Release();
         }
+    }
+
+    private async Task<object> InGameStatusAsync(JsonElement payload)
+    {
+        var id = InstanceId.Parse(Read<ProfileIdRequest>(payload).Id);
+        var profile = await instanceManager.GetAsync(id) ?? throw new InvalidOperationException("El perfil ya no existe.");
+        var game = instances.GetPaths(id).Game;
+        var installedFile = FindInstalledInGameJar(game);
+
+        NexoInGameArtifactCatalog artifactCatalog;
+        try
+        {
+            artifactCatalog = await inGame.LoadCatalogAsync();
+        }
+        catch when (installedFile is not null)
+        {
+            return new
+            {
+                installed = true,
+                available = false,
+                profileId = id.ToString(),
+                minecraftVersion = profile.MinecraftVersion,
+                loader = profile.Loader.ToString(),
+                version = (string?)null,
+                fileName = installedFile,
+                catalogStatus = "installed",
+                message = "NEXA In-Game está instalado. No se pudo comprobar el catálogo de actualizaciones."
+            };
+        }
+
+        var published = NexoInGameArtifactService.SelectPublishedArtifact(artifactCatalog, profile);
+        var registered = artifactCatalog.Artifacts.FirstOrDefault(candidate =>
+            string.Equals(candidate.MinecraftVersion, profile.MinecraftVersion, StringComparison.Ordinal) &&
+            string.Equals(candidate.Loader, profile.Loader.ToString(), StringComparison.OrdinalIgnoreCase));
+
+        if (installedFile is not null)
+        {
+            return new
+            {
+                installed = true,
+                available = published is not null,
+                profileId = id.ToString(),
+                minecraftVersion = profile.MinecraftVersion,
+                loader = profile.Loader.ToString(),
+                version = published?.NexoInGameVersion ?? registered?.NexoInGameVersion,
+                fileName = installedFile,
+                catalogStatus = "installed",
+                message = "NEXA In-Game está instalado. Shift derecho abrirá el Control Center dentro de Minecraft."
+            };
+        }
+
+        if (published is not null)
+        {
+            return new
+            {
+                installed = false,
+                available = true,
+                profileId = id.ToString(),
+                minecraftVersion = profile.MinecraftVersion,
+                loader = profile.Loader.ToString(),
+                version = published.NexoInGameVersion,
+                fileName = published.FileName,
+                catalogStatus = "published",
+                message = $"NEXA In-Game {published.NexoInGameVersion} está listo para Minecraft {profile.MinecraftVersion} + {profile.Loader}."
+            };
+        }
+
+        if (registered is not null)
+        {
+            return new
+            {
+                installed = false,
+                available = false,
+                profileId = id.ToString(),
+                minecraftVersion = profile.MinecraftVersion,
+                loader = profile.Loader.ToString(),
+                version = registered.NexoInGameVersion,
+                fileName = registered.FileName,
+                catalogStatus = "planned",
+                message = $"La build de NEXA In-Game para Minecraft {profile.MinecraftVersion} + {profile.Loader} está registrada, pero todavía no se ha publicado."
+            };
+        }
+
+        return new
+        {
+            installed = false,
+            available = false,
+            profileId = id.ToString(),
+            minecraftVersion = profile.MinecraftVersion,
+            loader = profile.Loader.ToString(),
+            version = (string?)null,
+            fileName = (string?)null,
+            catalogStatus = "unavailable",
+            message = $"Aún no hay una build de NEXA In-Game para Minecraft {profile.MinecraftVersion} + {profile.Loader}. El launcher la resolverá automáticamente cuando se publique."
+        };
+    }
+
+    private async Task<object> InstallInGameAsync(JsonElement payload)
+    {
+        var id = InstanceId.Parse(Read<ProfileIdRequest>(payload).Id);
+        await mutationLock.WaitAsync();
+        try
+        {
+            var profile = await instanceManager.GetAsync(id) ?? throw new InvalidOperationException("El perfil ya no existe.");
+            var game = instances.GetPaths(id).Game;
+            var artifact = await inGame.FindPublishedArtifactAsync(profile);
+            if (artifact is null)
+                throw new NotSupportedException($"Todavía no existe una build publicada de NEXA In-Game para Minecraft {profile.MinecraftVersion} + {profile.Loader}.");
+
+            PostEvent("operation.progress", new { stage = "Preparando NEXA In-Game", completed = 0, total = 0 });
+            var progress = new Progress<string>(stage =>
+                PostEvent("operation.progress", new { stage, completed = 0, total = 0 }));
+            var result = await inGame.InstallAsync(profile, game, progress);
+            PostEvent("operation.progress", new { stage = "NEXA In-Game listo · Right Shift", completed = 1, total = 1, percentage = 100 });
+
+            return new
+            {
+                installed = true,
+                version = result.Version,
+                fileName = result.FileName,
+                usedCache = result.UsedCache,
+                dependenciesInstalled = result.DependenciesInstalled
+            };
+        }
+        finally
+        {
+            mutationLock.Release();
+        }
+    }
+
+    private static string? FindInstalledInGameJar(string gameDirectory)
+    {
+        var mods = Path.Combine(gameDirectory, "mods");
+        if (!Directory.Exists(mods)) return null;
+        return Directory.EnumerateFiles(mods, "nexo-ingame*.jar", SearchOption.TopDirectoryOnly)
+            .Select(Path.GetFileName)
+            .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
+    }
+
+    private static string? FindDevelopmentArtifactRoot()
+    {
+        foreach (var root in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
+        {
+            DirectoryInfo? directory;
+            try { directory = new DirectoryInfo(Path.GetFullPath(root)); }
+            catch { continue; }
+
+            for (var depth = 0; directory is not null && depth < 12; depth++, directory = directory.Parent)
+            {
+                var candidate = Path.Combine(directory.FullName, "artifacts", "nexo-ingame");
+                if (File.Exists(Path.Combine(candidate, "catalog.json"))) return candidate;
+            }
+        }
+
+        return null;
     }
 
     private async Task<object> ArtworkListAsync()
