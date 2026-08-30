@@ -55,6 +55,7 @@ public partial class CreateProfileWizard : Window
         if (VersionList.SelectedItem is MinecraftVersion first)
             ProfileNameBox.Text = $"Minecraft {first.Id}";
 
+        RestoreDefaultBrandPreview();
         initialized = true;
         RefreshStepVisuals();
     }
@@ -336,7 +337,7 @@ public partial class CreateProfileWizard : Window
         VanillaLoader.IsChecked = true;
         iconSourcePath = null;
         backgroundSourcePath = null;
-        IconPreview.Source = null;
+        RestoreDefaultBrandPreview();
         BackgroundPreview.Source = null;
         CustomMemoryCheck.IsChecked = false;
         MemorySlider.Value = recommendedMemoryMiB;
@@ -344,6 +345,11 @@ public partial class CreateProfileWizard : Window
         if (VersionList.Items.Count > 0) VersionList.SelectedIndex = 0;
         if (VersionList.SelectedItem is MinecraftVersion version) ProfileNameBox.Text = $"Minecraft {version.Id}";
         SetStep(1);
+    }
+
+    private void RestoreDefaultBrandPreview()
+    {
+        IconPreview.Source = Application.Current.TryFindResource("Nexo.BrandMark") as ImageSource;
     }
 
     private void CompleteWizard()
