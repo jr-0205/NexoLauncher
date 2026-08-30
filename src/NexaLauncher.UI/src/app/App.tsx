@@ -88,6 +88,9 @@ export default function App() {
     () => profiles.find((profile) => profile.id === selectedProfileId) ?? null,
     [profiles, selectedProfileId],
   );
+  const selectedProfileBusy = selectedProfile
+    ? launchingProfileId === selectedProfile.id || data?.activeLaunch?.profileId === selectedProfile.id
+    : false;
 
   const navigate = useCallback((target: SidebarSection) => {
     setSection(target);
@@ -155,7 +158,7 @@ export default function App() {
 
           {section === "library" && <LibraryPage profiles={profiles} launchingProfileId={launchingProfileId} onCreate={() => navigate("create")} onOpen={openProfile} onPlay={play} />}
           {section === "create" && <CreateProfilePage onCancel={() => navigate("library")} onNotice={showNotice} onCreated={(profile) => { const hydrated = { ...profile, artwork: profile.artwork ?? defaultArtworkPlacement }; setData((current) => current ? { ...current, profiles: [hydrated, ...current.profiles.filter((item) => item.id !== profile.id)] } : current); openProfile(hydrated); }} />}
-          {section === "profile" && selectedProfile && <ProfileDetailPage key={selectedProfile.id} profile={selectedProfile} launching={launchingProfileId === selectedProfile.id} onLaunch={play} onContent={openContent} onUpdated={replaceProfile} onDeleted={() => { setData((current) => current ? { ...current, profiles: current.profiles.filter((item) => item.id !== selectedProfile.id) } : current); navigate("library"); }} onBack={() => navigate("library")} onNotice={showNotice} />}
+          {section === "profile" && selectedProfile && <ProfileDetailPage key={selectedProfile.id} profile={selectedProfile} launching={selectedProfileBusy} onLaunch={play} onContent={openContent} onUpdated={replaceProfile} onDeleted={() => { setData((current) => current ? { ...current, profiles: current.profiles.filter((item) => item.id !== selectedProfile.id) } : current); navigate("library"); }} onBack={() => navigate("library")} onNotice={showNotice} />}
           {section === "profile" && !selectedProfile && <div className="page"><div className="empty-state glass-panel"><h2>Perfil no disponible</h2><p>Vuelve a Biblioteca y selecciona un perfil.</p></div></div>}
           {section === "content" && <ContentPage profiles={profiles} initialProfileId={selectedProfileId} onSelectProfile={setSelectedProfileId} onNotice={showNotice} />}
           {section === "settings" && <SettingsPage username={data?.username ?? "Player"} closeLauncherOnGameStart={data?.closeLauncherOnGameStart ?? true} version={data?.version ?? "0.5.2"} onUpdated={(username, closeLauncherOnGameStart) => setData((current) => current ? { ...current, username, closeLauncherOnGameStart } : current)} onNotice={showNotice} />}
