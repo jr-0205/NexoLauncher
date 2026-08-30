@@ -39,8 +39,9 @@ public sealed class InstallerLoaderProvider(
         await downloader.DownloadAsync(url, installer, sha1, token);
 
         progress?.Report(new($"Ejecutando instalador oficial de {Id}", 0, 1));
+        var startedAt = DateTime.UtcNow;
         await RunInstallerAsync(request.JavaExecutable, installer, token);
-        ImportGeneratedProfile(request.Version.Id, request.LoaderVersion);
+        ImportGeneratedProfile(request.Version.Id, request.LoaderVersion, startedAt);
         progress?.Report(new($"{Id} listo", 1, 1));
     }
 
@@ -54,27 +55,42 @@ public sealed class InstallerLoaderProvider(
         var libraries = root.GetProperty("libraries").EnumerateArray()
             .Select(LibraryPath).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         var missing = libraries.FirstOrDefault(path => !File.Exists(path));
-        if (missing is not null) throw new FileNotFoundException($"La instalación de {Id} está incompleta; falta una biblioteca.", missing);
+        if (missing is not null) throw new FileNotFoundException($"La instalación de {Id} está incompleta; falta una biblioteca compartida y debe repararse.", missing);
         return new LaunchPlan(minecraftVersion, Path.GetFullPath(gameDirectory),
             root.GetProperty("mainClass").GetString(), libraries, ReadArguments(root, "jvm"), ReadArguments(root, "game"));
     }
 
     private void PrepareOfficialLayout(string minecraftVersion)
     {
-        var target = Path.Combine(paths.Root, "versions", minecraftVersion);
-        Directory.CreateDirectory(target);
-        File.Copy(paths.VersionJson(minecraftVersion), Path.Combine(target, minecraftVersion + ".json"), true);
-        File.Copy(paths.ClientJar(minecraftVersion), Path.Combine(target, minecraftVersion + ".jar"), true);
+        // shared/ ya ES el layout oficial usado por el instalador. No copiar los archivos
+        // de versión sobre sí mismos; únicamente validamos que Vanilla esté listo y creamos
+        // launcher_profiles.json, que algunos instaladores oficiales esperan encontrar.
+        if (!File.Exists(paths.VersionJson(minecraftVersion)) || !File.Exists(paths.ClientJar(minecraftVersion)))
+            throw new InvalidDataException($"Minecraft {minecraftVersion} no está completo antes de instalar {Id}.");
+        Directory.CreateDirectory(paths.VersionDirectory(minecraftVersion));
+        Directory.CreateDirectory(paths.Libraries);
+        Directory.CreateDirectory(paths.Assets);
         var profiles = Path.Combine(paths.Root, "launcher_profiles.json");
         if (!File.Exists(profiles)) File.WriteAllText(profiles, "{\"profiles\":{}}");
     }
 
     private async Task RunInstallerAsync(string java, string installer, CancellationToken token)
     {
-        var info = new ProcessStartInfo(java) { WorkingDirectory = paths.Root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
-        info.ArgumentList.Add("-jar"); info.ArgumentList.Add(installer); info.ArgumentList.Add("--installClient"); info.ArgumentList.Add(paths.Root);
+        var info = new ProcessStartInfo(java)
+        {
+            WorkingDirectory = paths.Root,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+        info.ArgumentList.Add("-jar");
+        info.ArgumentList.Add(installer);
+        info.ArgumentList.Add("--installClient");
+        info.ArgumentList.Add(paths.Root);
         using var process = Process.Start(info) ?? throw new InvalidOperationException("No se pudo iniciar el instalador del loader.");
-        var stdout = process.StandardOutput.ReadToEndAsync(token); var stderr = process.StandardError.ReadToEndAsync(token);
+        var stdout = process.StandardOutput.ReadToEndAsync(token);
+        var stderr = process.StandardError.ReadToEndAsync(token);
         try { await process.WaitForExitAsync(token); }
         catch (OperationCanceledException)
         {
@@ -85,33 +101,51 @@ public sealed class InstallerLoaderProvider(
         if (process.ExitCode != 0) throw new InvalidOperationException($"El instalador oficial de {Id} terminó con código {process.ExitCode}: {output.Trim()}");
     }
 
-    private void ImportGeneratedProfile(string minecraftVersion, string loaderVersion)
+    private void ImportGeneratedProfile(string minecraftVersion, string loaderVersion, DateTime startedAt)
     {
         var versions = Path.Combine(paths.Root, "versions");
+        var target = paths.LoaderProfile(Id, minecraftVersion, loaderVersion);
         var candidates = Directory.EnumerateFiles(versions, "*.json", SearchOption.AllDirectories)
-            .Where(path => !string.Equals(Path.GetFileNameWithoutExtension(path), minecraftVersion, StringComparison.OrdinalIgnoreCase))
+            .Where(path => !PathsEqual(path, paths.VersionJson(minecraftVersion)))
+            .Where(path => !PathsEqual(path, target))
             .Select(path => (Path: path, Time: File.GetLastWriteTimeUtc(path)))
-            .OrderByDescending(item => item.Time).ToArray();
+            .Where(item => item.Time >= startedAt.AddSeconds(-2))
+            .OrderByDescending(item => item.Time)
+            .ToArray();
         var source = candidates.Select(item => item.Path).FirstOrDefault(path => MatchesProfile(path, minecraftVersion));
         if (source is null) throw new InvalidDataException($"El instalador de {Id} no generó un perfil compatible con Minecraft {minecraftVersion}.");
-        var target = paths.LoaderProfile(Id, minecraftVersion, loaderVersion);
-        Directory.CreateDirectory(Path.GetDirectoryName(target)!); File.Copy(source, target, true);
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        File.Copy(source, target, true);
     }
 
     private static bool MatchesProfile(string path, string minecraftVersion)
     {
-        try { using var json = JsonDocument.Parse(File.ReadAllBytes(path)); return json.RootElement.TryGetProperty("inheritsFrom", out var value) && value.GetString() == minecraftVersion; }
+        try
+        {
+            using var json = JsonDocument.Parse(File.ReadAllBytes(path));
+            return json.RootElement.TryGetProperty("inheritsFrom", out var value) && value.GetString() == minecraftVersion;
+        }
         catch (JsonException) { return false; }
+        catch (IOException) { return false; }
     }
 
     private string LibraryPath(JsonElement library)
     {
         if (library.TryGetProperty("downloads", out var downloads) && downloads.TryGetProperty("artifact", out var artifact)
             && artifact.TryGetProperty("path", out var path))
-            return Path.Combine(paths.Libraries, path.GetString()!.Replace('/', Path.DirectorySeparatorChar));
+            return SafeLibraryPath(path.GetString() ?? throw new InvalidDataException($"{Id} publicó una biblioteca sin ruta."));
         var coordinate = library.GetProperty("name").GetString() ?? throw new InvalidDataException($"{Id} publicó una biblioteca sin coordenada.");
         var relative = FabricLibraryResolver.Resolve(coordinate).RelativePath;
-        return Path.Combine(paths.Libraries, relative.Replace('/', Path.DirectorySeparatorChar));
+        return SafeLibraryPath(relative);
+    }
+
+    private string SafeLibraryPath(string relative)
+    {
+        var target = Path.GetFullPath(Path.Combine(paths.Libraries, relative.Replace('/', Path.DirectorySeparatorChar)));
+        var root = Path.GetFullPath(paths.Libraries).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException($"{Id} publicó una ruta de biblioteca fuera de shared/libraries.");
+        return target;
     }
 
     private static IReadOnlyList<string> ReadArguments(JsonElement root, string kind)
@@ -119,4 +153,8 @@ public sealed class InstallerLoaderProvider(
         if (!root.TryGetProperty("arguments", out var arguments) || !arguments.TryGetProperty(kind, out var values)) return [];
         return values.EnumerateArray().Where(item => item.ValueKind == JsonValueKind.String).Select(item => item.GetString()!).ToArray();
     }
+
+    private static bool PathsEqual(string left, string right) =>
+        string.Equals(Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+            Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar), StringComparison.OrdinalIgnoreCase);
 }

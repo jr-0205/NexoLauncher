@@ -43,7 +43,8 @@ public sealed class CurseForgePackInstaller(HttpClient http, string? apiKey = nu
                 "NEXO necesita una API key de desarrollador/3rd Party aprobada. Para desarrollo configura CURSEFORGE_API_KEY. " +
                 "La versión distribuida de NEXO deberá usar una integración de servidor aprobada para no exponer esa credencial en el cliente.");
 
-        var root = NormalizeRoot(gameDirectory);
+        using var transaction = ContentImportTransaction.Begin(gameDirectory);
+        var root = NormalizeRoot(transaction.StagingGameDirectory);
         Directory.CreateDirectory(Path.Combine(root, "mods"));
         var completed = 0;
         foreach (var reference in requiredFiles)
@@ -61,6 +62,7 @@ public sealed class CurseForgePackInstaller(HttpClient http, string? apiKey = nu
 
         var overridePrefix = string.IsNullOrWhiteSpace(manifest.Overrides) ? "overrides/" : NormalizeEntry(manifest.Overrides) + "/";
         var overrides = await ExtractOverridesAsync(archive, root, overridePrefix, token);
+        transaction.Commit();
         return new CurseForgeInstallResult(manifest.Name ?? Path.GetFileNameWithoutExtension(packPath), completed, overrides);
     }
 
@@ -83,7 +85,7 @@ public sealed class CurseForgePackInstaller(HttpClient http, string? apiKey = nu
     {
         if (string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("CurseForge API key de desarrollador no configurada.");
         var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add("x-api-key", key);
+        request.Headers.Add("x-api-key", key!);
         request.Headers.UserAgent.ParseAdd("NexoLauncher/0.5.2");
         var response = await http.SendAsync(request, token);
         if (response.StatusCode == global::System.Net.HttpStatusCode.Forbidden || response.StatusCode == global::System.Net.HttpStatusCode.Unauthorized)
@@ -170,6 +172,7 @@ public sealed class CurseForgePackInstaller(HttpClient http, string? apiKey = nu
 
     private static string SafeDestination(string root, string relative)
     {
+        root = NormalizeRoot(root);
         relative = NormalizeEntry(relative);
         var platformRelative = relative.Replace('/', Path.DirectorySeparatorChar);
         if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(platformRelative) ||

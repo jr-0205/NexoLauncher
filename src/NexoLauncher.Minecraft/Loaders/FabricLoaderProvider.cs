@@ -45,7 +45,7 @@ public sealed class FabricLoaderProvider(
             if (!Uri.TryCreate(baseUrl, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps)
                 throw new InvalidDataException("Fabric publicó una URL de biblioteca no segura.");
             var downloadUrl = new Uri(uri, resolved.RelativePath).AbsoluteUri;
-            var target = Path.Combine(paths.Libraries, resolved.RelativePath.Replace('/', Path.DirectorySeparatorChar));
+            var target = SafeLibraryPath(resolved.RelativePath);
             await downloader.DownloadAsync(downloadUrl, target, null, ct);
             progress?.Report(new("Descargando Fabric", Interlocked.Increment(ref completed), libraries.Length));
         });
@@ -62,8 +62,11 @@ public sealed class FabricLoaderProvider(
         var root = profile.RootElement;
         var libraries = root.GetProperty("libraries").EnumerateArray()
             .Select(item => FabricLibraryResolver.Resolve(item.GetProperty("name").GetString()!).RelativePath)
-            .Select(relative => Path.Combine(paths.Libraries, relative.Replace('/', Path.DirectorySeparatorChar)))
+            .Select(SafeLibraryPath)
             .ToArray();
+        var missing = libraries.FirstOrDefault(path => !File.Exists(path));
+        if (missing is not null)
+            throw new FileNotFoundException("La instalación de Fabric está incompleta; falta una biblioteca compartida y debe repararse.", missing);
         var jvm = ReadArguments(root, "jvm");
         var game = ReadArguments(root, "game");
         return new LaunchPlan(
@@ -73,6 +76,15 @@ public sealed class FabricLoaderProvider(
             libraries,
             jvm,
             game);
+    }
+
+    private string SafeLibraryPath(string relative)
+    {
+        var target = Path.GetFullPath(Path.Combine(paths.Libraries, relative.Replace('/', Path.DirectorySeparatorChar)));
+        var root = Path.GetFullPath(paths.Libraries).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Fabric publicó una ruta de biblioteca fuera de shared/libraries.");
+        return target;
     }
 
     private static IReadOnlyList<string> ReadArguments(JsonElement root, string kind)

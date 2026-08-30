@@ -26,6 +26,7 @@ public sealed class InstanceContentManager
     public void EnsureLayout(string gameDirectory)
     {
         var root = NormalizeRoot(gameDirectory);
+        ContentImportTransaction.Recover(root);
         foreach (var folder in new[]
                  {
                      "mods", "resourcepacks", "shaderpacks", "datapacks", "config", "defaultconfigs", "kubejs",
@@ -60,7 +61,9 @@ public sealed class InstanceContentManager
 
             if (extension.Equals(".mrpack", StringComparison.OrdinalIgnoreCase))
             {
-                var result = await ImportModrinthPackAsync(root, fullSource, minecraftVersion, loaderId, token);
+                using var transaction = ContentImportTransaction.Begin(root);
+                var result = await ImportModrinthPackAsync(transaction.StagingGameDirectory, fullSource, minecraftVersion, loaderId, token);
+                transaction.Commit();
                 installed += result.FilesInstalled;
                 missing += result.ReferencedFilesMissing;
                 foreach (var destination in result.Destinations) destinations.Add(destination);
@@ -69,7 +72,9 @@ public sealed class InstanceContentManager
 
             if (extension.Equals(".lcpack", StringComparison.OrdinalIgnoreCase))
             {
-                var result = await ImportLunarPackArchiveAsync(root, fullSource, minecraftVersion, loaderId, token);
+                using var transaction = ContentImportTransaction.Begin(root);
+                var result = await ImportLunarPackArchiveAsync(transaction.StagingGameDirectory, fullSource, minecraftVersion, loaderId, token);
+                transaction.Commit();
                 installed += result.FilesInstalled;
                 missing += result.ReferencedFilesMissing;
                 foreach (var destination in result.Destinations) destinations.Add(destination);
@@ -83,8 +88,13 @@ public sealed class InstanceContentManager
             var names = archive.Entries.Select(entry => NormalizeEntry(entry.FullName)).ToArray();
             if (names.Any(IsOverrideEntry))
             {
-                installed += await ExtractEntriesAsync(archive, root, entry => IsOverrideEntry(NormalizeEntry(entry.FullName)),
-                    stripPrefix: null, destinations, token);
+                using var transaction = ContentImportTransaction.Begin(root);
+                var stagedDestinations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                var count = await ExtractEntriesAsync(archive, transaction.StagingGameDirectory,
+                    entry => IsOverrideEntry(NormalizeEntry(entry.FullName)), stripPrefix: null, stagedDestinations, token);
+                transaction.Commit();
+                installed += count;
+                foreach (var destination in stagedDestinations) destinations.Add(destination);
             }
             else
             {
@@ -103,6 +113,7 @@ public sealed class InstanceContentManager
     private async Task<ContentImportResult> ImportModrinthPackAsync(string root, string source,
         string? minecraftVersion, string? loaderId, CancellationToken token)
     {
+        root = NormalizeRoot(root);
         using var archive = ZipFile.OpenRead(source);
         var indexEntry = archive.GetEntry("modrinth.index.json")
             ?? throw new InvalidDataException("El .mrpack no contiene modrinth.index.json.");
@@ -166,6 +177,7 @@ public sealed class InstanceContentManager
     private static async Task<ContentImportResult> ImportLunarPackArchiveAsync(string root, string source,
         string? minecraftVersion, string? loaderId, CancellationToken token)
     {
+        root = NormalizeRoot(root);
         using var archive = ZipFile.OpenRead(source);
         JsonDocument? metadataDocument = null;
         var metadata = archive.GetEntry("metadata.json");
@@ -345,6 +357,7 @@ public sealed class InstanceContentManager
     private static async Task<int> ExtractEntriesAsync(ZipArchive archive, string root, Func<ZipArchiveEntry, bool> include,
         string? stripPrefix, HashSet<string> destinations, CancellationToken token)
     {
+        root = NormalizeRoot(root);
         var count = 0;
         foreach (var entry in archive.Entries)
         {
@@ -389,6 +402,7 @@ public sealed class InstanceContentManager
 
     private static string SafeDestination(string root, string relative)
     {
+        root = NormalizeRoot(root);
         relative = NormalizeEntry(relative);
         var platformRelative = relative.Replace('/', Path.DirectorySeparatorChar);
         if (string.IsNullOrWhiteSpace(relative) || Path.IsPathRooted(platformRelative) ||
