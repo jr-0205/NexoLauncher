@@ -4,11 +4,15 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using NexoLauncher.Domain.Instances;
+using NexoLauncher.Infrastructure.Instances;
+using NexoLauncher.Infrastructure.System;
 
 namespace NexoLauncher.App;
 
 public partial class InstanceEditorDialog : Window
 {
+    private readonly GameInstance instance;
+    private readonly JsonInstanceRepository repository;
     private readonly string instanceRoot;
     private string? selectedIconSource;
     private string? selectedBackgroundSource;
@@ -21,11 +25,15 @@ public partial class InstanceEditorDialog : Window
     public bool ClearIconRequested { get; private set; }
     public bool ClearBackgroundRequested { get; private set; }
 
-    public InstanceEditorDialog(GameInstance instance, string instanceRoot)
+    public InstanceEditorDialog(GameInstance instance)
     {
         NativeWindowTheme.ApplyDarkTitleBar(this);
         InitializeComponent();
-        this.instanceRoot = Path.GetFullPath(instanceRoot);
+        this.instance = instance;
+        var paths = NexoPaths.ForCurrentUser();
+        repository = new JsonInstanceRepository(paths.Instances);
+        instanceRoot = repository.GetInstanceDirectory(instance.Id);
+
         UpdatedName = instance.Name;
         UpdatedDescription = instance.Description;
         UpdatedSettings = instance.Settings;
@@ -40,9 +48,9 @@ public partial class InstanceEditorDialog : Window
         FullscreenBox.IsChecked = instance.Settings.Fullscreen;
         JvmArgumentsBox.Text = string.Join(Environment.NewLine, instance.Settings.JvmArguments ?? []);
 
-        var icon = ProfileArtworkStore.Resolve(this.instanceRoot, instance.IconPath);
+        var icon = ProfileArtworkStore.Resolve(instanceRoot, instance.IconPath);
         IconPreview.Source = LoadPreview(icon) ?? System.Windows.Application.Current.TryFindResource("Nexo.BrandMark") as ImageSource;
-        var background = ProfileArtworkStore.Resolve(this.instanceRoot, instance.BackgroundPath);
+        var background = ProfileArtworkStore.Resolve(instanceRoot, instance.BackgroundPath);
         BackgroundPreview.Source = LoadPreview(background);
     }
 
@@ -98,8 +106,9 @@ public partial class InstanceEditorDialog : Window
         return dialog.ShowDialog(this) == true ? dialog.FileName : null;
     }
 
-    private void Save_Click(object sender, RoutedEventArgs e)
+    private async void Save_Click(object sender, RoutedEventArgs e)
     {
+        ValidationText.Text = string.Empty;
         var name = NameBox.Text.Trim();
         if (name.Length is < 1 or > 64) { Fail("El nombre debe tener entre 1 y 64 caracteres."); return; }
         if (!OptionalInt(MemoryBox.Text, 512, 65536, "RAM", out var memory)) return;
@@ -112,7 +121,44 @@ public partial class InstanceEditorDialog : Window
         UpdatedName = name;
         UpdatedDescription = DescriptionBox.Text.Trim();
         UpdatedSettings = new InstanceSettings(memory, javaPath, arguments.Length == 0 ? null : arguments, width, height, FullscreenBox.IsChecked);
-        DialogResult = true;
+
+        try
+        {
+            var appearanceChanged = selectedIconSource is not null || selectedBackgroundSource is not null || ClearIconRequested || ClearBackgroundRequested;
+            var iconPath = instance.IconPath;
+            var backgroundPath = instance.BackgroundPath;
+            ProfileArtwork? artwork = null;
+            if (appearanceChanged)
+            {
+                artwork = await ProfileArtworkStore.UpdateAsync(
+                    instanceRoot,
+                    selectedIconSource,
+                    selectedBackgroundSource,
+                    ClearIconRequested,
+                    ClearBackgroundRequested,
+                    CancellationToken.None);
+                if (selectedIconSource is not null || ClearIconRequested) iconPath = artwork.IconRelativePath;
+                if (selectedBackgroundSource is not null || ClearBackgroundRequested) backgroundPath = artwork.BackgroundRelativePath;
+                artwork = artwork with { IconRelativePath = iconPath, BackgroundRelativePath = backgroundPath };
+                await ProfileArtworkStore.SaveMetadataAsync(instanceRoot, artwork, CancellationToken.None);
+            }
+
+            var updated = instance with
+            {
+                Name = UpdatedName,
+                Description = UpdatedDescription,
+                IconPath = iconPath,
+                BackgroundPath = backgroundPath,
+                Settings = UpdatedSettings,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            await repository.SaveAsync(updated, CancellationToken.None);
+            DialogResult = true;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            Fail("No se pudo guardar la apariencia del perfil. " + exception.Message);
+        }
     }
 
     private bool OptionalInt(string text, int minimum, int maximum, string field, out int? value)
