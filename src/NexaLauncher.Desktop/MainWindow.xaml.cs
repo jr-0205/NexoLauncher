@@ -18,6 +18,8 @@ public partial class MainWindow : Window
     private NexaDesktopMessageRouter? desktopRouter;
     private NexaInGameBuildMessageRouter? inGameBuildRouter;
     private NexaProfileLogMessageRouter? profileLogRouter;
+    private NexaPremiumAccountService? accountService;
+    private NexaAccountMessageRouter? accountRouter;
 
     public MainWindow()
     {
@@ -47,7 +49,9 @@ public partial class MainWindow : Window
 #else
             core.Settings.AreDevToolsEnabled = false;
 #endif
-            bridge = new NexaBridge(paths, core);
+            accountService = new NexaPremiumAccountService(paths);
+            bridge = new NexaBridge(paths, core, accountService);
+            accountRouter = new NexaAccountMessageRouter(core, accountService);
             desktopRouter = new NexaDesktopMessageRouter(paths, core);
             inGameBuildRouter = new NexaInGameBuildMessageRouter(paths, core);
             profileLogRouter = new NexaProfileLogMessageRouter(paths, core);
@@ -96,6 +100,7 @@ public partial class MainWindow : Window
     {
         if (profileLogRouter is not null && await profileLogRouter.TryHandleAsync(eventArgs)) return;
         if (inGameBuildRouter is not null && await inGameBuildRouter.TryHandleAsync(eventArgs)) return;
+        if (accountRouter is not null && await accountRouter.TryHandleAsync(eventArgs)) return;
         if (desktopRouter is not null && await desktopRouter.TryHandleAsync(eventArgs)) return;
         bridge?.OnWebMessageReceived(sender, eventArgs);
     }
