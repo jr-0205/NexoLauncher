@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { Loader2, Play, Settings2 } from "lucide-react";
 import { motion } from "motion/react";
 import { defaultArtworkPlacement, type NexaProfile } from "../app/types";
+import { ArtworkViewport } from "./ArtworkViewport";
 
 type ProfileCardProps = {
   profile: NexaProfile;
@@ -34,7 +35,16 @@ export function ProfileCard({ profile, launching = false, onOpen, onPlay }: Prof
       onKeyDown={(event) => (event.key === "Enter" || event.key === " ") && onOpen(profile)}
     >
       <div className="profile-card-top">
-        <div className="profile-icon"><img src={profile.iconDataUrl ?? "./brand/nexa-mark.png"} alt="" style={{ objectFit: artwork.iconFit, objectPosition: `${artwork.iconPositionX}% ${artwork.iconPositionY}%` }} /></div>
+        <div className="profile-icon">
+          <ArtworkViewport
+            src={profile.iconDataUrl ?? "./brand/nexa-mark.png"}
+            fit={artwork.iconFit}
+            positionX={artwork.iconPositionX}
+            positionY={artwork.iconPositionY}
+            zoom={artwork.iconZoom}
+            className="profile-icon-viewport"
+          />
+        </div>
         <button className="icon-button" type="button" aria-label={`Abrir ${profile.name}`} onClick={(event) => { event.stopPropagation(); onOpen(profile); }}><Settings2 size={17} /></button>
       </div>
       <div className="profile-card-copy">
