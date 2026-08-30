@@ -1,8 +1,8 @@
-import type { CSSProperties } from "react";
 import { useEffect, useRef, useState } from "react";
 import { Boxes, Check, FolderOpen, Gauge, ImagePlus, Loader2, Play, RotateCcw, Save, Sparkles, Trash2, X } from "lucide-react";
 import { applyBoost, deleteProfile, getBoostStatus, openProfileFolder, removeBoost, updateArtworkPlacement, updateProfile } from "../app/nexa-bridge";
 import { defaultArtworkPlacement, type BoostApplyResult, type BoostStatus, type NexaProfile, type ProfileArtworkPlacement } from "../app/types";
+import { ArtworkViewport } from "../components/ArtworkViewport";
 import { NexaDialog } from "../components/NexaDialog";
 
 type Props = {
@@ -55,13 +55,6 @@ export function ProfileDetailPage({ profile, launching, onLaunch, onContent, onU
 
   const shownIcon = removeIcon ? "./brand/nexa-mark.png" : iconDataUrl ?? profile.iconDataUrl ?? "./brand/nexa-mark.png";
   const shownBackground = removeBackground ? null : backgroundDataUrl ?? profile.backgroundDataUrl ?? null;
-  const heroStyle: CSSProperties | undefined = shownBackground ? {
-    backgroundImage: `linear-gradient(90deg,rgba(6,10,17,.97) 0%,rgba(6,10,17,.72) 48%,rgba(6,10,17,.30) 100%),url(${shownBackground})`,
-    backgroundPosition: `center, ${artwork.backgroundPositionX}% ${artwork.backgroundPositionY}%`,
-    backgroundSize: `auto, ${artwork.backgroundFit}`,
-    backgroundRepeat: "no-repeat, no-repeat",
-  } : undefined;
-  const iconStyle: CSSProperties = { objectFit: artwork.iconFit, objectPosition: `${artwork.iconPositionX}% ${artwork.iconPositionY}%` };
 
   async function choose(kind: "icon" | "background", file?: File) {
     if (!file) return;
@@ -157,8 +150,28 @@ export function ProfileDetailPage({ profile, launching, onLaunch, onContent, onU
   return (
     <section className="page profile-detail-page">
       <button className="text-back" type="button" onClick={onBack}>← Biblioteca</button>
-      <div className="profile-hero glass-panel" style={heroStyle}>
-        <div className="profile-hero-icon"><img src={shownIcon} alt="" style={iconStyle} /></div>
+      <div className="profile-hero glass-panel">
+        {shownBackground && (
+          <ArtworkViewport
+            src={shownBackground}
+            fit={artwork.backgroundFit}
+            positionX={artwork.backgroundPositionX}
+            positionY={artwork.backgroundPositionY}
+            zoom={artwork.backgroundZoom}
+            className="profile-hero-background"
+          />
+        )}
+        <div className="profile-hero-shade" />
+        <div className="profile-hero-icon">
+          <ArtworkViewport
+            src={shownIcon}
+            fit={artwork.iconFit}
+            positionX={artwork.iconPositionX}
+            positionY={artwork.iconPositionY}
+            zoom={artwork.iconZoom}
+            className="profile-hero-icon-viewport"
+          />
+        </div>
         <div className="profile-hero-copy">
           <span className="eyebrow">PERFIL NEXA</span>
           <h1>{profile.name}</h1>
@@ -213,24 +226,28 @@ export function ProfileDetailPage({ profile, launching, onLaunch, onContent, onU
             <div className="editor-fields">
               <label className="field-label">NOMBRE<input className="nexa-input" maxLength={64} value={name} onChange={(event) => setName(event.target.value)} /></label>
               <label className="field-label">DESCRIPCIÓN<textarea className="nexa-input nexa-textarea" maxLength={800} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
-              <div className="artwork-help"><strong>Encuadre libre</strong><span>Mueve X/Y hasta dejar el rostro o elemento importante donde quieras. “Recortar” llena el recuadro; “Completa” conserva la imagen entera.</span></div>
+              <div className="artwork-help"><strong>Encuadre libre</strong><span>Ajusta posición y zoom hasta que el sujeto quede dentro del marco. El viewport interno mantiene separación y esquinas uniformes, también en la parte inferior.</span></div>
               <div className="danger-zone"><div><strong>Eliminar perfil</strong><span>Borra sólo este GUID y su contenido privado.</span></div><button className="danger-button" type="button" onClick={() => setConfirmDelete(true)}><Trash2 size={15} /> ELIMINAR</button></div>
             </div>
             <div className="editor-artwork">
               <div className="artwork-card compact-artwork">
                 <span>ICONO</span>
-                <div className="icon-preview"><img src={shownIcon} alt="" style={iconStyle} /></div>
+                <div className="icon-preview">
+                  <ArtworkViewport src={shownIcon} fit={artwork.iconFit} positionX={artwork.iconPositionX} positionY={artwork.iconPositionY} zoom={artwork.iconZoom} className="editor-icon-viewport" />
+                </div>
                 <div className="artwork-actions"><button className="secondary-button" type="button" onClick={() => iconInput.current?.click()}>CAMBIAR</button><button className="ghost-button" type="button" onClick={() => { setIconDataUrl(null); setRemoveIcon(true); }}>RESTABLECER</button></div>
                 <div className="fit-toggle"><button className={artwork.iconFit === "cover" ? "active" : ""} type="button" onClick={() => updateArtwork("iconFit", "cover")}>RECORTAR</button><button className={artwork.iconFit === "contain" ? "active" : ""} type="button" onClick={() => updateArtwork("iconFit", "contain")}>COMPLETA</button></div>
-                <PositionControls x={artwork.iconPositionX} y={artwork.iconPositionY} onX={(value) => updateArtwork("iconPositionX", value)} onY={(value) => updateArtwork("iconPositionY", value)} onCenter={() => setArtwork((current) => ({ ...current, iconPositionX: 50, iconPositionY: 50 }))} />
+                <PositionControls x={artwork.iconPositionX} y={artwork.iconPositionY} zoom={artwork.iconZoom} onX={(value) => updateArtwork("iconPositionX", value)} onY={(value) => updateArtwork("iconPositionY", value)} onZoom={(value) => updateArtwork("iconZoom", value)} onCenter={() => setArtwork((current) => ({ ...current, iconPositionX: 50, iconPositionY: 50, iconZoom: 100 }))} />
                 <input hidden ref={iconInput} type="file" accept="image/*" onChange={(event) => choose("icon", event.target.files?.[0])} />
               </div>
               <div className="artwork-card compact-artwork wide">
                 <span>FONDO</span>
-                <div className="background-preview" style={shownBackground ? { backgroundImage: `url(${shownBackground})`, backgroundPosition: `${artwork.backgroundPositionX}% ${artwork.backgroundPositionY}%`, backgroundSize: artwork.backgroundFit, backgroundRepeat: "no-repeat" } : undefined} />
+                <div className="background-preview">
+                  {shownBackground && <ArtworkViewport src={shownBackground} fit={artwork.backgroundFit} positionX={artwork.backgroundPositionX} positionY={artwork.backgroundPositionY} zoom={artwork.backgroundZoom} className="editor-background-viewport" />}
+                </div>
                 <div className="artwork-actions"><button className="secondary-button" type="button" onClick={() => backgroundInput.current?.click()}>CAMBIAR</button><button className="ghost-button" type="button" onClick={() => { setBackgroundDataUrl(null); setRemoveBackground(true); }}>QUITAR</button></div>
                 <div className="fit-toggle"><button className={artwork.backgroundFit === "cover" ? "active" : ""} type="button" onClick={() => updateArtwork("backgroundFit", "cover")}>RECORTAR</button><button className={artwork.backgroundFit === "contain" ? "active" : ""} type="button" onClick={() => updateArtwork("backgroundFit", "contain")}>COMPLETA</button></div>
-                <PositionControls x={artwork.backgroundPositionX} y={artwork.backgroundPositionY} onX={(value) => updateArtwork("backgroundPositionX", value)} onY={(value) => updateArtwork("backgroundPositionY", value)} onCenter={() => setArtwork((current) => ({ ...current, backgroundPositionX: 50, backgroundPositionY: 50 }))} />
+                <PositionControls x={artwork.backgroundPositionX} y={artwork.backgroundPositionY} zoom={artwork.backgroundZoom} onX={(value) => updateArtwork("backgroundPositionX", value)} onY={(value) => updateArtwork("backgroundPositionY", value)} onZoom={(value) => updateArtwork("backgroundZoom", value)} onCenter={() => setArtwork((current) => ({ ...current, backgroundPositionX: 50, backgroundPositionY: 50, backgroundZoom: 100 }))} />
                 <input hidden ref={backgroundInput} type="file" accept="image/*" onChange={(event) => choose("background", event.target.files?.[0])} />
               </div>
             </div>
@@ -244,12 +261,21 @@ export function ProfileDetailPage({ profile, launching, onLaunch, onContent, onU
   );
 }
 
-function PositionControls({ x, y, onX, onY, onCenter }: { x: number; y: number; onX(value: number): void; onY(value: number): void; onCenter(): void }) {
+function PositionControls({ x, y, zoom, onX, onY, onZoom, onCenter }: {
+  x: number;
+  y: number;
+  zoom: number;
+  onX(value: number): void;
+  onY(value: number): void;
+  onZoom(value: number): void;
+  onCenter(): void;
+}) {
   return (
     <div className="position-controls">
       <label><span>Horizontal <b>{Math.round(x)}%</b></span><input type="range" min="0" max="100" value={x} onChange={(event) => onX(Number(event.target.value))} /></label>
       <label><span>Vertical <b>{Math.round(y)}%</b></span><input type="range" min="0" max="100" value={y} onChange={(event) => onY(Number(event.target.value))} /></label>
-      <button className="center-artwork" type="button" onClick={onCenter}><RotateCcw size={13} /> CENTRAR</button>
+      <label><span>Zoom <b>{Math.round(zoom || 100)}%</b></span><input type="range" min="50" max="300" step="5" value={zoom || 100} onChange={(event) => onZoom(Number(event.target.value))} /></label>
+      <button className="center-artwork" type="button" onClick={onCenter}><RotateCcw size={13} /> RESTABLECER ENCUADRE</button>
     </div>
   );
 }
