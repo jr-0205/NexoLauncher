@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Win32;
 using Microsoft.Web.WebView2.Core;
+using NexoLauncher.Minecraft.Launching;
 
 namespace NexaLauncher.Desktop;
 
@@ -31,17 +32,25 @@ internal sealed class NexaAccountMessageRouter
             return false;
         }
 
-        if (request is null || string.IsNullOrWhiteSpace(request.Method) ||
-            !request.Method.StartsWith("account.", StringComparison.Ordinal))
+        if (request is null || string.IsNullOrWhiteSpace(request.Method)) return false;
+
+        // Refresh the premium bearer token immediately before the existing launch bridge builds the process.
+        // Returning false intentionally lets profiles.launch continue through the normal NEXA bridge afterwards.
+        if (string.Equals(request.Method, "profiles.launch", StringComparison.Ordinal))
+        {
+            await SynchronizeLaunchIdentityAsync();
             return false;
+        }
+
+        if (!request.Method.StartsWith("account.", StringComparison.Ordinal)) return false;
 
         try
         {
             object result = request.Method switch
             {
-                "account.status" => await account.GetSnapshotAsync(),
-                "account.signIn" => await account.SignInAsync(),
-                "account.signOut" => await account.SignOutAsync(),
+                "account.status" => await StatusAsync(),
+                "account.signIn" => await SignInAsync(),
+                "account.signOut" => await SignOutAsync(),
                 "account.skin.upload" => await UploadSkinAsync(request.Payload),
                 _ => throw new NotSupportedException($"El método '{request.Method}' no está disponible en NEXA Premium.")
             };
@@ -57,6 +66,38 @@ internal sealed class NexaAccountMessageRouter
         }
 
         return true;
+    }
+
+    private async Task<NexaPremiumAccountSnapshot> StatusAsync()
+    {
+        var snapshot = await account.GetSnapshotAsync();
+        await SynchronizeLaunchIdentityAsync();
+        return snapshot;
+    }
+
+    private async Task<NexaPremiumAccountSnapshot> SignInAsync()
+    {
+        var snapshot = await account.SignInAsync();
+        await SynchronizeLaunchIdentityAsync();
+        return snapshot;
+    }
+
+    private async Task<NexaPremiumAccountSnapshot> SignOutAsync()
+    {
+        MinecraftAuthenticatedSession.Clear();
+        return await account.SignOutAsync();
+    }
+
+    private async Task SynchronizeLaunchIdentityAsync()
+    {
+        var identity = await account.GetLaunchIdentityAsync();
+        if (identity is null)
+        {
+            MinecraftAuthenticatedSession.Clear();
+            return;
+        }
+
+        MinecraftAuthenticatedSession.Set(identity.Id, identity.Name, identity.AccessToken);
     }
 
     private async Task<NexaPremiumAccountSnapshot> UploadSkinAsync(JsonElement payload)
