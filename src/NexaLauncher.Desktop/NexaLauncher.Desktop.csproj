@@ -7,6 +7,7 @@
     <UseWPF>true</UseWPF>
     <AssemblyName>NexaLauncher.Desktop</AssemblyName>
     <RootNamespace>NexaLauncher.Desktop</RootNamespace>
+    <NexaUiDist>$(MSBuildProjectDirectory)\..\NexaLauncher.UI\dist</NexaUiDist>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,13 +20,25 @@
     <ProjectReference Include="..\NexoLauncher.Java\NexoLauncher.Java.csproj" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Content Include="wwwroot\**\*" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
-  </ItemGroup>
-
-  <Target Name="CopyNexaUiWhenBuilt" BeforeTargets="GetCopyToOutputDirectoryItems" Condition="Exists('..\NexaLauncher.UI\dist\index.html')">
+  <Target Name="CopyNexaUiToOutput" AfterTargets="Build" Condition="Exists('$(NexaUiDist)\index.html')">
     <ItemGroup>
-      <Content Include="..\NexaLauncher.UI\dist\**\*" Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+      <_NexaUiFiles Include="$(NexaUiDist)\**\*" />
     </ItemGroup>
+    <MakeDir Directories="$(TargetDir)wwwroot" />
+    <Copy
+      SourceFiles="@(_NexaUiFiles)"
+      DestinationFiles="@(_NexaUiFiles->'$(TargetDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="CopyNexaUiToPublish" AfterTargets="Publish" Condition="Exists('$(NexaUiDist)\index.html')">
+    <ItemGroup>
+      <_NexaUiPublishFiles Include="$(NexaUiDist)\**\*" />
+    </ItemGroup>
+    <MakeDir Directories="$(PublishDir)wwwroot" />
+    <Copy
+      SourceFiles="@(_NexaUiPublishFiles)"
+      DestinationFiles="@(_NexaUiPublishFiles->'$(PublishDir)wwwroot\%(RecursiveDir)%(Filename)%(Extension)')"
+      SkipUnchangedFiles="true" />
   </Target>
 </Project>
