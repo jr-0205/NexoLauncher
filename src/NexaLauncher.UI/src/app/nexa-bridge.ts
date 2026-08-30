@@ -1,4 +1,8 @@
 import type {
+  ArtworkPlacementEntry,
+  BoostApplyResult,
+  BoostRemoveResult,
+  BoostStatus,
   BootstrapData,
   BridgeEvent,
   BridgeResponse,
@@ -8,6 +12,7 @@ import type {
   LoaderVersionItem,
   MinecraftVersionItem,
   NexaProfile,
+  ProfileArtworkPlacement,
   UpdateProfileRequest,
 } from "./types";
 
@@ -117,6 +122,14 @@ export const searchContent = (id: string, query: string, projectType: ContentCat
   invoke<ContentCatalogProject[]>("content.search", { id, query, projectType });
 export const installContent = (id: string, project: ContentCatalogProject) =>
   invoke<{ filesInstalled: number; fileNames: string[]; installed: InstalledContentEntry[] }>("content.install", { id, project });
+
+export const getBoostStatus = (id: string) => invoke<BoostStatus>("boost.status", { id });
+export const applyBoost = (id: string) => invoke<BoostApplyResult>("boost.apply", { id });
+export const removeBoost = (id: string) => invoke<BoostRemoveResult>("boost.remove", { id });
+
+export const listArtworkPlacements = () => invoke<ArtworkPlacementEntry[]>("artwork.list");
+export const updateArtworkPlacement = (id: string, artwork: ProfileArtworkPlacement) =>
+  invoke<ArtworkPlacementEntry>("artwork.update", { id, ...artwork });
 
 export const updateSettings = (username: string, closeLauncherOnGameStart: boolean) =>
   invoke<{ username: string; closeLauncherOnGameStart: boolean }>("settings.update", { username, closeLauncherOnGameStart });
