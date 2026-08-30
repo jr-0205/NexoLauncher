@@ -11,7 +11,7 @@
       "downloadUrl": null,
       "sha256": "",
       "publishedAt": null,
-      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": null }]
     },
     {
       "minecraftVersion": "1.20.1",
@@ -23,7 +23,7 @@
       "downloadUrl": null,
       "sha256": "",
       "publishedAt": null,
-      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": null }]
     },
     {
       "minecraftVersion": "1.20.4",
@@ -35,7 +35,7 @@
       "downloadUrl": null,
       "sha256": "",
       "publishedAt": null,
-      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": null }]
     },
     {
       "minecraftVersion": "1.20.6",
@@ -47,7 +47,7 @@
       "downloadUrl": null,
       "sha256": "",
       "publishedAt": null,
-      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": null }]
     },
     {
       "minecraftVersion": "1.21.1",
@@ -59,7 +59,7 @@
       "downloadUrl": null,
       "sha256": "",
       "publishedAt": null,
-      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": null }]
     },
     {
       "minecraftVersion": "1.21.4",
@@ -71,7 +71,7 @@
       "downloadUrl": null,
       "sha256": "",
       "publishedAt": null,
-      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": null }]
     },
     {
       "minecraftVersion": "1.21.8",
@@ -83,7 +83,7 @@
       "downloadUrl": null,
       "sha256": "",
       "publishedAt": null,
-      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": "fabric-api*.jar" }]
+      "dependencies": [{ "source": "modrinth", "projectId": "fabric-api", "projectType": "mod", "detectPattern": null }]
     }
   ]
 }
