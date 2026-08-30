@@ -27,17 +27,22 @@ public final class NexaSodiumExtraTuner {
 
     private NexaSodiumExtraTuner() { }
 
-    public static void apply(NexoPerformancePreset preset) {
-        if (preset == null || !FabricLoader.getInstance().isModLoaded(MOD_ID)) return;
+    /**
+     * @return true cuando no hay nada que sincronizar o la configuración ya se
+     *         escribió; false si Sodium Extra está instalado pero todavía no creó
+     *         su archivo y NEXA debe reintentar en un tick posterior.
+     */
+    public static boolean apply(NexoPerformancePreset preset) {
+        if (preset == null || !FabricLoader.getInstance().isModLoaded(MOD_ID)) return true;
 
         Path path = FabricLoader.getInstance().getConfigDir().resolve(FILE_NAME);
-        if (!Files.isRegularFile(path)) return;
+        if (!Files.isRegularFile(path)) return false;
 
         try {
             JsonObject root;
             try (Reader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
                 JsonElement parsed = JsonParser.parseReader(reader);
-                if (!parsed.isJsonObject()) return;
+                if (!parsed.isJsonObject()) return true;
                 root = parsed.getAsJsonObject();
             }
 
@@ -73,9 +78,11 @@ public final class NexaSodiumExtraTuner {
             }
 
             writeAtomic(path, root);
+            return true;
         }
         catch (IOException | RuntimeException ignored) {
             // Sodium Extra es opcional: un fallo suyo nunca debe romper NEXA In-Game.
+            return true;
         }
     }
 
