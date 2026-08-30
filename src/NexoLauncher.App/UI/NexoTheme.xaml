@@ -116,10 +116,10 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Chrome" Property="Background" Value="{StaticResource Nexo.AccentHover}"/>
+                            <Setter TargetName="Chrome" Property="Opacity" Value="0.90"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Chrome" Property="Background" Value="{StaticResource Nexo.AccentPressed}"/>
+                            <Setter TargetName="Chrome" Property="Opacity" Value="0.72"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Chrome" Property="Opacity" Value="0.38"/>
