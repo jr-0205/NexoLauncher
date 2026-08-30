@@ -134,7 +134,15 @@ export const stopLaunch = () => invoke<{ stopped: boolean }>("profiles.stop");
 
 export async function getAccountStatus(): Promise<NexaAccountState> {
   if (!isNativeHost()) return previewAccount;
-  return invoke<NexaAccountState>("account.status");
+  try {
+    return await invoke<NexaAccountState>("account.status");
+  } catch (reason) {
+    return {
+      ...previewAccount,
+      configured: true,
+      message: reason instanceof Error ? reason.message : "No se pudo restaurar la sesión premium. El modo local sigue disponible.",
+    };
+  }
 }
 export const signInMicrosoft = () => invoke<NexaAccountState>("account.signIn");
 export const signOutMicrosoft = () => invoke<NexaAccountState>("account.signOut");
