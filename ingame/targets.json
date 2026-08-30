@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 2,
+  "corePath": "core",
+  "targets": [
+    {
+      "project": "fabric-1.19.4",
+      "adapter": "fabric-1.19",
+      "enabled": true,
+      "companions": []
+    },
+    {
+      "project": "fabric-1.20.1",
+      "adapter": "fabric-1.20.1",
+      "enabled": true,
+      "companions": []
+    },
+    {
+      "project": "fabric-1.20.4",
+      "adapter": "fabric-1.20.4",
+      "enabled": true,
+      "companions": []
+    },
+    {
+      "project": "fabric-1.20.6",
+      "adapter": "fabric-1.20.6",
+      "enabled": true,
+      "companions": []
+    },
+    {
+      "project": "fabric-1.21.1",
+      "adapter": "fabric-1.21",
+      "enabled": true,
+      "companions": []
+    },
+    {
+      "project": "fabric-1.21.4",
+      "adapter": "fabric-1.21",
+      "enabled": true,
+      "companions": ["fabric-1.21.1"]
+    },
+    {
+      "project": "fabric-1.21.8",
+      "adapter": "fabric-1.21",
+      "enabled": true,
+      "companions": ["fabric-1.21.1"]
+    }
+  ]
+}
