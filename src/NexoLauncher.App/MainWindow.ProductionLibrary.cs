@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using NexoLauncher.Core.Installation;
 using NexoLauncher.Domain.Instances;
 
@@ -71,15 +72,15 @@ public partial class MainWindow
             Width = 42,
             Height = 42,
             CornerRadius = new CornerRadius(10),
-            Background = new SolidColorBrush(Color.FromRgb(23, 39, 70))
+            Background = new SolidColorBrush(Color.FromRgb(23, 39, 70)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(56, 80, 111)),
+            BorderThickness = new Thickness(1)
         };
-        mark.Child = new TextBlock
+        mark.Child = new Image
         {
-            Text = "▶",
-            FontSize = 15,
-            Foreground = new SolidColorBrush(Color.FromRgb(91, 140, 255)),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center
+            Source = Application.Current.Resources["Nexo.BrandMark"] as ImageSource,
+            Stretch = Stretch.Uniform,
+            Margin = new Thickness(6)
         };
         quickGrid.Children.Add(mark);
 
@@ -198,7 +199,7 @@ public partial class MainWindow
           <Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
           <Border Width="54" Height="54" CornerRadius="10" Background="#E6172131" BorderBrush="#38506F" BorderThickness="1" HorizontalAlignment="Left" ClipToBounds="True">
             <Grid>
-              <TextBlock Text="N" FontSize="25" FontWeight="Bold" Foreground="#5B8CFF" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              <Image Source="{DynamicResource Nexo.BrandMark}" Stretch="Uniform" Margin="9"/>
               <Image Source="{Binding Id, Converter={StaticResource Nexo.ProfileIconConverter}}" Stretch="UniformToFill"/>
             </Grid>
           </Border>
@@ -238,7 +239,15 @@ internal sealed class ProfileArtworkConverter(ProfileArtworkKind kind) : IValueC
         var artwork = ProfileArtworkStore.Load(root);
         var relative = kind == ProfileArtworkKind.Icon ? artwork?.IconRelativePath : artwork?.BackgroundRelativePath;
         var resolved = ProfileArtworkStore.Resolve(root, relative);
-        return resolved is null ? null : new Uri(resolved, UriKind.Absolute);
+        if (resolved is null) return null;
+
+        var image = new BitmapImage();
+        image.BeginInit();
+        image.CacheOption = BitmapCacheOption.OnLoad;
+        image.UriSource = new Uri(resolved, UriKind.Absolute);
+        image.EndInit();
+        image.Freeze();
+        return image;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => Binding.DoNothing;
