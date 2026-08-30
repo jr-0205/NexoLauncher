@@ -2,6 +2,7 @@ import type { CSSProperties } from "react";
 import { Search, Plus, Play, Loader2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { defaultArtworkPlacement, type NexaProfile } from "../app/types";
+import { ArtworkViewport } from "../components/ArtworkViewport";
 import { ProfileCard } from "../components/ProfileCard";
 
 type LibraryPageProps = {
@@ -45,7 +46,16 @@ export function LibraryPage({ profiles, launchingProfileId, onCreate, onOpen, on
 
       {recent && (
         <div className="continue-panel glass-panel" style={recentStyle} onClick={() => onOpen(recent)} role="button" tabIndex={0}>
-          <div className="continue-icon"><img src={recent.iconDataUrl ?? "./brand/nexa-mark.png"} alt="" style={{ objectFit: recentArtwork.iconFit, objectPosition: `${recentArtwork.iconPositionX}% ${recentArtwork.iconPositionY}%` }} /></div>
+          <div className="continue-icon">
+            <ArtworkViewport
+              src={recent.iconDataUrl ?? "./brand/nexa-mark.png"}
+              fit={recentArtwork.iconFit}
+              positionX={recentArtwork.iconPositionX}
+              positionY={recentArtwork.iconPositionY}
+              zoom={recentArtwork.iconZoom}
+              className="continue-icon-viewport"
+            />
+          </div>
           <div className="continue-copy">
             <span>CONTINUAR JUGANDO</span>
             <h2>{recent.name}</h2>
