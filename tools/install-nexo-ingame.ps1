@@ -1,5 +1,6 @@
 param(
-    [string]$InstanceId
+    [string]$InstanceId,
+    [string]$JavaPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -59,10 +60,19 @@ $target = $candidates | Sort-Object LastWrite -Descending | Select-Object -First
 Write-Host "Instancia: $($target.Name) [$($target.Id)]"
 Write-Host "Game dir: $($target.Game)"
 
-$javaVersion = (& java -version 2>&1 | Out-String)
-if ($LASTEXITCODE -ne 0) { Fail 'Java no está disponible en PATH. NEXO In-Game 1.21.1 necesita Java 21 para compilar.' }
+$javaExecutable = 'java'
+if (-not [string]::IsNullOrWhiteSpace($JavaPath)) {
+    $javaExecutable = [System.IO.Path]::GetFullPath($JavaPath)
+    if (-not (Test-Path -LiteralPath $javaExecutable)) { Fail "Java no existe en $javaExecutable" }
+    $javaBin = Split-Path -Parent $javaExecutable
+    $env:JAVA_HOME = Split-Path -Parent $javaBin
+    $env:PATH = "$javaBin;$env:PATH"
+}
+
+$javaVersion = (& $javaExecutable -version 2>&1 | Out-String)
+if ($LASTEXITCODE -ne 0) { Fail 'Java no está disponible. NEXO In-Game 1.21.1 necesita Java 21 para compilar.' }
 if ($javaVersion -notmatch 'version\s+"21\.') {
-    Write-Warning "El Java de PATH no parece Java 21. Salida detectada:`n$javaVersion"
+    Fail "se necesita Java 21 para compilar NEXO In-Game. Runtime detectado:`n$javaVersion"
 }
 
 New-Item -ItemType Directory -Force -Path $cacheRoot | Out-Null
