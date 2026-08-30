@@ -7,6 +7,7 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="UI/NexoTheme.xaml"/>
                 <ResourceDictionary Source="UI/NexoBrand.xaml"/>
+                <ResourceDictionary Source="UI/NexoProductionControls.xaml"/>
                 <ResourceDictionary Source="UI/NexoProfileTemplates.xaml"/>
             </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
