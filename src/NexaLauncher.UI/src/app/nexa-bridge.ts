@@ -11,6 +11,8 @@ import type {
   InstalledContentEntry,
   LoaderVersionItem,
   MinecraftVersionItem,
+  NexaInGameBuildGenerateResult,
+  NexaInGameBuildLibrary,
   NexaInGameInstallResult,
   NexaInGameStatus,
   NexaProfile,
@@ -131,6 +133,9 @@ export const removeBoost = (id: string) => invoke<BoostRemoveResult>("boost.remo
 
 export const getNexaInGameStatus = (id: string) => invoke<NexaInGameStatus>("ingame.status", { id });
 export const installNexaInGame = (id: string) => invoke<NexaInGameInstallResult>("ingame.install", { id });
+export const getNexaInGameBuildLibrary = () => invoke<NexaInGameBuildLibrary>("ingame.builds.status");
+export const generateNexaInGameBuilds = () => invoke<NexaInGameBuildGenerateResult>("ingame.builds.generate");
+export const openNexaInGameBuildFolder = () => invoke<{ opened: boolean; path: string }>("ingame.builds.openFolder");
 
 export const listArtworkPlacements = () => invoke<ArtworkPlacementEntry[]>("artwork.list");
 export const updateArtworkPlacement = (id: string, artwork: ProfileArtworkPlacement) =>
