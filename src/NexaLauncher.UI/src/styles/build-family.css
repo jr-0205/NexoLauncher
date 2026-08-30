@@ -90,6 +90,12 @@
   position: relative;
 }
 
+.build-state.failed {
+  color: #ff9d9d;
+  border-color: rgba(255, 105, 105, .28);
+  background: rgba(142, 38, 38, .14);
+}
+
 @media (max-width: 1080px) {
   .build-family-header {
     min-width: 870px;
