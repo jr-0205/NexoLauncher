@@ -16,7 +16,6 @@ public partial class MainWindow
         brandingInitialized = true;
 
         ApplyProductLanguage();
-        ApplyBrandMarkToSidebar();
         AddAboutCard();
     }
 
@@ -51,26 +50,6 @@ public partial class MainWindow
         }
     }
 
-    private void ApplyBrandMarkToSidebar()
-    {
-        var title = EnumerateVisualChildren<TextBlock>(this)
-            .FirstOrDefault(value => string.Equals(value.Text, "NEXO", StringComparison.Ordinal) && value.FontSize >= 24);
-        if (title?.Parent is not StackPanel stack) return;
-
-        var mark = new Image
-        {
-            Width = 62,
-            Height = 48,
-            Stretch = Stretch.Uniform,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 0, 0, 9),
-            Source = Application.Current.Resources["Nexo.BrandMark"] as ImageSource,
-            ToolTip = "NEXO Client"
-        };
-        stack.Children.Insert(0, mark);
-        title.FontSize = 24;
-    }
-
     private void AddAboutCard()
     {
         if (SettingsPanel.Content is not Grid settingsGrid) return;
@@ -100,7 +79,8 @@ public partial class MainWindow
         {
             Source = Application.Current.Resources["Nexo.BrandMark"] as ImageSource,
             Stretch = Stretch.Uniform,
-            Margin = new Thickness(8)
+            Margin = new Thickness(8),
+            SnapsToDevicePixels = true
         };
         root.Children.Add(logoTile);
 
