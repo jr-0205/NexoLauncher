@@ -24,6 +24,14 @@ loom {
     }
 }
 
+// NEXA common core. No Minecraft/Fabric imports are allowed under core/.
+sourceSets {
+    main {
+        java.srcDir '../core/src/main/java'
+        resources.srcDir '../core/src/main/resources'
+    }
+}
+
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
     mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
