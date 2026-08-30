@@ -13,9 +13,15 @@ internal sealed class ContentImportTransaction : IDisposable
     private ContentImportTransaction(string gameDirectory)
     {
         this.gameDirectory = NormalizeRoot(gameDirectory);
+        EnsurePhysicalRoot(this.gameDirectory);
         var instanceRoot = Directory.GetParent(this.gameDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))?.FullName
             ?? throw new InvalidOperationException("No se pudo resolver la raíz de la instancia para crear staging.");
-        var stagingRoot = Path.Combine(instanceRoot, "runtime", "import-staging");
+        EnsureDirectoryIsNotReparsePoint(instanceRoot, "La raíz de la instancia no puede ser un enlace o junction.");
+        var runtimeRoot = Path.Combine(instanceRoot, "runtime");
+        if (Directory.Exists(runtimeRoot)) EnsureDirectoryIsNotReparsePoint(runtimeRoot, "runtime/ no puede ser un enlace o junction.");
+        Directory.CreateDirectory(runtimeRoot);
+        var stagingRoot = Path.Combine(runtimeRoot, "import-staging");
+        if (Directory.Exists(stagingRoot)) EnsureDirectoryIsNotReparsePoint(stagingRoot, "El staging de imports no puede ser un enlace o junction.");
         Directory.CreateDirectory(stagingRoot);
         transactionRoot = Path.Combine(stagingRoot, Guid.NewGuid().ToString("N"));
         StagingGameDirectory = Path.Combine(transactionRoot, "game");
@@ -35,12 +41,16 @@ internal sealed class ContentImportTransaction : IDisposable
     public void Commit()
     {
         if (completed) throw new InvalidOperationException("La transacción de contenido ya terminó.");
+        EnsurePhysicalRoot(gameDirectory);
         var files = Directory.EnumerateFiles(StagingGameDirectory, "*", SearchOption.AllDirectories)
             .Select(path => new Entry(
                 Path.GetRelativePath(StagingGameDirectory, path),
                 File.Exists(SafeDestination(gameDirectory, Path.GetRelativePath(StagingGameDirectory, path)))))
             .OrderBy(entry => entry.RelativePath, StringComparer.OrdinalIgnoreCase)
             .ToArray();
+
+        foreach (var entry in files)
+            EnsurePhysicalDestination(gameDirectory, SafeDestination(gameDirectory, entry.RelativePath));
 
         WriteJournal(new Journal("committing", files));
         try
@@ -50,6 +60,7 @@ internal sealed class ContentImportTransaction : IDisposable
                 var source = SafeDestination(StagingGameDirectory, entry.RelativePath);
                 var destination = SafeDestination(gameDirectory, entry.RelativePath);
                 var backup = SafeDestination(rollbackRoot, entry.RelativePath);
+                EnsurePhysicalDestination(gameDirectory, destination);
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
                 Directory.CreateDirectory(Path.GetDirectoryName(backup)!);
 
@@ -57,6 +68,8 @@ internal sealed class ContentImportTransaction : IDisposable
                 {
                     if (!File.Exists(destination))
                         throw new IOException($"El archivo que debía protegerse desapareció durante la importación: {entry.RelativePath}");
+                    if (new FileInfo(destination).Attributes.HasFlag(FileAttributes.ReparsePoint))
+                        throw new InvalidDataException($"El destino '{entry.RelativePath}' es un enlace y no puede modificarse.");
                     File.Replace(source, destination, backup, ignoreMetadataErrors: true);
                 }
                 else
@@ -83,13 +96,17 @@ internal sealed class ContentImportTransaction : IDisposable
     public static void Recover(string gameDirectory)
     {
         var game = NormalizeRoot(gameDirectory);
+        EnsurePhysicalRoot(game);
         var instanceRoot = Directory.GetParent(game.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))?.FullName;
         if (instanceRoot is null) return;
+        EnsureDirectoryIsNotReparsePoint(instanceRoot, "La raíz de la instancia no puede ser un enlace o junction.");
         var stagingRoot = Path.Combine(instanceRoot, "runtime", "import-staging");
         if (!Directory.Exists(stagingRoot)) return;
+        EnsureDirectoryIsNotReparsePoint(stagingRoot, "El staging de imports no puede ser un enlace o junction.");
 
         foreach (var transaction in Directory.EnumerateDirectories(stagingRoot))
         {
+            if (new DirectoryInfo(transaction).Attributes.HasFlag(FileAttributes.ReparsePoint)) continue;
             var journalPath = Path.Combine(transaction, JournalName);
             if (!File.Exists(journalPath))
             {
@@ -124,6 +141,26 @@ internal sealed class ContentImportTransaction : IDisposable
         TryDeleteIfEmpty(stagingRoot);
     }
 
+    internal static void EnsurePhysicalDestination(string root, string destination)
+    {
+        var normalizedRoot = NormalizeRoot(root);
+        var fullDestination = Path.GetFullPath(destination);
+        if (!fullDestination.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("El destino intenta salir del gameDirectory autorizado.");
+
+        var rootDirectory = normalizedRoot.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        EnsureDirectoryIsNotReparsePoint(rootDirectory, "gameDirectory no puede ser un enlace o junction.");
+        var current = Directory.GetParent(fullDestination);
+        while (current is not null && current.FullName.StartsWith(normalizedRoot, StringComparison.OrdinalIgnoreCase))
+        {
+            if (current.Exists && current.Attributes.HasFlag(FileAttributes.ReparsePoint))
+                throw new InvalidDataException("La ruta de contenido atraviesa un enlace o junction y fue bloqueada.");
+            current = current.Parent;
+        }
+        if (File.Exists(fullDestination) && new FileInfo(fullDestination).Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new InvalidDataException("El archivo de destino es un enlace y fue bloqueado.");
+    }
+
     private static bool RollbackStatic(string gameDirectory, string transactionRoot, Journal journal)
     {
         var rollbackRoot = Path.Combine(transactionRoot, "rollback");
@@ -134,6 +171,7 @@ internal sealed class ContentImportTransaction : IDisposable
             var backup = SafeDestination(rollbackRoot, entry.RelativePath);
             try
             {
+                EnsurePhysicalDestination(gameDirectory, destination);
                 if (entry.HadOriginal)
                 {
                     if (!File.Exists(backup)) continue;
@@ -148,6 +186,7 @@ internal sealed class ContentImportTransaction : IDisposable
             }
             catch (IOException) { restored = false; }
             catch (UnauthorizedAccessException) { restored = false; }
+            catch (InvalidDataException) { restored = false; }
         }
         return restored;
     }
@@ -184,6 +223,19 @@ internal sealed class ContentImportTransaction : IDisposable
         if (!destination.StartsWith(root, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("La transacción intenta salir de su directorio autorizado.");
         return destination;
+    }
+
+    private static void EnsurePhysicalRoot(string root)
+    {
+        var directory = NormalizeRoot(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (!Directory.Exists(directory)) Directory.CreateDirectory(directory);
+        EnsureDirectoryIsNotReparsePoint(directory, "gameDirectory no puede ser un enlace o junction.");
+    }
+
+    private static void EnsureDirectoryIsNotReparsePoint(string directory, string message)
+    {
+        if (Directory.Exists(directory) && new DirectoryInfo(directory).Attributes.HasFlag(FileAttributes.ReparsePoint))
+            throw new InvalidDataException(message);
     }
 
     private static string NormalizeRoot(string value) =>
