@@ -101,7 +101,7 @@ public partial class MainWindow
         ContentSearchBox.Focus();
     }
 
-    private async void InstalledContent_ToggleRequested(object? sender, InstalledContentEntry entry)
+    private async void InstalledContent_ToggleRequested(InstalledContentEntry entry)
     {
         if (ContentInstanceBox.SelectedItem is not ContentInstanceChoice choice || busy) return;
         try
@@ -116,7 +116,7 @@ public partial class MainWindow
         }
     }
 
-    private async void InstalledContent_DeleteRequested(object? sender, InstalledContentEntry entry)
+    private async void InstalledContent_DeleteRequested(InstalledContentEntry entry)
     {
         if (ContentInstanceBox.SelectedItem is not ContentInstanceChoice choice || busy) return;
         var kind = entry.IsDirectory ? "carpeta" : "archivo";
@@ -140,20 +140,24 @@ public partial class MainWindow
         }
     }
 
-    private void InstalledContent_OpenRequested(object? sender, InstalledContentEntry entry)
+    private void InstalledContent_OpenRequested(InstalledContentEntry entry)
     {
         if (ContentInstanceBox.SelectedItem is not ContentInstanceChoice choice) return;
         try
         {
             var gameDirectory = instanceRepository.GetPaths(choice.Id).Game;
             var path = installedContentService.ResolvePath(gameDirectory, entry);
-            var arguments = entry.IsDirectory ? path : "/select," + path;
-            Process.Start(new ProcessStartInfo
+            var startInfo = new ProcessStartInfo { FileName = "explorer.exe", UseShellExecute = true };
+            if (entry.IsDirectory)
             {
-                FileName = "explorer.exe",
-                Arguments = arguments,
-                UseShellExecute = true
-            });
+                startInfo.ArgumentList.Add(path);
+            }
+            else
+            {
+                startInfo.ArgumentList.Add("/select,");
+                startInfo.ArgumentList.Add(path);
+            }
+            Process.Start(startInfo);
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException or System.ComponentModel.Win32Exception)
         {
