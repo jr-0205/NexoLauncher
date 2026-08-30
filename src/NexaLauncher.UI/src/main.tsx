@@ -7,6 +7,7 @@ import "./styles/brand.css";
 import "./styles/interaction.css";
 import "./styles/profile-tools.css";
 import "./styles/live-console.css";
+import "./styles/profile-actions.css";
 import "./styles/build-manager.css";
 import "./styles/build-family.css";
 
