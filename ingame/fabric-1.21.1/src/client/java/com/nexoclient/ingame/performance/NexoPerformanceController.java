@@ -64,6 +64,9 @@ public final class NexoPerformanceController {
         try (Reader reader = Files.newBufferedReader(configPath, StandardCharsets.UTF_8)) {
             properties.load(reader);
             var raw = properties.getProperty(PRESET_KEY, NexoPerformancePreset.MEDIUM.name());
+
+            // Compatibilidad con la primera preview de NEXO In-Game.
+            if ("MAX_FPS".equalsIgnoreCase(raw)) return NexoPerformancePreset.LOW;
             return NexoPerformancePreset.valueOf(raw);
         }
         catch (IOException | IllegalArgumentException ignored) {

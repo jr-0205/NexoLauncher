@@ -28,7 +28,7 @@ final class NexoParticleTuner {
             for (Path file : files) patch(file, preset);
         }
         catch (IOException ignored) {
-            // Particle Core is optional; NEXO presets still apply vanilla settings.
+            // Particle Core es opcional; los ajustes base de NEXA siguen funcionando.
         }
     }
 
@@ -73,7 +73,7 @@ final class NexoParticleTuner {
         set(byType, "minecraft:mycelium", ambient.mycelium);
         set(byType, "minecraft:cloud", ambient.cloud);
 
-        // Gameplay/combat feedback is never reduced by NEXO presets.
+        // El feedback de combate y gameplay nunca se reduce por preset.
         set(byType, "minecraft:sweep_attack", 1.0d);
         set(byType, "minecraft:damage_indicator", 1.0d);
         set(byType, "minecraft:crit", 1.0d);
@@ -81,7 +81,7 @@ final class NexoParticleTuner {
         set(byType, "minecraft:totem_of_undying", 1.0d);
         set(byType, "minecraft:heart", 1.0d);
 
-        Path temporary = file.resolveSibling(file.getFileName() + ".nexo.tmp");
+        Path temporary = file.resolveSibling(file.getFileName() + ".nexa.tmp");
         try (Writer writer = Files.newBufferedWriter(temporary, StandardCharsets.UTF_8)) {
             JSON.toJson(root, writer);
         }
@@ -121,7 +121,8 @@ final class NexoParticleTuner {
 
         static AmbientProfile forPreset(NexoPerformancePreset preset) {
             return switch (preset) {
-                case MAX_FPS -> new AmbientProfile(0.05, 0.10, 0.15, 0.18, 0.20, 0.20, 0.15, 0.25, 0.30);
+                case LOW -> new AmbientProfile(0.05, 0.10, 0.15, 0.18, 0.20, 0.20, 0.15, 0.25, 0.30);
+                case MEDIUM_LOW -> new AmbientProfile(0.10, 0.18, 0.25, 0.27, 0.30, 0.32, 0.25, 0.38, 0.45);
                 case MEDIUM -> new AmbientProfile(0.15, 0.25, 0.35, 0.35, 0.40, 0.45, 0.35, 0.50, 0.60);
                 case MEDIUM_HIGH -> new AmbientProfile(0.35, 0.45, 0.60, 0.60, 0.65, 0.70, 0.60, 0.75, 0.80);
                 case HIGH -> new AmbientProfile(0.65, 0.70, 0.82, 0.82, 0.88, 0.90, 0.85, 0.92, 0.95);

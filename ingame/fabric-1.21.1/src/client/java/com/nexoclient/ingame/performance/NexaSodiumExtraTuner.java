@@ -51,11 +51,17 @@ public final class NexaSodiumExtraTuner {
             JsonObject extra = object(root, "extra_settings");
 
             switch (preset) {
-                case MAX_FPS -> {
+                case LOW -> {
                     particles.addProperty("rain_splash", false);
                     detail.addProperty("rain_snow", false);
                     extra.addProperty("cloud_distance", 32);
                     extra.addProperty("steady_debug_hud_refresh_interval", 5);
+                }
+                case MEDIUM_LOW -> {
+                    particles.addProperty("rain_splash", false);
+                    detail.addProperty("rain_snow", true);
+                    extra.addProperty("cloud_distance", 48);
+                    extra.addProperty("steady_debug_hud_refresh_interval", 4);
                 }
                 case MEDIUM -> {
                     particles.addProperty("rain_splash", false);

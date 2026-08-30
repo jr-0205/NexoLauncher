@@ -17,9 +17,10 @@ public final class NexoMenuScreen extends Screen {
     private final NexoModuleRegistry modules;
     private final NexoPerformanceController performance;
     private final List<ButtonWidget> presetButtons = new ArrayList<>();
+    private int modulesStartY;
 
     public NexoMenuScreen(Screen parent, NexoModuleRegistry modules, NexoPerformanceController performance) {
-        super(Text.literal("NEXO Client"));
+        super(Text.literal("NEXA Client"));
         this.parent = parent;
         this.modules = modules;
         this.performance = performance;
@@ -28,14 +29,14 @@ public final class NexoMenuScreen extends Screen {
     @Override
     protected void init() {
         presetButtons.clear();
-        addPerformancePresetButtons();
+        modulesStartY = addPerformancePresetButtons();
 
         int buttonWidth = 190;
         int gap = 8;
         int columns = this.width >= 520 ? 2 : 1;
         int totalWidth = columns == 2 ? buttonWidth * 2 + gap : buttonWidth;
         int startX = (this.width - totalWidth) / 2;
-        int startY = this.width >= 600 ? 122 : 150;
+        int startY = modulesStartY;
 
         int index = 0;
         for (NexoModule module : modules.all()) {
@@ -59,14 +60,14 @@ public final class NexoMenuScreen extends Screen {
             .build());
     }
 
-    private void addPerformancePresetButtons() {
+    private int addPerformancePresetButtons() {
         NexoPerformancePreset[] presets = NexoPerformancePreset.values();
         int gap = 6;
-        int columns = this.width >= 600 ? 4 : 2;
-        int buttonWidth = columns == 4 ? 126 : 150;
+        int columns = this.width >= 720 ? 5 : this.width >= 520 ? 3 : 2;
+        int buttonWidth = columns == 5 ? 118 : columns == 3 ? 140 : 150;
         int totalWidth = columns * buttonWidth + (columns - 1) * gap;
         int startX = (this.width - totalWidth) / 2;
-        int startY = 69;
+        int startY = 78;
 
         for (int index = 0; index < presets.length; index++) {
             NexoPerformancePreset preset = presets[index];
@@ -82,6 +83,9 @@ public final class NexoMenuScreen extends Screen {
             presetButtons.add(button);
             addDrawableChild(button);
         }
+
+        int rows = (presets.length + columns - 1) / columns;
+        return startY + rows * 26 + 30;
     }
 
     private void refreshPresetLabels() {
@@ -103,13 +107,15 @@ public final class NexoMenuScreen extends Screen {
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
         renderBackground(context, mouseX, mouseY, delta);
-        context.drawCenteredTextWithShadow(textRenderer, Text.literal("NEXO CLIENT"), width / 2, 16, 0xF4F7FC);
+        context.drawCenteredTextWithShadow(textRenderer, Text.literal("NEXA CLIENT"), width / 2, 14, 0xF4F7FC);
         context.drawCenteredTextWithShadow(textRenderer,
-            Text.literal("Right Shift · Rendimiento y módulos"), width / 2, 31, 0xB4C0D2);
+            Text.literal("Right Shift · Rendimiento y módulos"), width / 2, 29, 0xB4C0D2);
         context.drawCenteredTextWithShadow(textRenderer,
-            Text.literal("PERFIL: " + performance.selected().displayName()), width / 2, 48, 0xF4F7FC);
+            Text.literal("RENDIMIENTO · " + performance.selected().displayName()), width / 2, 48, 0xF4F7FC);
         context.drawCenteredTextWithShadow(textRenderer,
-            Text.literal(performance.selected().description()), width / 2, 58, 0xB4C0D2);
+            Text.literal(performance.selected().description()), width / 2, 60, 0xB4C0D2);
+        context.drawCenteredTextWithShadow(textRenderer,
+            Text.literal("MÓDULOS"), width / 2, Math.max(100, modulesStartY - 17), 0xF4F7FC);
         super.render(context, mouseX, mouseY, delta);
     }
 
