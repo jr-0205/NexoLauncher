@@ -49,9 +49,17 @@ public sealed class InstanceManager(IInstanceRepository repository)
         await repository.SaveAsync(copy, cancellationToken);
         try
         {
-            var sourceGame = Path.Combine(repository.GetInstanceDirectory(sourceId), "game");
-            var targetGame = Path.Combine(repository.GetInstanceDirectory(copy.Id), "game");
+            var sourceRoot = repository.GetInstanceDirectory(sourceId);
+            var targetRoot = repository.GetInstanceDirectory(copy.Id);
+
+            var sourceGame = Path.Combine(sourceRoot, "game");
+            var targetGame = Path.Combine(targetRoot, "game");
             if (Directory.Exists(sourceGame)) await CopyDirectoryAsync(sourceGame, targetGame, cancellationToken);
+
+            var sourceProfile = Path.Combine(sourceRoot, "profile");
+            var targetProfile = Path.Combine(targetRoot, "profile");
+            if (Directory.Exists(sourceProfile)) await CopyDirectoryAsync(sourceProfile, targetProfile, cancellationToken);
+
             return copy;
         }
         catch
@@ -99,7 +107,7 @@ public sealed class InstanceManager(IInstanceRepository repository)
     {
         var sourceRoot = Path.GetFullPath(source).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
         var destinationRoot = Path.GetFullPath(destination).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        EnsureDirectoryIsNotReparsePoint(sourceRoot, "No se puede copiar una instancia cuyo gameDirectory es un enlace o junction.");
+        EnsureDirectoryIsNotReparsePoint(sourceRoot, "No se puede copiar una instancia cuyo directorio contiene un enlace o junction.");
         if (Directory.Exists(destinationRoot))
             EnsureDirectoryIsNotReparsePoint(destinationRoot, "El destino de la copia no puede ser un enlace o junction.");
         Directory.CreateDirectory(destinationRoot);
@@ -157,7 +165,7 @@ public sealed class InstanceManager(IInstanceRepository repository)
         var relative = Path.GetRelativePath(root, path);
         if (Path.IsPathRooted(relative) || relative is "." or ".." ||
             relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar).Any(part => part == ".."))
-            throw new InvalidDataException("La copia intenta salir del gameDirectory original.");
+            throw new InvalidDataException("La copia intenta salir del directorio original.");
         return relative;
     }
 
