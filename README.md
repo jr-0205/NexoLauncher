@@ -21,6 +21,10 @@ La rama de estabilización 0.5.2 introduce una arquitectura de almacenamiento ba
 ├── instances\
 │   └── <GUID>\
 │       ├── instance.json
+│       ├── profile\
+│       │   ├── artwork.json
+│       │   ├── icon.*
+│       │   └── background.*
 │       ├── game\
 │       │   ├── mods\
 │       │   ├── config\
@@ -133,8 +137,11 @@ El launcher no modifica automáticamente la configuración gráfica ni instala m
 `src/NexoLauncher.App/UI/` contiene la primera capa del design system de NEXO:
 
 - tokens semánticos de color;
+- marca vectorial propia;
 - estilos reutilizables;
 - estados hover/pressed/focus/disabled;
+- biblioteca con búsqueda, continuación rápida y artwork por perfil;
+- wizard guiado `Información → Versión del juego → Apariencia`;
 - compatibilidad gradual con estilos legacy;
 - primera adaptación responsive del shell principal.
 
@@ -158,6 +165,14 @@ dotnet run --project src/NexoLauncher.App
 ```
 
 El harness imprime dinámicamente el total de checks aprobados.
+
+## Créditos
+
+NEXO Client es creado y mantenido por [jr-0205](https://github.com/jr-0205).
+
+La aplicación incluye en **Configuración → Acerca de NEXO** accesos externos al perfil del creador y a la página oficial de descarga de ChatGPT: <https://chatgpt.com/download/>.
+
+NEXO es un proyecto independiente. No está afiliado, patrocinado ni respaldado por OpenAI, Mojang/Microsoft, Modrinth o Lunar Client. Las marcas y servicios de terceros pertenecen a sus respectivos propietarios.
 
 ## Principios del proyecto
 
