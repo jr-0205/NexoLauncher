@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net.Http;
 using System.Reflection;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
@@ -397,32 +398,26 @@ internal sealed class NexaBridge
 
     private async Task<object> UpdateSettingsAsync(JsonElement payload)
     {
-        var request = Read<UpdateSettingsRequest>(payload);
+        var request = Read<SettingsRequest>(payload);
         var current = await settings.LoadAsync();
-        var username = string.IsNullOrWhiteSpace(request.Username) ? current.Username : request.Username.Trim();
-        var updated = current with
-        {
-            Username = username,
-            CloseLauncherOnGameStart = request.CloseLauncherOnGameStart ?? current.CloseLauncherOnGameStart
-        };
+        var username = Require(request.Username, "El nombre de jugador es obligatorio.").Trim();
+        if (username.Length is < 3 or > 16 || username.Any(character => !char.IsLetterOrDigit(character) && character != '_'))
+            throw new ArgumentException("El nombre de jugador debe tener de 3 a 16 caracteres y usar sólo letras, números o guion bajo.");
+        var updated = current with { Username = username, CloseLauncherOnGameStart = request.CloseLauncherOnGameStart };
         await settings.SaveAsync(updated);
-        var normalized = updated.Normalize();
-        return new { username = normalized.Username, closeLauncherOnGameStart = normalized.CloseLauncherOnGameStart };
+        return new { updated.Username, updated.CloseLauncherOnGameStart };
     }
 
     private async Task EnsureInstalledAsync(MinecraftVersion version, LoaderType loader, string? loaderVersion)
     {
         var loaderId = LoaderId(loader);
         if (minecraft.IsInstalled(version.Id, loaderId, loaderVersion)) return;
-
-        string? installerJava = null;
+        string? java = null;
         if (loader is LoaderType.Forge or LoaderType.NeoForge)
         {
-            var required = await minecraft.GetRequiredJavaMajorAsync(version);
-            installerJava = (await SelectAutomaticJavaAsync(required))?.JavaExecutable
-                ?? throw new InvalidOperationException($"{loader} necesita Java {required?.ToString() ?? "compatible"}, pero NEXA no encontró un runtime válido.");
+            var requiredMajor = await minecraft.GetRequiredJavaMajorAsync(version);
+            java = await ResolveJavaExecutableAsync(null, requiredMajor);
         }
-
         var progress = new Progress<InstallProgress>(value => PostEvent("operation.progress", new
         {
             stage = value.Stage,
@@ -430,7 +425,7 @@ internal sealed class NexaBridge
             total = value.Total,
             percentage = value.Percentage
         }));
-        await minecraft.InstallAsync(new LoaderInstallRequest(version, loaderVersion, installerJava), loaderId, progress);
+        await minecraft.InstallAsync(new LoaderInstallRequest(version, loaderVersion, java), loaderId, progress);
     }
 
     private async Task<MinecraftVersion> ResolveMinecraftVersionAsync(string minecraftVersion)
@@ -438,171 +433,157 @@ internal sealed class NexaBridge
         var id = Require(minecraftVersion, "La versión de Minecraft es obligatoria.");
         var versions = await minecraft.GetReleaseVersionsAsync();
         return versions.FirstOrDefault(version => string.Equals(version.Id, id, StringComparison.Ordinal))
-            ?? throw new InvalidOperationException($"Minecraft {id} ya no aparece en el catálogo oficial de versiones release.");
+            ?? throw new InvalidOperationException($"Minecraft {id} ya no está disponible en el catálogo oficial.");
     }
 
     private async Task<string?> ResolveLoaderVersionAsync(LoaderType loader, string minecraftVersion, string? requested)
     {
         if (loader == LoaderType.Vanilla) return null;
         var available = await minecraft.GetLoaderVersionsAsync(LoaderId(loader), minecraftVersion);
+        if (available.Count == 0) throw new InvalidOperationException($"{loader} no tiene builds disponibles para Minecraft {minecraftVersion}.");
         if (!string.IsNullOrWhiteSpace(requested))
         {
             var exact = available.FirstOrDefault(value => string.Equals(value.Version, requested.Trim(), StringComparison.Ordinal));
-            if (exact is null) throw new InvalidOperationException($"La versión {requested} de {loader} no es compatible con Minecraft {minecraftVersion}.");
-            return exact.Version;
+            if (exact is not null) return exact.Version;
+            throw new InvalidOperationException($"La versión {requested} de {loader} ya no está disponible para Minecraft {minecraftVersion}.");
         }
-        return available.FirstOrDefault(value => value.Stable)?.Version
-               ?? available.FirstOrDefault()?.Version
-               ?? throw new InvalidOperationException($"{loader} no tiene builds compatibles con Minecraft {minecraftVersion}.");
+        return (available.FirstOrDefault(value => value.Stable) ?? available[0]).Version;
     }
 
-    private async Task<string> ResolveJavaExecutableAsync(GameInstance profile, int? requiredMajor)
+    private async Task<string> ResolveJavaExecutableAsync(GameInstance? profile, int? requiredMajor)
     {
-        if (!string.IsNullOrWhiteSpace(profile.Settings.JavaPath))
+        if (!string.IsNullOrWhiteSpace(profile?.Settings.JavaPath))
         {
-            if (!File.Exists(profile.Settings.JavaPath)) throw new FileNotFoundException("El Java configurado para este perfil ya no existe.", profile.Settings.JavaPath);
-            var inspected = await javaInspector.InspectAsync(profile.Settings.JavaPath, "Profile override");
-            if (inspected is null) throw new InvalidOperationException("El Java configurado para este perfil no se pudo validar.");
-            if (requiredMajor is > 0 && inspected.MajorVersion != requiredMajor.Value)
-                throw new InvalidOperationException($"Este perfil necesita Java {requiredMajor}, pero su override usa Java {inspected.MajorVersion}.");
-            return inspected.JavaExecutable;
+            var inspected = await javaInspector.InspectAsync(profile.Settings.JavaPath, "Instance override");
+            if (inspected is not null && (requiredMajor is null || inspected.MajorVersion == requiredMajor)) return inspected.JavaExecutable;
         }
-
-        return (await SelectAutomaticJavaAsync(requiredMajor))?.JavaExecutable
-               ?? throw new InvalidOperationException($"NEXA no encontró Java {requiredMajor?.ToString() ?? "compatible"} para este perfil.");
-    }
-
-    private async Task<JavaRuntime?> SelectAutomaticJavaAsync(int? requiredMajor)
-    {
-        var runtimes = await javaDetector.DetectAsync();
-        return JavaRuntimeSelector.Select(runtimes, requiredMajor);
+        var detected = await javaDetector.DetectAsync();
+        return JavaRuntimeSelector.Select(detected, requiredMajor)?.JavaExecutable
+            ?? throw new InvalidOperationException(requiredMajor is null
+                ? "NEXA no encontró un runtime Java compatible."
+                : $"NEXA necesita Java {requiredMajor}, pero no encontró un runtime compatible.");
     }
 
     private object ProfileDto(GameInstance profile)
     {
-        string? icon = null;
-        string? background = null;
-        try
-        {
-            var root = instances.GetInstanceDirectory(profile.Id);
-            icon = ArtworkDataUri(root, profile.IconPath);
-            background = ArtworkDataUri(root, profile.BackgroundPath);
-        }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
-        {
-            _ = exception;
-        }
-
+        var root = instances.GetInstanceDirectory(profile.Id);
         return new
         {
             id = profile.Id.ToString(),
-            profile.Name,
-            profile.Description,
-            profile.MinecraftVersion,
+            name = profile.Name,
+            description = profile.Description,
+            minecraftVersion = profile.MinecraftVersion,
             loader = profile.Loader.ToString(),
-            profile.LoaderVersion,
-            profile.LastPlayedAt,
+            loaderVersion = profile.LoaderVersion,
             memoryMiB = profile.Settings.MemoryMiB,
-            iconDataUrl = icon,
-            backgroundDataUrl = background
+            createdAt = profile.CreatedAt,
+            updatedAt = profile.UpdatedAt,
+            lastPlayedAt = profile.LastPlayedAt,
+            iconDataUrl = ReadArtworkDataUrl(root, profile.IconPath),
+            backgroundDataUrl = ReadArtworkDataUrl(root, profile.BackgroundPath)
         };
     }
 
     private object? ActiveLaunchState()
     {
-        if (activeLaunch is null || activeLaunch.Process.HasExited) return null;
-        return new
-        {
-            profileId = activeLaunchProfileId?.ToString(),
-            pid = activeLaunch.Process.Id,
-            logPath = activeLaunch.LogPath
-        };
+        if (activeLaunch is null || activeLaunchProfileId is null || activeLaunch.Process.HasExited) return null;
+        return new { profileId = activeLaunchProfileId.Value.ToString(), pid = activeLaunch.Process.Id, logPath = activeLaunch.LogPath };
     }
 
-    private string SaveArtwork(string instanceRoot, string slot, string dataUrl)
+    private string? SaveArtwork(string root, string kind, string dataUrl)
     {
-        var (extension, bytes) = DecodeArtwork(dataUrl);
-        var root = Path.GetFullPath(instanceRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        var profileDirectory = Path.Combine(root, "profile");
-        Directory.CreateDirectory(profileDirectory);
-        if (new DirectoryInfo(profileDirectory).Attributes.HasFlag(FileAttributes.ReparsePoint))
-            throw new InvalidDataException("La carpeta de apariencia del perfil no puede ser un enlace o junction.");
-
-        foreach (var previous in Directory.EnumerateFiles(profileDirectory, slot + ".*", SearchOption.TopDirectoryOnly))
-        {
-            var info = new FileInfo(previous);
-            if (info.Attributes.HasFlag(FileAttributes.ReparsePoint)) throw new InvalidDataException("NEXA no reemplaza artwork enlazado.");
-            File.Delete(previous);
-        }
-
-        var destination = Path.Combine(profileDirectory, slot + extension);
-        var temporary = destination + ".tmp";
-        File.WriteAllBytes(temporary, bytes);
-        File.Move(temporary, destination, true);
-        return Path.GetRelativePath(root, destination).Replace(Path.DirectorySeparatorChar, '/');
-    }
-
-    private static (string Extension, byte[] Bytes) DecodeArtwork(string dataUrl)
-    {
-        if (string.IsNullOrWhiteSpace(dataUrl) || !dataUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("La imagen enviada no tiene un formato válido.");
         var comma = dataUrl.IndexOf(',');
-        if (comma <= 0 || !dataUrl[..comma].EndsWith(";base64", StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("La imagen debe enviarse como base64.");
-        var mime = dataUrl[5..comma].Split(';')[0].ToLowerInvariant();
+        if (comma <= 5 || !dataUrl.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("La imagen no tiene un formato válido.");
+        var media = dataUrl[..comma];
+        if (!media.EndsWith(";base64", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("La imagen debe recibirse en base64.");
+        var mime = media["data:".Length..^";base64".Length].ToLowerInvariant();
         var extension = mime switch
         {
             "image/png" => ".png",
             "image/jpeg" => ".jpg",
             "image/webp" => ".webp",
-            "image/bmp" => ".bmp",
-            _ => throw new InvalidDataException("Formato de imagen no compatible. Usa PNG, JPG, WEBP o BMP.")
+            _ => throw new InvalidDataException("NEXA sólo admite PNG, JPG o WebP para el perfil.")
         };
         byte[] bytes;
         try { bytes = Convert.FromBase64String(dataUrl[(comma + 1)..]); }
-        catch (FormatException exception) { throw new InvalidDataException("La imagen base64 está dañada.", exception); }
-        if (bytes.Length is <= 0 || bytes.Length > MaxArtworkBytes)
-            throw new InvalidDataException("La imagen debe pesar entre 1 byte y 8 MB.");
-        return (extension, bytes);
+        catch (FormatException exception) { throw new InvalidDataException("La imagen está dañada.", exception); }
+        if (bytes.Length is < 1 or > MaxArtworkBytes) throw new InvalidDataException("La imagen debe pesar entre 1 byte y 8 MB.");
+        var profileDirectory = SafeChild(root, "profile");
+        Directory.CreateDirectory(profileDirectory);
+        var relative = Path.Combine("profile", $"{kind}{extension}");
+        var destination = SafeChild(root, relative);
+        var temporary = destination + ".tmp-" + Guid.NewGuid().ToString("N");
+        File.WriteAllBytes(temporary, bytes);
+        File.Move(temporary, destination, true);
+        return relative.Replace(Path.DirectorySeparatorChar, '/');
     }
 
-    private static void DeleteArtwork(string instanceRoot, string? relativePath)
+    private static void DeleteArtwork(string root, string? relative)
     {
-        if (string.IsNullOrWhiteSpace(relativePath)) return;
-        var root = Path.GetFullPath(instanceRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        var candidate = Path.GetFullPath(Path.Combine(instanceRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
-        if (!candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("La ruta del artwork intenta salir del perfil.");
-        if (!File.Exists(candidate)) return;
-        var info = new FileInfo(candidate);
-        if (info.Attributes.HasFlag(FileAttributes.ReparsePoint)) throw new InvalidDataException("NEXA no elimina artwork enlazado.");
-        File.Delete(candidate);
+        if (string.IsNullOrWhiteSpace(relative)) return;
+        var path = SafeChild(root, relative.Replace('/', Path.DirectorySeparatorChar));
+        if (!File.Exists(path)) return;
+        var info = new FileInfo(path);
+        if (info.Attributes.HasFlag(FileAttributes.ReparsePoint)) throw new InvalidDataException("NEXA no modifica archivos de apariencia enlazados.");
+        File.Delete(path);
     }
 
-    private static string? ArtworkDataUri(string instanceRoot, string? relativePath)
+    private static string? ReadArtworkDataUrl(string root, string? relative)
     {
-        if (string.IsNullOrWhiteSpace(relativePath)) return null;
-        var root = Path.GetFullPath(instanceRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        var candidate = Path.GetFullPath(Path.Combine(instanceRoot, relativePath.Replace('/', Path.DirectorySeparatorChar)));
-        if (!candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(candidate)) return null;
-        var file = new FileInfo(candidate);
-        if (file.Length <= 0 || file.Length > MaxArtworkBytes || file.Attributes.HasFlag(FileAttributes.ReparsePoint)) return null;
-        var mime = Path.GetExtension(candidate).ToLowerInvariant() switch
+        if (string.IsNullOrWhiteSpace(relative)) return null;
+        try
         {
-            ".png" => "image/png",
-            ".jpg" or ".jpeg" => "image/jpeg",
-            ".webp" => "image/webp",
-            ".bmp" => "image/bmp",
-            _ => null
-        };
-        return mime is null ? null : $"data:{mime};base64,{Convert.ToBase64String(File.ReadAllBytes(candidate))}";
+            var path = SafeChild(root, relative.Replace('/', Path.DirectorySeparatorChar));
+            if (!File.Exists(path)) return null;
+            var info = new FileInfo(path);
+            if (info.Length > MaxArtworkBytes || info.Attributes.HasFlag(FileAttributes.ReparsePoint)) return null;
+            var mime = Path.GetExtension(path).ToLowerInvariant() switch
+            {
+                ".png" => "image/png",
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".webp" => "image/webp",
+                _ => null
+            };
+            return mime is null ? null : $"data:{mime};base64,{Convert.ToBase64String(File.ReadAllBytes(path))}";
+        }
+        catch (IOException) { return null; }
+        catch (UnauthorizedAccessException) { return null; }
+        catch (InvalidDataException) { return null; }
     }
 
-    private static LoaderType ParseLoader(string value)
+    private static string SafeChild(string root, string relative)
     {
-        if (!Enum.TryParse<LoaderType>(Require(value, "El loader es obligatorio."), true, out var loader) || loader == LoaderType.Quilt)
-            throw new InvalidOperationException("Loader no compatible. Usa Vanilla, Fabric, Forge o NeoForge.");
-        return loader;
+        var normalizedRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var candidate = Path.GetFullPath(Path.Combine(normalizedRoot, relative));
+        var prefix = normalizedRoot + Path.DirectorySeparatorChar;
+        if (!candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("La ruta intenta salir del perfil.");
+        return candidate;
     }
+
+    private static string NormalizeName(string? value)
+    {
+        var name = Require(value, "El nombre del perfil es obligatorio.").Trim();
+        if (name.Length is < 1 or > 64) throw new ArgumentException("El nombre del perfil debe tener entre 1 y 64 caracteres.");
+        return name;
+    }
+
+    private static string NormalizeDescription(string? value)
+    {
+        var description = value?.Trim() ?? string.Empty;
+        if (description.Length > MaxDescriptionLength) throw new ArgumentException($"La descripción no puede superar {MaxDescriptionLength} caracteres.");
+        return description;
+    }
+
+    private static LoaderType ParseLoader(string value) => value.Trim().ToLowerInvariant() switch
+    {
+        "vanilla" => LoaderType.Vanilla,
+        "fabric" => LoaderType.Fabric,
+        "forge" => LoaderType.Forge,
+        "neoforge" => LoaderType.NeoForge,
+        _ => throw new NotSupportedException($"El loader '{value}' todavía no es compatible con NEXA.")
+    };
 
     private static string LoaderId(LoaderType loader) => loader switch
     {
@@ -610,65 +591,42 @@ internal sealed class NexaBridge
         LoaderType.Fabric => "fabric",
         LoaderType.Forge => "forge",
         LoaderType.NeoForge => "neoforge",
-        _ => throw new NotSupportedException($"{loader} todavía no está soportado por NEXA.")
+        _ => throw new NotSupportedException($"El loader {loader} todavía no está disponible en NEXA.")
     };
 
-    private static string NormalizeProjectType(string value)
+    private static string NormalizeProjectType(string? value) => (value ?? "mod").Trim().ToLowerInvariant() switch
     {
-        var normalized = Require(value, "El tipo de contenido es obligatorio.").Trim().ToLowerInvariant();
-        return normalized switch
-        {
-            "mod" => "mod",
-            "resourcepack" => "resourcepack",
-            "shader" => "shader",
-            "datapack" => "datapack",
-            _ => throw new InvalidOperationException("Tipo de contenido no compatible.")
-        };
-    }
+        "mod" => "mod",
+        "resourcepack" => "resourcepack",
+        "shader" => "shader",
+        "datapack" => "datapack",
+        _ => throw new ArgumentException("Tipo de contenido no compatible.")
+    };
 
-    private static string NormalizeName(string? value)
-    {
-        var name = value?.Trim() ?? string.Empty;
-        if (name.Length is < 1 or > 64) throw new InvalidDataException("El nombre del perfil debe tener entre 1 y 64 caracteres.");
-        return name;
-    }
-
-    private static string NormalizeDescription(string? value)
-    {
-        var description = value?.Trim() ?? string.Empty;
-        if (description.Length > MaxDescriptionLength) throw new InvalidDataException($"La descripción no puede superar {MaxDescriptionLength} caracteres.");
-        return description;
-    }
+    private static T Read<T>(JsonElement payload)
+        => payload.ValueKind is JsonValueKind.Undefined or JsonValueKind.Null
+            ? throw new InvalidDataException("La solicitud no contiene datos.")
+            : payload.Deserialize<T>(new JsonSerializerOptions(JsonSerializerDefaults.Web))
+              ?? throw new InvalidDataException("La solicitud no pudo interpretarse.");
 
     private static string Require(string? value, string message)
-        => string.IsNullOrWhiteSpace(value) ? throw new InvalidDataException(message) : value.Trim();
+        => string.IsNullOrWhiteSpace(value) ? throw new ArgumentException(message) : value;
 
-    private T Read<T>(JsonElement payload)
-        => payload.Deserialize<T>(jsonOptions) ?? throw new InvalidDataException("La solicitud no contiene los datos esperados.");
+    private void Post(object response) => webView.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
+    private void PostEvent(string name, object payload) => Post(new BridgeEvent(name, payload));
 
-    private void Post(BridgeResponse response) => webView.PostWebMessageAsJson(JsonSerializer.Serialize(response, jsonOptions));
-
-    private void PostEvent(string name, object payload)
-        => webView.PostWebMessageAsJson(JsonSerializer.Serialize(new BridgeEvent("event", name, payload), jsonOptions));
-
-    private static string ProductVersion()
-    {
-        var assembly = Assembly.GetExecutingAssembly();
-        var informational = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
-        if (!string.IsNullOrWhiteSpace(informational)) return informational.Split('+')[0];
-        return assembly.GetName().Version?.ToString(3) ?? "0.5.2";
-    }
+    private static string ProductVersion() => Assembly.GetExecutingAssembly().GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.5.2";
 
     private sealed record BridgeRequest(string Id, string Method, JsonElement Payload);
     private sealed record BridgeResponse(string Id, bool Ok, object? Result, string? Error);
-    private sealed record BridgeEvent(string Kind, string Name, object Payload);
-    private sealed record ProfileIdRequest(string Id);
+    private sealed record BridgeEvent(string Event, object Payload);
     private sealed record LoaderVersionsRequest(string MinecraftVersion, string Loader);
-    private sealed record CreateProfileRequest(string Name, string? Description, string MinecraftVersion, string Loader, string? LoaderVersion, int? MemoryMiB, string? IconDataUrl, string? BackgroundDataUrl);
+    private sealed record ProfileIdRequest(string Id);
+    private sealed record CreateProfileRequest(string Name, string MinecraftVersion, string Loader, string? LoaderVersion, string? Description, int? MemoryMiB, string? IconDataUrl, string? BackgroundDataUrl);
     private sealed record UpdateProfileRequest(string Id, string Name, string? Description, string? IconDataUrl, string? BackgroundDataUrl, bool RemoveIcon, bool RemoveBackground);
     private sealed record ContentEntryRequest(string Id, InstalledContentEntry Entry);
     private sealed record ContentSearchRequest(string Id, string? Query, string ProjectType);
-    private sealed record ContentInstallRequest(string Id, ContentProjectRequest Project);
-    private sealed record ContentProjectRequest(string Id, string Title, string? Description, string? Author, string ProjectType, string? IconUrl, long Downloads);
-    private sealed record UpdateSettingsRequest(string? Username, bool? CloseLauncherOnGameStart);
+    private sealed record CatalogProjectRequest(string Id, string Title, string? Description, string? Author, string ProjectType, string? IconUrl, long Downloads);
+    private sealed record ContentInstallRequest(string Id, CatalogProjectRequest Project);
+    private sealed record SettingsRequest(string Username, bool CloseLauncherOnGameStart);
 }
