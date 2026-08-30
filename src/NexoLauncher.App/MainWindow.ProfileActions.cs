@@ -25,8 +25,7 @@ public partial class MainWindow
         var boost = new MenuItem
         {
             Header = "NEXO Boost · Equilibrado (recomendado)",
-            ToolTip = "Más FPS conservando gráficos y partículas importantes de combate",
-            InputGestureText = "Right Shift"
+            ToolTip = "Más FPS conservando gráficos y partículas importantes de combate"
         };
         boost.Click += ApplyNexoBoost_Click;
 
@@ -44,11 +43,6 @@ public partial class MainWindow
         menu.Items.Add(removeBoost);
         InstancesList.ContextMenu = menu;
         InstancesList.PreviewKeyDown += InstancesList_CopyShortcut;
-
-        // Right Shift funciona a nivel de ventana para que no dependa de que la lista
-        // tenga el foco. Sólo se activa en Biblioteca con una instancia seleccionada.
-        PreviewKeyDown -= MainWindow_BoostShortcut;
-        PreviewKeyDown += MainWindow_BoostShortcut;
     }
 
     private async void InstancesList_CopyShortcut(object sender, KeyEventArgs e)
@@ -56,16 +50,6 @@ public partial class MainWindow
         if (e.Key != Key.D || (Keyboard.Modifiers & ModifierKeys.Control) == 0) return;
         e.Handled = true;
         await DuplicateSelectedProfileAsync();
-    }
-
-    private async void MainWindow_BoostShortcut(object sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.RightShift || e.IsRepeat) return;
-        if ((Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Alt | ModifierKeys.Windows)) != 0) return;
-        if (LibraryPanel.Visibility != Visibility.Visible || InstancesList.SelectedItem is null) return;
-
-        e.Handled = true;
-        await ApplyNexoBoostAsync();
     }
 
     private async void DuplicateProfile_Click(object sender, RoutedEventArgs e) => await DuplicateSelectedProfileAsync();
@@ -165,7 +149,7 @@ public partial class MainWindow
 
             MessageBox.Show(this,
                 installed + visualInstalled + presetDetails + skipped +
-                "\n\nReinicia Minecraft para aplicar los cambios. Después del primer inicio puedes pulsar Shift derecho otra vez para que NEXO afine el archivo de configuración que Particle Core genere.",
+                "\n\nReinicia Minecraft para aplicar los cambios. Si Particle Core genera configuración nueva, vuelve al launcher y reaplica NEXO Boost Equilibrado desde el menú de la instancia.",
                 "NEXO Boost · Equilibrado",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
