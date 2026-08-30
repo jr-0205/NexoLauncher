@@ -20,6 +20,7 @@ public partial class MainWindow
         MinWidth = 960;
         MinHeight = 640;
         Icon = System.Windows.Application.Current.TryFindResource("Nexo.BrandMark") as ImageSource;
+        Title = "NEXA Client";
         shell.Background = ResourceBrush("Nexo.Background", Brushes.Black);
         shell.ColumnDefinitions[0].Width = new GridLength(84);
 
@@ -61,7 +62,7 @@ public partial class MainWindow
                 Height = 52,
                 Source = System.Windows.Application.Current.TryFindResource("Nexo.BrandMark") as ImageSource,
                 Stretch = Stretch.Uniform,
-                ToolTip = "NEXO Client",
+                ToolTip = "NEXA Client",
                 SnapsToDevicePixels = true,
                 RenderTransformOrigin = new Point(0.5, 0.5)
             });
@@ -93,7 +94,7 @@ public partial class MainWindow
             status.BorderBrush = ResourceBrush("Nexo.Border", Brushes.Transparent);
             status.BorderThickness = new Thickness(1);
             status.CornerRadius = new CornerRadius(11);
-            status.ToolTip = "Estado de NEXO";
+            status.ToolTip = "Estado de NEXA";
             if (status.Child is StackPanel statusStack)
             {
                 statusStack.HorizontalAlignment = HorizontalAlignment.Center;
@@ -130,7 +131,7 @@ public partial class MainWindow
     {
         if (contentHost.RowDefinitions.Count != 0) return;
 
-        contentHost.RowDefinitions.Add(new RowDefinition { Height = new GridLength(54) });
+        contentHost.RowDefinitions.Add(new RowDefinition { Height = new GridLength(62) });
         contentHost.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         foreach (var child in contentHost.Children.Cast<UIElement>().ToArray()) Grid.SetRow(child, 1);
 
@@ -139,10 +140,11 @@ public partial class MainWindow
             Background = new SolidColorBrush(Color.FromRgb(11, 16, 24)),
             BorderBrush = ResourceBrush("Nexo.Border", Brushes.Transparent),
             BorderThickness = new Thickness(0, 0, 0, 1),
-            Padding = new Thickness(24, 0, 22, 0)
+            Padding = new Thickness(24, 0, 18, 0)
         };
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition());
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         bar.Child = grid;
 
@@ -162,6 +164,7 @@ public partial class MainWindow
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(12),
             Padding = new Thickness(11, 6, 11, 6),
+            Margin = new Thickness(0, 0, 10, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
         var statusStack = new StackPanel { Orientation = Orientation.Horizontal };
@@ -186,8 +189,84 @@ public partial class MainWindow
         Grid.SetColumn(statusPill, 1);
         grid.Children.Add(statusPill);
 
+        var userCard = CreateLocalUserCard();
+        Grid.SetColumn(userCard, 2);
+        grid.Children.Add(userCard);
+
         Grid.SetRow(bar, 0);
         contentHost.Children.Add(bar);
+    }
+
+    private FrameworkElement CreateLocalUserCard()
+    {
+        var card = new Border
+        {
+            MinWidth = 178,
+            Height = 46,
+            Background = ResourceBrush("Nexo.SurfaceRaised", new SolidColorBrush(Color.FromRgb(18, 27, 42))),
+            BorderBrush = ResourceBrush("Nexo.BorderStrong", new SolidColorBrush(Color.FromRgb(56, 80, 111))),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Padding = new Thickness(7, 5, 12, 5),
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "Perfil local de NEXA"
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(36) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition());
+        card.Child = grid;
+
+        var avatar = new Border
+        {
+            Width = 32,
+            Height = 32,
+            CornerRadius = new CornerRadius(8),
+            Background = new SolidColorBrush(Color.FromRgb(7, 12, 21)),
+            BorderBrush = ResourceBrush("Nexo.Border", Brushes.Transparent),
+            BorderThickness = new Thickness(1),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        avatar.Child = new Image
+        {
+            Source = System.Windows.Application.Current.TryFindResource("Nexo.BrandMark") as ImageSource,
+            Stretch = Stretch.Uniform,
+            Margin = new Thickness(3),
+            SnapsToDevicePixels = true
+        };
+        grid.Children.Add(avatar);
+
+        var identity = new StackPanel
+        {
+            Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var username = new TextBlock
+        {
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = 125
+        };
+        username.SetBinding(TextBlock.TextProperty, new Binding(nameof(TextBox.Text))
+        {
+            Source = SettingsUsernameBox,
+            Mode = BindingMode.OneWay
+        });
+        identity.Children.Add(username);
+
+        var type = new TextBlock
+        {
+            Text = "Perfil local",
+            FontSize = 9,
+            Margin = new Thickness(0, 1, 0, 0)
+        };
+        type.SetResourceReference(TextBlock.ForegroundProperty, "Nexo.TextMuted");
+        identity.Children.Add(type);
+        Grid.SetColumn(identity, 1);
+        grid.Children.Add(identity);
+
+        return card;
     }
 
     private void ConfigureContentExperience()
