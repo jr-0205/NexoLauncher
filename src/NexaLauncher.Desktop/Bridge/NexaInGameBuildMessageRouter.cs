@@ -1,3 +1,4 @@
+using System.Net.Http;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
 using NexoLauncher.Core.Installation;
