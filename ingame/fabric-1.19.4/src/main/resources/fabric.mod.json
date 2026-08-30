@@ -1,11 +1,5 @@
 {
-  "schemaVersion": 1,
-  "id": "nexo_ingame",
-  "version": "${version}",
-  "name": "NEXA In-Game",
-  "description": "NEXA Control Center, HUD y perfiles de rendimiento.",
-  "authors": ["NEXA"],
-  "environment": "client",
-  "entrypoints": { "client": ["com.nexoclient.ingame.NexoClientMod"] },
-  "depends": { "fabricloader": ">=0.14.0", "minecraft": "~1.19.4", "java": ">=17", "fabric-api": "*" }
+  "schemaVersion":1,"id":"nexo_ingame","version":"${version}","name":"NEXA In-Game","description":"NEXA Control Center para Minecraft 1.19.x.","authors":["NEXA"],"environment":"client",
+  "entrypoints":{"client":["com.nexoclient.ingame.NexaCompatClient"]},
+  "depends":{"fabricloader":">=0.14.0","minecraft":"~1.19.4","java":">=17","fabric-api":"*"}
 }
