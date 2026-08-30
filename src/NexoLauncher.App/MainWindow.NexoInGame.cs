@@ -14,7 +14,11 @@ public partial class MainWindow
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        _ = Dispatcher.InvokeAsync(InitializeNexoInGameButton, DispatcherPriority.Loaded);
+        _ = Dispatcher.InvokeAsync(() =>
+        {
+            InitializeNexoInGameButton();
+            InitializeNexoInGameBuildTools();
+        }, DispatcherPriority.Loaded);
     }
 
     private void InitializeNexoInGameButton()
@@ -81,7 +85,7 @@ public partial class MainWindow
             if (artifact is null)
             {
                 rightShiftButton.Content = "RIGHT SHIFT · BUILD PENDIENTE";
-                rightShiftButton.ToolTip = $"Todavía no hay una build publicada de NEXO In-Game para Minecraft {instance.MinecraftVersion} + {instance.Loader}.";
+                rightShiftButton.ToolTip = $"No hay una build local/publicada para Minecraft {instance.MinecraftVersion} + {instance.Loader}. Genera los JAR desde Configuración > NEXO In-Game Builds.";
                 rightShiftButton.IsEnabled = false;
                 return;
             }
@@ -162,8 +166,8 @@ public partial class MainWindow
             rightShiftButton!.Content = "RIGHT SHIFT · BUILD PENDIENTE";
             rightShiftButton.IsEnabled = false;
             MessageBox.Show(this,
-                $"Todavía no existe un JAR publicado de NEXO In-Game para Minecraft {instance.MinecraftVersion} + {instance.Loader}.\n\n" +
-                "El launcher ya está preparado para instalar artefactos precompilados, pero no intentará descargar Gradle ni compilar código localmente.",
+                $"Todavía no existe un JAR disponible de NEXO In-Game para Minecraft {instance.MinecraftVersion} + {instance.Loader}.\n\n" +
+                "Ve a Configuración > NEXO In-Game Builds y usa GENERAR JARS NEXO IN-GAME. El botón de esta instancia nunca descargará Gradle ni compilará código.",
                 "Build de NEXO In-Game pendiente",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);
@@ -231,7 +235,10 @@ public partial class MainWindow
 
     private NexoInGameArtifactService CreateNexoInGameArtifactService()
     {
-        var localArtifactRoot = FindRepositoryDirectory("artifacts", "nexo-ingame");
+        var generatedRoot = NexoInGameBuildOutputDirectory();
+        var localArtifactRoot = File.Exists(Path.Combine(generatedRoot, "catalog.json"))
+            ? generatedRoot
+            : FindRepositoryDirectory("artifacts", "nexo-ingame");
         return new NexoInGameArtifactService(httpClient, contentCatalog, paths, localArtifactRoot);
     }
 
