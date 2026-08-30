@@ -7,6 +7,7 @@ import "./styles/brand.css";
 import "./styles/interaction.css";
 import "./styles/profile-tools.css";
 import "./styles/build-manager.css";
+import "./styles/build-family.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
