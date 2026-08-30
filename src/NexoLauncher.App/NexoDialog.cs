@@ -34,7 +34,7 @@ internal static class NexoDialog
         var window = new Window
         {
             Owner = owner,
-            Title = title + " · NEXO",
+            Title = title + " · NEXA",
             Width = 560,
             SizeToContent = SizeToContent.Height,
             MaxHeight = 720,
@@ -99,7 +99,7 @@ internal static class NexoDialog
         content.Children.Add(stack);
         stack.Children.Add(new TextBlock
         {
-            Text = kind == NexoDialogKind.Error ? "NEXO · ERROR" : kind == NexoDialogKind.Warning ? "NEXO · ATENCIÓN" : "NEXO",
+            Text = kind == NexoDialogKind.Error ? "NEXA · ERROR" : kind == NexoDialogKind.Warning ? "NEXA · ATENCIÓN" : "NEXA",
             Foreground = new SolidColorBrush(accent),
             FontSize = 9,
             FontWeight = FontWeights.Bold
@@ -172,7 +172,7 @@ internal static class NexoDialog
         footer.Child = footerGrid;
         footerGrid.Children.Add(new TextBlock
         {
-            Text = destructive ? "Esta acción modifica archivos del perfil" : "NEXO Client",
+            Text = destructive ? "Esta acción modifica archivos del perfil" : "NEXA Client",
             Foreground = Brush("Nexo.TextMuted", Color.FromRgb(99, 113, 137)),
             FontSize = 9,
             VerticalAlignment = VerticalAlignment.Center
