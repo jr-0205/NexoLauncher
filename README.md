@@ -1,14 +1,52 @@
-# NEXO Client
+# NEXA Client
 
-NEXO es un launcher nativo de Minecraft Java para Windows construido con C#/.NET 10 y WPF.
+NEXA Client es un launcher nativo de Minecraft Java para Windows, construido sobre .NET 10 con un host WPF/WebView2 y una interfaz React. El proyecto prioriza perfiles aislados, control explícito del contenido instalado y una experiencia rápida sin Electron, anuncios ni telemetría.
 
-El objetivo del proyecto es mantener perfiles completamente aislados, reutilizar de forma segura los recursos pesados compartidos de Minecraft y ofrecer una experiencia de launcher rápida, clara y sin Electron, anuncios, overlays innecesarios ni telemetría.
+## NEXA Client 1.0.0
 
-## Estado: 0.5.2
+**Primera versión instalable pública para Windows x64.**
 
-La rama de estabilización 0.5.2 introduce una arquitectura de almacenamiento basada en identidad GUID, migraciones no destructivas, imports transaccionales, natives por lanzamiento, mejoras de UI y una primera capa de rendimiento para reducir el overhead que NEXO añade al cliente de Minecraft.
+[⬇️ Descargar NEXA Client 1.0.0 para Windows x64](https://github.com/jr-0205/NexoLauncher/releases/download/v1.0.0/NEXA-Client-Setup-1.0.0-win-x64.exe)
 
-## Layout de datos
+El instalador es autocontenido: no requiere que el usuario instale previamente el runtime de .NET. Se genera con `tools/build-installer.ps1` e Inno Setup 6.
+
+> Si GitHub todavía está procesando la primera publicación, abre la sección **Releases** del repositorio y selecciona `NEXA Client 1.0.0`.
+
+## Qué incluye 1.0.0
+
+- perfiles físicamente aislados por GUID;
+- soporte para Vanilla, Fabric, Forge y NeoForge;
+- selección automática de Java según la versión de Minecraft;
+- memoria RAM configurable por perfil con límites seguros;
+- importación de modpacks y gestión de contenido instalado;
+- iconos reales de mods y packs cuando el archivo proporciona metadata compatible;
+- NEXA Boost y presets de rendimiento;
+- NEXA In-Game con compilador v2 y adaptadores por versión;
+- consola/logs en vivo por perfil;
+- artwork configurable por perfil con posición y zoom persistentes;
+- UI React integrada en un host nativo de Windows;
+- branding oficial NEXA integrado en launcher y recursos del cliente;
+- instalador Windows x64 y desinstalación mediante Inno Setup.
+
+## Arquitectura
+
+```text
+NEXA Client
+├── NexaLauncher.Desktop       # Host WPF/WebView2 de Windows
+├── NexaLauncher.UI            # Interfaz React + TypeScript
+├── NexoLauncher.Application   # Casos de uso
+├── NexoLauncher.Domain        # Modelo de dominio
+├── NexoLauncher.Infrastructure
+├── NexoLauncher.Minecraft     # Instalación y lanzamiento de Minecraft
+├── NexoLauncher.Java          # Detección/selección de Java
+└── ingame/                    # NEXA In-Game + Compiler v2
+```
+
+Los nombres internos `NexoLauncher` se conservan temporalmente donde cambiarlos rompería compatibilidad o rutas existentes. El branding visible del producto es **NEXA Client**.
+
+## Datos y perfiles
+
+Los datos de ejecución viven en:
 
 ```text
 %LOCALAPPDATA%\NexoLauncher\
@@ -16,15 +54,11 @@ La rama de estabilización 0.5.2 introduce una arquitectura de almacenamiento ba
 │   ├── assets\
 │   ├── libraries\
 │   ├── versions\
-│   └── runtimes\
-│       └── java\
+│   └── runtimes\java\
 ├── instances\
 │   └── <GUID>\
 │       ├── instance.json
 │       ├── profile\
-│       │   ├── artwork.json
-│       │   ├── icon.*
-│       │   └── background.*
 │       ├── game\
 │       │   ├── mods\
 │       │   ├── config\
@@ -34,166 +68,86 @@ La rama de estabilización 0.5.2 introduce una arquitectura de almacenamiento ba
 │       │   ├── screenshots\
 │       │   ├── logs\
 │       │   └── crash-reports\
-│       ├── runtime\
-│       │   └── natives\
-│       │       └── <launch-id>\
+│       ├── runtime\natives\
 │       └── backups\
 ├── cache\
-├── logs\
-│   └── launcher\
-└── launcher\
+└── logs\launcher\
 ```
 
-La versión de Minecraft no es la identidad de un perfil. Dos perfiles pueden usar la misma versión y el mismo loader sin compartir mods, configuración, mundos, opciones ni natives.
-
-## Manifiesto de instancia
-
-Los perfiles actuales utilizan `schemaVersion: 2` y almacenan únicamente configuración persistente. Rutas derivables como el classpath no se guardan.
-
-Ejemplo reducido:
-
-```json
-{
-  "schemaVersion": 2,
-  "id": "8eddb6217a52483e8ba892017b899a80",
-  "name": "Fabric 1.21",
-  "minecraftVersion": "1.21.1",
-  "loader": {
-    "type": "fabric",
-    "version": "0.16.10"
-  },
-  "java": {
-    "mode": "automatic",
-    "override": null
-  },
-  "memory": {
-    "minMb": 512,
-    "maxMb": 4096
-  },
-  "gameDirectory": "game"
-}
-```
-
-Renombrar una instancia nunca mueve su carpeta física.
-
-## Migración 0.5.1 → 0.5.2
-
-NEXO migra de forma no destructiva:
-
-- `versions`, `libraries`, `assets` y `runtime` antiguos hacia `shared/`;
-- perfiles con rutas legibles `<Loader>/<Nombre>` hacia `instances/<GUID>`;
-- manifiestos anteriores hacia el schema actual con backup;
-- datos `game/` antiguos hacia una nueva instancia aislada cuando corresponde.
-
-Los recursos compartidos existentes nunca se sobrescriben silenciosamente. Un duplicado heredado sólo se elimina automáticamente si su SHA-256 coincide con el recurso ya presente.
+Dos perfiles pueden usar exactamente la misma versión de Minecraft y el mismo loader sin compartir mods, configuraciones, mundos ni otros datos mutables.
 
 ## Minecraft y loaders
 
-Actualmente NEXO integra:
+NEXA puede preparar perfiles para:
 
 - Vanilla;
 - Fabric;
 - Forge;
 - NeoForge.
 
-Las bibliotecas, assets y versiones se comparten. Mods, configs, mundos y demás datos mutables viven dentro de cada instancia.
+Assets, libraries y versiones pesadas pueden compartirse de forma controlada. Los datos que pertenecen al jugador permanecen dentro de cada instancia.
 
-Los natives no se extraen globalmente durante la instalación. Cada lanzamiento obtiene un directorio privado bajo `runtime/natives/<launch-id>` y NEXO limpia directorios abandonados cuando puede demostrar que no pertenecen a un proceso vivo.
+## Contenido
 
-## Contenido y modpacks
+La sección **Contenido** permite inspeccionar y administrar mods, resource packs, shader packs y otros archivos del perfil seleccionado. NEXA intenta leer los iconos incluidos en metadata de Fabric, Quilt, Forge/NeoForge y `pack.png`; cuando no existe un icono válido usa un fallback seguro.
 
-### Modrinth
+Las operaciones destructivas se limitan al perfil seleccionado y requieren confirmación cuando corresponde.
 
-Los `.mrpack` oficiales se importan mediante staging transaccional:
+## NEXA In-Game
 
-1. se valida compatibilidad de Minecraft/loader;
-2. se aplican `overrides` y `client-overrides` en staging;
-3. se descargan archivos remotos por HTTPS;
-4. se valida SHA-512 o SHA-1;
-5. sólo después se publica el contenido sobre `game/`.
+NEXA In-Game es el componente opcional que se ejecuta dentro de Minecraft. El proyecto utiliza un core común y adaptadores específicos por versión. El **Compiler v2** compila en un workspace temporal, delega en Gradle por target, calcula hashes y publica artefactos en el catálogo local antes de que puedan instalarse en un perfil.
 
-Si una descarga o hash falla, el perfil final no queda parcialmente importado.
-
-### CurseForge
-
-NEXO reconoce exports oficiales de CurseForge. Los overrides físicos pueden importarse sin credenciales.
-
-Los archivos remotos requieren una **API key de desarrollador CurseForge**, no las credenciales de inicio de sesión de un usuario. Para desarrollo se admite `CURSEFORGE_API_KEY`. Una integración distribuida debe usar una arquitectura aprobada que no exponga la clave dentro del ejecutable cliente.
-
-## NEXO Performance
-
-La primera fase del módulo de rendimiento está integrada en 0.5.2:
-
-- `Xms` adaptativo según el `Xmx` configurado;
-- tuning conservador de G1 para Java 17+ cuando el perfil no selecciona otro collector;
-- prioridad `AboveNormal` en Windows con fallback seguro;
-- captura de stdout/stderr con buffering y flush periódico en lugar de escribir físicamente cada línea de log;
-- medición del tiempo de preparación de natives, classpath y lanzamiento.
-
-El launcher no modifica automáticamente la configuración gráfica ni instala mods de optimización sin consentimiento. El detalle técnico está en `docs/NEXO-PERFORMANCE.md`.
-
-## UI Quality Module
-
-`src/NexoLauncher.App/UI/` contiene la primera capa del design system de NEXO:
-
-- tokens semánticos de color;
-- marca vectorial propia;
-- estilos reutilizables;
-- estados hover/pressed/focus/disabled;
-- biblioteca con búsqueda, continuación rápida y artwork por perfil;
-- wizard guiado `Información → Versión del juego → Apariencia`;
-- compatibilidad gradual con estilos legacy;
-- primera adaptación responsive del shell principal.
-
-El roadmap visual se documenta en `docs/NEXO-UI-QUALITY.md`.
+Los perfiles nunca ejecutan Gradle directamente durante el lanzamiento de Minecraft.
 
 ## Java
 
-Java se selecciona automáticamente según la versión de Minecraft. NEXO detecta runtimes locales, conserva un cache validado y evita arrancar una versión con un major incompatible.
+Java es automático globalmente. Cada instancia puede definir un override explícito cuando sea necesario. El selector valida el major requerido por la familia de Minecraft y evita utilizar silenciosamente una versión incompatible.
 
-Las instancias pueden definir un override de Java sin convertir ese override en una configuración global obligatoria.
+## Compilar el launcher
 
-## Compilar y ejecutar
-
-Requiere el SDK fijado por `global.json`.
+Requiere el SDK definido por `global.json` y Node.js para la interfaz React.
 
 ```powershell
-dotnet restore NexoLauncher.slnx
+cd src\NexaLauncher.UI
+npm ci
+npm run build
+cd ..\..
+
 dotnet build NexoLauncher.slnx
-dotnet run --project tests/NexoLauncher.Core.Tests
-dotnet run --project src/NexoLauncher.App
+dotnet run --project src\NexaLauncher.Desktop
 ```
 
-El harness imprime dinámicamente el total de checks aprobados.
+## Generar el instalador 1.0.0
 
-## Créditos
+Con Inno Setup 6 instalado:
 
-NEXO Client es creado y mantenido por [jr-0205](https://github.com/jr-0205).
+```powershell
+.\tools\build-installer.ps1 -Configuration Release -Runtime win-x64
+```
 
-La aplicación incluye en **Configuración → Acerca de NEXO** accesos externos al perfil del creador y a la página oficial de descarga de ChatGPT: <https://chatgpt.com/download/>.
+El script:
 
-NEXO es un proyecto independiente. No está afiliado, patrocinado ni respaldado por OpenAI, Mojang/Microsoft, Modrinth o Lunar Client. Las marcas y servicios de terceros pertenecen a sus respectivos propietarios.
+1. restaura y compila React;
+2. ejecuta las pruebas de la solución;
+3. publica `NexaLauncher.Desktop` como aplicación autocontenida `win-x64`;
+4. genera `NEXA-Client-Setup-1.0.0-win-x64.exe` y muestra su SHA-256.
+
+Los outputs locales de publicación e instalador están ignorados por Git. La distribución pública se realiza mediante **GitHub Releases**.
 
 ## Principios del proyecto
 
 - integridad de datos antes que conveniencia;
-- perfiles aislados físicamente por GUID;
-- recursos costosos/imutables compartidos;
+- perfiles aislados físicamente;
+- recursos costosos e inmutables compartidos de forma controlada;
 - operaciones destructivas limitadas al perfil seleccionado;
-- imports y escrituras críticas transaccionales;
+- descargas y escrituras críticas verificadas;
 - migraciones recuperables y no destructivas;
-- rutas críticas resueltas por abstracciones centrales;
 - argumentos de lanzamiento tokenizados;
 - extracción ZIP protegida contra path traversal;
-- ningún merge a `main` durante estabilización sin autorización explícita.
+- sin telemetría, anuncios ni overlays innecesarios.
 
-## Pendiente después de 0.5.2
+## Créditos
 
-Entre las líneas de trabajo posteriores están:
+NEXA Client es creado y mantenido por [jr-0205](https://github.com/jr-0205).
 
-- autenticación Microsoft oficial completa;
-- integración de catálogo CurseForge mediante una arquitectura de credenciales aprobada;
-- reparación integral de instalaciones compartidas dañadas o incompletas;
-- un flujo opcional de optimización por instancia con componentes compatibles por loader/versión;
-- seguir separando responsabilidades del `MainWindow` hacia servicios/view models;
-- decidir la política UI para lanzamientos simultáneos aunque el filesystem ya esté diseñado para aislarlos.
+NEXA es un proyecto independiente. No está afiliado, patrocinado ni respaldado por Mojang/Microsoft, Modrinth, CurseForge, Lunar Client u OpenAI. Las marcas y servicios de terceros pertenecen a sus respectivos propietarios.
