@@ -22,6 +22,7 @@
     <ProjectReference Include="..\NexoLauncher.Infrastructure\NexoLauncher.Infrastructure.csproj" />
     <ProjectReference Include="..\NexoLauncher.Minecraft\NexoLauncher.Minecraft.csproj" />
     <ProjectReference Include="..\NexoLauncher.Java\NexoLauncher.Java.csproj" />
+    <EmbeddedResource Include="Assets\nexa-client.ico.b64" LogicalName="NexaLauncher.Desktop.Assets.nexa-client.ico.b64" />
   </ItemGroup>
 
   <Target Name="CopyNexaUiToOutput" AfterTargets="Build" Condition="Exists('$(NexaUiDist)\index.html')">
