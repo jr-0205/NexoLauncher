@@ -5,6 +5,7 @@ import { defaultArtworkPlacement, type BoostApplyResult, type BoostStatus, type 
 import { ArtworkViewport } from "../components/ArtworkViewport";
 import { NexaDialog } from "../components/NexaDialog";
 import { NexaInGameAction } from "../components/NexaInGameAction";
+import { ProfileLiveConsole } from "../components/ProfileLiveConsole";
 
 type Props = {
   profile: NexaProfile;
@@ -188,6 +189,8 @@ export function ProfileDetailPage({ profile, launching, onLaunch, onContent, onU
           <button className="ghost-button" type="button" onClick={() => openProfileFolder(profile.id).catch((error: Error) => onNotice(error.message, "error"))}><FolderOpen size={16} /> ABRIR CARPETA</button>
         </div>
       </div>
+
+      <ProfileLiveConsole profile={profile} running={launching} onNotice={onNotice} />
 
       {boostOpen && (
         <section className="boost-panel glass-panel">
