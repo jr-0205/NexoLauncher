@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
 using NexoLauncher.Domain.Instances;
+using NexoLauncher.Java.Selection;
 
 namespace NexoLauncher.App;
 
@@ -14,7 +15,7 @@ public partial class MainWindow
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
-        Dispatcher.BeginInvoke(DispatcherPriority.Loaded, InitializeNexoInGameButton);
+        _ = Dispatcher.InvokeAsync(InitializeNexoInGameButton, DispatcherPriority.Loaded);
     }
 
     private void InitializeNexoInGameButton()
@@ -113,17 +114,11 @@ public partial class MainWindow
             return;
         }
 
-        var java21 = javaRuntimes
-            .Where(IsRuntimeUsable)
-            .Where(runtime => runtime.MajorVersion == 21)
-            .OrderByDescending(runtime => runtime.FullVersion, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault();
+        var java21 = JavaRuntimeSelector.Select(javaRuntimes.Where(IsRuntimeUsable).ToArray(), 21);
         if (java21 is null)
         {
             await LoadJavaRuntimesAsync(lifetime.Token, forceRefresh: true);
-            java21 = javaRuntimes
-                .Where(IsRuntimeUsable)
-                .FirstOrDefault(runtime => runtime.MajorVersion == 21);
+            java21 = JavaRuntimeSelector.Select(javaRuntimes.Where(IsRuntimeUsable).ToArray(), 21);
         }
 
         if (java21 is null)
