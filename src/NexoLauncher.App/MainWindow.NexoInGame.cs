@@ -16,9 +16,11 @@ public partial class MainWindow
         base.OnSourceInitialized(e);
         _ = Dispatcher.InvokeAsync(() =>
         {
+            InitializeBrandingAndAbout();
+            InitializeProductionLibraryExperience();
             InitializeProfileWizardEntryPoints();
             InitializeNexoInGameButton();
-            InitializeNexoInGameBuildTools();
+            if (NexoFeatureFlags.DeveloperTools) InitializeNexoInGameBuildTools();
         }, DispatcherPriority.Loaded);
     }
 
