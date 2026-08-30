@@ -104,9 +104,11 @@ public static class NexoUiQualityModule
         if (window.FindName("LibraryPanel") is not Grid library) return;
         library.Margin = compact ? new Thickness(26, 24, 26, 24) : new Thickness(34, 28, 34, 28);
 
+        // El shell de producción inserta "Continuar jugando" entre el header y el body,
+        // por lo que el panel de instancias puede estar en row 1 o row 2.
         var libraryBody = library.Children
             .OfType<Grid>()
-            .FirstOrDefault(grid => Grid.GetRow(grid) == 1 && grid.ColumnDefinitions.Count >= 2);
+            .FirstOrDefault(grid => Grid.GetRow(grid) >= 1 && grid.ColumnDefinitions.Count >= 2);
         if (libraryBody is null) return;
 
         libraryBody.ColumnDefinitions[1].Width = new GridLength(compact ? 315 : 350);
