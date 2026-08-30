@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net.Http;
 using System.Text.Json;
 using Microsoft.Web.WebView2.Core;
@@ -6,6 +7,8 @@ using NexoLauncher.Core.Installation;
 using NexoLauncher.Domain.Instances;
 using NexoLauncher.Infrastructure.Content;
 using NexoLauncher.Infrastructure.Instances;
+using NexoLauncher.Java.Detection;
+using NexoLauncher.Java.Selection;
 
 namespace NexaLauncher.Desktop;
 
@@ -25,6 +28,8 @@ internal sealed class NexaDesktopMessageRouter
     private readonly NexoBoostVisualPackService boostVisual;
     private readonly NexoBoostPresetService boostPreset = new();
     private readonly NexoInGameArtifactService inGame;
+    private readonly NexoInGameBuildService inGameBuilds;
+    private readonly JavaRuntimeDetector javaDetector = new(new JavaRuntimeInspector());
     private readonly SemaphoreSlim mutationLock = new(1, 1);
     private readonly JsonSerializerOptions json = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
@@ -36,7 +41,11 @@ internal sealed class NexaDesktopMessageRouter
         catalog = new ModrinthContentClient(http);
         boost = new NexoBoostService(catalog);
         boostVisual = new NexoBoostVisualPackService(catalog);
-        inGame = new NexoInGameArtifactService(http, catalog, paths, FindDevelopmentArtifactRoot());
+        inGameBuilds = new NexoInGameBuildService(http, paths);
+
+        var developmentRoot = FindDevelopmentArtifactRoot();
+        var localBuildRoot = PrepareLocalBuildArtifactRoot(paths, developmentRoot);
+        inGame = new NexoInGameArtifactService(http, catalog, paths, localBuildRoot);
     }
 
     public async Task<bool> TryHandleAsync(CoreWebView2WebMessageReceivedEventArgs eventArgs)
@@ -65,6 +74,9 @@ internal sealed class NexaDesktopMessageRouter
                 "boost.remove" => await RemoveBoostAsync(request.Payload),
                 "ingame.status" => await InGameStatusAsync(request.Payload),
                 "ingame.install" => await InstallInGameAsync(request.Payload),
+                "ingame.builds.status" => await InGameBuildStatusAsync(),
+                "ingame.builds.generate" => await GenerateInGameBuildsAsync(),
+                "ingame.builds.openFolder" => OpenInGameBuildFolder(),
                 "artwork.list" => await ArtworkListAsync(),
                 "artwork.update" => await UpdateArtworkAsync(request.Payload),
                 _ => throw new NotSupportedException($"El método '{request.Method}' todavía no está disponible en NEXA.")
@@ -307,6 +319,215 @@ internal sealed class NexaDesktopMessageRouter
         }
     }
 
+    private async Task<object> InGameBuildStatusAsync()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        IReadOnlyList<NexoInGameBuildTarget> targets = [];
+        string? sourceError = null;
+        if (repositoryRoot is not null)
+        {
+            try
+            {
+                targets = inGameBuilds.DiscoverTargets(repositoryRoot);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                sourceError = exception.Message;
+            }
+        }
+
+        var localCatalog = await LoadLocalBuildCatalogAsync();
+        var entries = new List<object>();
+        var targetKeys = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var target in targets)
+        {
+            var key = BuildKey(target.MinecraftVersion, target.Loader);
+            targetKeys.Add(key);
+            var artifact = localCatalog?.Artifacts.FirstOrDefault(candidate =>
+                string.Equals(candidate.MinecraftVersion, target.MinecraftVersion, StringComparison.Ordinal) &&
+                string.Equals(candidate.Loader, target.Loader, StringComparison.OrdinalIgnoreCase));
+            entries.Add(BuildEntry(target, artifact));
+        }
+
+        foreach (var artifact in localCatalog?.Artifacts ?? [])
+        {
+            if (targetKeys.Contains(BuildKey(artifact.MinecraftVersion, artifact.Loader))) continue;
+            entries.Add(BuildEntry(null, artifact));
+        }
+
+        var publishedCount = localCatalog?.Artifacts.Count(artifact =>
+            string.Equals(artifact.Status, "published", StringComparison.OrdinalIgnoreCase) &&
+            ArtifactExists(artifact)) ?? 0;
+
+        return new
+        {
+            sourceAvailable = repositoryRoot is not null && sourceError is null,
+            sourceError,
+            repositoryRoot,
+            outputRoot = inGameBuilds.OutputRoot,
+            targetCount = targets.Count,
+            publishedCount,
+            pendingCount = Math.Max(0, targets.Count - publishedCount),
+            targets = targets.Select(target => new
+            {
+                minecraftVersion = target.MinecraftVersion,
+                loader = target.Loader,
+                nexaInGameVersion = target.NexoInGameVersion,
+                javaMajor = target.JavaMajor,
+                gradleVersion = target.GradleVersion,
+                fileName = target.FileName
+            }).ToArray(),
+            builds = entries,
+            lastPublishedAt = localCatalog?.Artifacts
+                .Where(artifact => string.Equals(artifact.Status, "published", StringComparison.OrdinalIgnoreCase))
+                .MaxBy(artifact => artifact.PublishedAt)?.PublishedAt
+        };
+    }
+
+    private async Task<object> GenerateInGameBuildsAsync()
+    {
+        await mutationLock.WaitAsync();
+        try
+        {
+            var repositoryRoot = FindRepositoryRoot()
+                ?? throw new DirectoryNotFoundException("No se encontró el checkout de NexoLauncher con ingame/. El generador sólo está disponible desde una build de desarrollo del repositorio.");
+            var targets = inGameBuilds.DiscoverTargets(repositoryRoot);
+            if (targets.Count == 0)
+                throw new InvalidOperationException("No se encontraron proyectos compilables de NEXA In-Game.");
+
+            PostEvent("operation.progress", new { stage = "Detectando runtimes Java para builds NEXA", completed = 0, total = 0 });
+            var runtimes = await javaDetector.DetectAsync();
+            var requiredMajors = targets.Select(target => target.JavaMajor).Distinct().OrderBy(value => value).ToArray();
+            var javaByMajor = requiredMajors
+                .Select(major => (Major: major, Runtime: JavaRuntimeSelector.Select(runtimes, major)))
+                .Where(item => item.Runtime is not null)
+                .ToDictionary(item => item.Major, item => item.Runtime!.JavaExecutable);
+            var missing = requiredMajors.Where(major => !javaByMajor.ContainsKey(major)).ToArray();
+            if (missing.Length > 0)
+                throw new InvalidOperationException("Falta un runtime para compilar NEXA In-Game: " + string.Join(", ", missing.Select(major => $"Java {major}")) + ".");
+
+            var progress = new Progress<string>(stage =>
+                PostEvent("operation.progress", new { stage, completed = 0, total = 0 }));
+            var result = await inGameBuilds.BuildAllAsync(
+                repositoryRoot,
+                major => javaByMajor.TryGetValue(major, out var executable) ? executable : null,
+                progress);
+
+            var published = result.Artifacts.Count(artifact =>
+                string.Equals(artifact.Status, "published", StringComparison.OrdinalIgnoreCase));
+            PostEvent("operation.progress", new
+            {
+                stage = result.Failures.Count == 0
+                    ? $"NEXA In-Game listo · {published} builds publicadas localmente"
+                    : $"NEXA In-Game · {published} listas, {result.Failures.Count} con error",
+                completed = 1,
+                total = 1,
+                percentage = 100
+            });
+
+            return new
+            {
+                publishedCount = published,
+                failureCount = result.Failures.Count,
+                failures = result.Failures.Select(failure => new
+                {
+                    minecraftVersion = failure.MinecraftVersion,
+                    loader = failure.Loader,
+                    message = failure.Message
+                }).ToArray(),
+                library = await InGameBuildStatusAsync()
+            };
+        }
+        finally
+        {
+            mutationLock.Release();
+        }
+    }
+
+    private object OpenInGameBuildFolder()
+    {
+        Directory.CreateDirectory(inGameBuilds.OutputRoot);
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = "explorer.exe",
+            UseShellExecute = true
+        };
+        startInfo.ArgumentList.Add(inGameBuilds.OutputRoot);
+        Process.Start(startInfo);
+        return new { opened = true, path = inGameBuilds.OutputRoot };
+    }
+
+    private async Task<NexoInGameArtifactCatalog?> LoadLocalBuildCatalogAsync()
+    {
+        var path = Path.Combine(inGameBuilds.OutputRoot, "catalog.json");
+        if (!File.Exists(path)) return null;
+        try
+        {
+            await using var stream = File.OpenRead(path);
+            var value = await JsonSerializer.DeserializeAsync<NexoInGameArtifactCatalog>(stream, json);
+            return value?.SchemaVersion == NexoInGameArtifactService.CatalogSchema ? value : null;
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
+        {
+            return null;
+        }
+    }
+
+    private object BuildEntry(NexoInGameBuildTarget? target, NexoInGameArtifact? artifact)
+    {
+        var relativePath = artifact?.RelativePath;
+        var exists = artifact is not null && ArtifactExists(artifact);
+        var status = artifact is null
+            ? "missing"
+            : string.Equals(artifact.Status, "published", StringComparison.OrdinalIgnoreCase) && !exists
+                ? "missing"
+                : artifact.Status.ToLowerInvariant();
+        long sizeBytes = 0;
+        if (exists && !string.IsNullOrWhiteSpace(relativePath))
+        {
+            try
+            {
+                var path = Path.Combine(inGameBuilds.OutputRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
+                sizeBytes = new FileInfo(path).Length;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException) { }
+        }
+
+        return new
+        {
+            minecraftVersion = target?.MinecraftVersion ?? artifact!.MinecraftVersion,
+            loader = target?.Loader ?? artifact!.Loader,
+            nexaInGameVersion = target?.NexoInGameVersion ?? artifact!.NexoInGameVersion,
+            javaMajor = target?.JavaMajor,
+            gradleVersion = target?.GradleVersion,
+            fileName = artifact?.FileName ?? target?.FileName,
+            relativePath,
+            status,
+            exists,
+            sizeBytes,
+            sha256 = artifact?.Sha256,
+            publishedAt = artifact?.PublishedAt
+        };
+    }
+
+    private bool ArtifactExists(NexoInGameArtifact artifact)
+    {
+        if (string.IsNullOrWhiteSpace(artifact.RelativePath)) return false;
+        try
+        {
+            var root = Path.GetFullPath(inGameBuilds.OutputRoot).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+            var candidate = Path.GetFullPath(Path.Combine(root, artifact.RelativePath.Replace('/', Path.DirectorySeparatorChar)));
+            return candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase) && File.Exists(candidate);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static string BuildKey(string minecraftVersion, string loader) => $"{loader.Trim().ToLowerInvariant()}::{minecraftVersion.Trim()}";
+
     private static string? FindInstalledInGameJar(string gameDirectory)
     {
         var mods = Path.Combine(gameDirectory, "mods");
@@ -316,7 +537,7 @@ internal sealed class NexaDesktopMessageRouter
             .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
     }
 
-    private static string? FindDevelopmentArtifactRoot()
+    private static string? FindRepositoryRoot()
     {
         foreach (var root in new[] { Environment.CurrentDirectory, AppContext.BaseDirectory })
         {
@@ -326,12 +547,37 @@ internal sealed class NexaDesktopMessageRouter
 
             for (var depth = 0; directory is not null && depth < 12; depth++, directory = directory.Parent)
             {
-                var candidate = Path.Combine(directory.FullName, "artifacts", "nexo-ingame");
-                if (File.Exists(Path.Combine(candidate, "catalog.json"))) return candidate;
+                if (!Directory.Exists(Path.Combine(directory.FullName, "ingame"))) continue;
+                if (!File.Exists(Path.Combine(directory.FullName, "artifacts", "nexo-ingame", "catalog.json"))) continue;
+                return directory.FullName;
             }
         }
 
         return null;
+    }
+
+    private static string? FindDevelopmentArtifactRoot()
+    {
+        var repositoryRoot = FindRepositoryRoot();
+        return repositoryRoot is null ? null : Path.Combine(repositoryRoot, "artifacts", "nexo-ingame");
+    }
+
+    private static string PrepareLocalBuildArtifactRoot(NexoPaths paths, string? developmentRoot)
+    {
+        var localRoot = Path.GetFullPath(Path.Combine(paths.Launcher, "nexo-ingame"));
+        var localCatalog = Path.Combine(localRoot, "catalog.json");
+        if (File.Exists(localCatalog) || developmentRoot is null) return localRoot;
+
+        var developmentCatalog = Path.Combine(developmentRoot, "catalog.json");
+        if (!File.Exists(developmentCatalog)) return localRoot;
+        try
+        {
+            Directory.CreateDirectory(localRoot);
+            File.Copy(developmentCatalog, localCatalog, overwrite: false);
+        }
+        catch (IOException) { }
+        catch (UnauthorizedAccessException) { }
+        return localRoot;
     }
 
     private async Task<object> ArtworkListAsync()
