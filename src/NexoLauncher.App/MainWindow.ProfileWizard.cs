@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using NexoLauncher.Domain.Instances;
 using NexoLauncher.Infrastructure.System;
@@ -18,16 +19,52 @@ public partial class MainWindow
         if (profileWizardHooksInitialized) return;
         profileWizardHooksInitialized = true;
 
+        PreviewKeyDown -= MainWindow_PreviewKeyDown;
+        PreviewKeyDown += MainWindow_ProductionPreviewKeyDown;
+
+        foreach (var text in EnumerateVisualChildren<TextBlock>(InstallNavButton))
+        {
+            if (string.Equals(text.Text, "Crear instancia", StringComparison.Ordinal))
+                text.Text = "Crear perfil";
+        }
+
         foreach (var button in EnumerateVisualChildren<Button>(this))
         {
             var label = button.Content as string;
-            if (!ReferenceEquals(button, InstallNavButton) &&
-                !string.Equals(label, "＋  NUEVA INSTANCIA", StringComparison.Ordinal) &&
-                !string.Equals(label, "CREAR INSTANCIA", StringComparison.Ordinal)) continue;
+            var isCreationEntry = ReferenceEquals(button, InstallNavButton) ||
+                                  string.Equals(label, "＋  NUEVA INSTANCIA", StringComparison.Ordinal) ||
+                                  string.Equals(label, "CREAR INSTANCIA", StringComparison.Ordinal);
+            if (!isCreationEntry) continue;
 
             button.Click -= ShowInstall_Click;
             button.Click += OpenProfileWizard_Click;
+            if (string.Equals(label, "＋  NUEVA INSTANCIA", StringComparison.Ordinal)) button.Content = "＋  NUEVO PERFIL";
+            if (string.Equals(label, "CREAR INSTANCIA", StringComparison.Ordinal)) button.Content = "CREAR PERFIL";
+            button.ToolTip = "Crear un perfil aislado de Minecraft";
         }
+    }
+
+    private async void MainWindow_ProductionPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if ((Keyboard.Modifiers & ModifierKeys.Control) == 0) return;
+        switch (e.Key)
+        {
+            case Key.D1:
+                await ShowLibraryAsync();
+                break;
+            case Key.D2:
+                await OpenProfileWizardAsync();
+                break;
+            case Key.D3:
+                await ShowContentAsync();
+                break;
+            case Key.D4:
+                ShowSettings();
+                break;
+            default:
+                return;
+        }
+        e.Handled = true;
     }
 
     private async void OpenProfileWizard_Click(object sender, RoutedEventArgs e) => await OpenProfileWizardAsync();
