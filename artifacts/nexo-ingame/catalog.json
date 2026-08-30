@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "artifacts": [
+    {
+      "minecraftVersion": "1.21.1",
+      "loader": "Fabric",
+      "nexoInGameVersion": "0.1.0",
+      "status": "planned",
+      "fileName": "nexo-ingame-fabric-1.21.1-0.1.0.jar",
+      "relativePath": "0.1.0/fabric/1.21.1/nexo-ingame-fabric-1.21.1-0.1.0.jar",
+      "downloadUrl": null,
+      "sha256": "",
+      "publishedAt": null,
+      "dependencies": [
+        {
+          "source": "modrinth",
+          "projectId": "fabric-api",
+          "projectType": "mod",
+          "detectPattern": "fabric-api*.jar"
+        }
+      ]
+    }
+  ]
+}
