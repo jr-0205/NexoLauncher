@@ -10,6 +10,7 @@ public partial class CreateProfileWizard
     {
         base.OnContentRendered(e);
         Icon = System.Windows.Application.Current.TryFindResource("Nexo.BrandMark") as ImageSource;
+        LoaderVersionBox.DisplayMemberPath = "Version";
 
         VanillaLoader.Checked -= LoaderVisibility_Changed;
         FabricLoader.Checked -= LoaderVisibility_Changed;
